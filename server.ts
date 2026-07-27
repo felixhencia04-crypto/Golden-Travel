@@ -221,35 +221,34 @@ async function startServer() {
       let user;
       try {
         console.log('Searching for user with UID:', decodedToken.uid);
-        // Using raw SQL for the initial check to be as robust as possible
-        const queryResult = await withRetry(() => db.execute(sql`
-          SELECT id, email, name, role, uid 
-          FROM users 
-          WHERE uid = ${decodedToken.uid} 
-          LIMIT 1
-        `));
-        
-        user = queryResult.rows[0] as any;
-        
-        if (user) {
-          console.log('User found in DB:', user.id);
-        } else {
-          console.log('User not found in DB, will attempt creation');
-        }
+        const results = await withRetry(() => db.select().from(schema.users)
+          .where(eq(schema.users.uid, decodedToken.uid))
+          .limit(1));
+        user = results[0];
       } catch (err: any) {
-        console.error('Database lookup error in /sync:', err);
-        throw new Error(`Database error: ${err.message || 'Gagal mencari user'}`);
+        console.warn('Drizzle user lookup failed in /sync, attempting raw pool fallback:', err.message);
+        try {
+          const pool = createPool();
+          const rawRes = await pool.query(
+            'SELECT id, workspace_id, uid, email, name, phone, avatar_url, role, mitra_id, referral_code, created_at, deleted_at FROM users WHERE uid = $1 LIMIT 1',
+            [decodedToken.uid]
+          );
+          user = rawRes.rows[0];
+        } catch (rawErr: any) {
+          console.error('Raw pool user lookup also failed:', rawErr);
+          throw new Error(err.cause?.message || err.message || 'Gagal mencari user di database');
+        }
       }
 
       if (!user) {
         // Create user
-        try {
-          const role = (decodedToken.email === 'felix.hencia04@gmail.com') ? 'admin' : (requestedRole === 'mitra' ? 'mitra' : 'jamaah');
-          const userEmail = decodedToken.email || `${decodedToken.uid}@goldentravel.local`;
-          const userName = requestedName || decodedToken.name || userEmail.split('@')[0];
+        const role = (decodedToken.email === 'felix.hencia04@gmail.com') ? 'admin' : (requestedRole === 'mitra' ? 'mitra' : 'jamaah');
+        const userEmail = decodedToken.email || `${decodedToken.uid}@goldentravel.local`;
+        const userName = requestedName || decodedToken.name || userEmail.split('@')[0];
 
-          console.log('Creating new user:', { email: userEmail, role });
-          
+        console.log('Creating new user:', { email: userEmail, role });
+
+        try {
           const [newUser] = await withRetry(() => db.insert(schema.users).values({
             uid: decodedToken.uid,
             email: userEmail,
@@ -258,20 +257,37 @@ async function startServer() {
           }).returning());
           
           user = newUser;
-          console.log('New user created successfully:', user.id);
+          console.log('New user created successfully:', user?.id);
         } catch (insertErr: any) {
           console.error('Database insert error in /sync:', insertErr);
           
-          // Secondary check: if insert failed because of duplicate email, try to find and update
-          if (insertErr.message?.includes('users_email_unique')) {
+          if (insertErr.message?.includes('users_email_unique') || insertErr.cause?.message?.includes('users_email_unique')) {
             console.log('Email already exists, linking UID...');
-            const [updatedUser] = await withRetry(() => db.update(schema.users)
-              .set({ uid: decodedToken.uid })
-              .where(eq(schema.users.email, decodedToken.email!))
-              .returning());
-            user = updatedUser;
+            try {
+              const [updatedUser] = await withRetry(() => db.update(schema.users)
+                .set({ uid: decodedToken.uid })
+                .where(eq(schema.users.email, userEmail))
+                .returning());
+              user = updatedUser;
+            } catch (updErr: any) {
+              const pool = createPool();
+              const rawUpd = await pool.query(
+                'UPDATE users SET uid = $1 WHERE email = $2 RETURNING *',
+                [decodedToken.uid, userEmail]
+              );
+              user = rawUpd.rows[0];
+            }
           } else {
-            throw new Error(`Gagal membuat user: ${insertErr.message}`);
+            try {
+              const pool = createPool();
+              const rawIns = await pool.query(
+                'INSERT INTO users (uid, email, name, role) VALUES ($1, $2, $3, $4) RETURNING *',
+                [decodedToken.uid, userEmail, userName, role]
+              );
+              user = rawIns.rows[0];
+            } catch (rawInsErr: any) {
+              throw new Error(`Gagal membuat user: ${insertErr.cause?.message || insertErr.message}`);
+            }
           }
         }
       } else if (decodedToken.email === 'felix.hencia04@gmail.com' && user.role !== 'admin') {

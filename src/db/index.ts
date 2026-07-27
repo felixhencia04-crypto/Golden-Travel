@@ -21,28 +21,22 @@ export const createPool = () => {
     const poolConfig: pg.PoolConfig = {
       max: 20,
       connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 30000,
+      idleTimeoutMillis: 10000,
     };
 
     if (process.env.DATABASE_URL) {
-      console.log(`[DB Pool] Using DATABASE_URL (SSL auto-detect)`);
+      console.log(`[DB Pool] Using DATABASE_URL`);
       poolConfig.connectionString = process.env.DATABASE_URL;
       
-      // Auto-detect if SSL is needed. 
-      // In AI Studio environment, we typically DO NOT need SSL for the local proxy.
-      // We only enable it if explicitly requested in the URL or for Railway.
       const needsSSL = process.env.DATABASE_URL.includes('railway.app') || 
                        process.env.DATABASE_URL.includes('sslmode=require');
       
       if (needsSSL) {
-        console.log(`[DB Pool] Enabling SSL (rejectUnauthorized: false)`);
         poolConfig.ssl = { rejectUnauthorized: false };
-      } else {
-        console.log(`[DB Pool] SSL Disabled`);
-        poolConfig.ssl = false;
       }
     } else {
       poolConfig.host = host;
+      poolConfig.port = process.env.SQL_PORT ? parseInt(process.env.SQL_PORT, 10) : 5432;
       poolConfig.user = user;
       poolConfig.password = password;
       poolConfig.database = process.env.SQL_DB_NAME;
