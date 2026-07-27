@@ -141,7 +141,7 @@ async function startServer() {
     io.emit("data_updated", { timestamp: new Date().toISOString() });
   };
 
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   app.use(cors());
   app.use(express.json({ limit: '500mb' }));
@@ -2320,7 +2320,7 @@ async function startServer() {
     });
   }
 
-  httpServer.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(Number(PORT), "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
