@@ -14,9 +14,12 @@ export const createPool = () => {
   if (!global._postgresPool) {
     const user = process.env.SQL_USER || process.env.SQL_ADMIN_USER;
     const password = process.env.SQL_PASSWORD || process.env.SQL_ADMIN_PASSWORD;
+    const host = process.env.SQL_HOST || process.env.PGHOST || '127.0.0.1';
+    const port = process.env.SQL_PORT || process.env.PGPORT || '5432';
+    const dbName = process.env.SQL_DB_NAME || process.env.PGDATABASE;
 
-    const host = process.env.SQL_HOST || '127.0.0.1';
-    console.log(`[DB Pool] Initializing pool with host: ${host}`);
+    console.log(`[DB Pool] Initializing pool: host=${host}, port=${port}, user=${user}, db=${dbName}, DATABASE_URL=${process.env.DATABASE_URL ? 'SET' : 'UNSET'}`);
+    console.log(`[DB Pool] Available SQL Env Vars:`, Object.keys(process.env).filter(k => k.startsWith('SQL') || k.startsWith('PG') || k.includes('DB') || k.includes('DATABASE')));
     
     const poolConfig: pg.PoolConfig = {
       max: 20,
