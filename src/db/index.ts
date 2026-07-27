@@ -27,17 +27,28 @@ export const createPool = () => {
       idleTimeoutMillis: 10000,
     };
 
-    if (process.env.DATABASE_URL) {
+    const rawDbUrl = process.env.DATABASE_URL;
+    const isPlaceholderUrl = rawDbUrl && (
+      rawDbUrl.includes('user:password@host:port') ||
+      rawDbUrl.includes('user:password@') ||
+      rawDbUrl.includes('@host:port')
+    );
+
+    if (rawDbUrl && !isPlaceholderUrl) {
       console.log(`[DB Pool] Using DATABASE_URL`);
-      poolConfig.connectionString = process.env.DATABASE_URL;
+      poolConfig.connectionString = rawDbUrl;
       
-      const needsSSL = process.env.DATABASE_URL.includes('railway.app') || 
-                       process.env.DATABASE_URL.includes('sslmode=require');
+      const needsSSL = rawDbUrl.includes('railway.app') || 
+                       rawDbUrl.includes('sslmode=require') ||
+                       (!rawDbUrl.includes('localhost') && !rawDbUrl.includes('127.0.0.1'));
       
       if (needsSSL) {
         poolConfig.ssl = { rejectUnauthorized: false };
       }
     } else {
+      if (isPlaceholderUrl) {
+        console.warn(`[DB Pool Warning] DATABASE_URL is set to a template placeholder ('${rawDbUrl}'). Falling back to individual host/user/password variables.`);
+      }
       poolConfig.host = host;
       poolConfig.port = process.env.SQL_PORT ? parseInt(process.env.SQL_PORT, 10) : 5432;
       poolConfig.user = user;

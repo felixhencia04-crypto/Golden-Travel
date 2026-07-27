@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
+import fs from "fs";
 import pg from 'pg';
 import { createServer as createViteServer } from "vite";
 import cors from "cors";
@@ -147,29 +148,31 @@ async function startServer() {
   app.use(express.json({ limit: '500mb' }));
   app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
-  // Run lightweight schema auto-migrations
-  try {
-    const healthCheck = await withRetry(() => db.execute(sql`SELECT 1`), 5, 2000);
-    console.log('[DB Status] Database connected successfully at startup.');
-    
-    const adminUser = process.env.SQL_ADMIN_USER || process.env.SQL_USER;
-    const adminPass = process.env.SQL_ADMIN_PASSWORD || process.env.SQL_PASSWORD;
-    if (adminUser && adminPass && process.env.SQL_HOST) {
-      const adminPool = new pg.Pool({
-        host: process.env.SQL_HOST,
-        user: adminUser,
-        password: adminPass,
-        database: process.env.SQL_DB_NAME
-      });
-      await withRetry(() => adminPool.query('ALTER TABLE manifest_keberangkatan ADD COLUMN IF NOT EXISTS pax_manifest jsonb;'));
-      await adminPool.end();
-      console.log('[DB Auto-Migration] Column pax_manifest checked/added successfully.');
-    } else {
-      await withRetry(() => db.execute(sql`ALTER TABLE manifest_keberangkatan ADD COLUMN IF NOT EXISTS pax_manifest jsonb;`));
+  // Run lightweight schema auto-migrations in background (non-blocking for fast HTTP listen)
+  (async () => {
+    try {
+      const healthCheck = await withRetry(() => db.execute(sql`SELECT 1`), 3, 1000);
+      console.log('[DB Status] Database connected successfully at startup.');
+      
+      const adminUser = process.env.SQL_ADMIN_USER || process.env.SQL_USER;
+      const adminPass = process.env.SQL_ADMIN_PASSWORD || process.env.SQL_PASSWORD;
+      if (adminUser && adminPass && process.env.SQL_HOST) {
+        const adminPool = new pg.Pool({
+          host: process.env.SQL_HOST,
+          user: adminUser,
+          password: adminPass,
+          database: process.env.SQL_DB_NAME
+        });
+        await withRetry(() => adminPool.query('ALTER TABLE manifest_keberangkatan ADD COLUMN IF NOT EXISTS pax_manifest jsonb;'));
+        await adminPool.end();
+        console.log('[DB Auto-Migration] Column pax_manifest checked/added successfully.');
+      } else {
+        await withRetry(() => db.execute(sql`ALTER TABLE manifest_keberangkatan ADD COLUMN IF NOT EXISTS pax_manifest jsonb;`));
+      }
+    } catch (err: any) {
+      console.warn('[DB Auto-Migration Warning]:', err.message);
     }
-  } catch (err: any) {
-    console.warn('[DB Auto-Migration Warning]:', err.message);
-  }
+  })();
 
   // API Routes
   app.get("/api/health", async (req, res) => {
@@ -2346,16 +2349,26 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = __dirname;
+    const cwdDist = path.join(process.cwd(), 'dist');
+    const dirDist = __dirname;
+    const distPath = fs.existsSync(path.join(cwdDist, 'index.html')) ? cwdDist : dirDist;
+    
     app.use(express.static(distPath));
     app.get('*all', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      const indexPath = path.join(distPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send('Application build index.html not found.');
+      }
     });
   }
 
   httpServer.listen(Number(PORT), "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("Fatal error starting server:", err);
+});
