@@ -1,0 +1,6 @@
+{
+  "name": "PT Golden Tour Haromain",
+  "description": "Aplikasi layanan travel Haji dan Umroh PT Golden Tour Haromain. Melayani pemesanan jamaah dan pendaftaran mitra.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

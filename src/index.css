@@ -1,0 +1,622 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Poppins:ital,wght@0,400..800;1,400..800&display=swap');
+@import "tailwindcss";
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-button: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-matcha-50: #E6F4EA;
+  --color-matcha-100: #F0F2F0;
+  --color-matcha-200: #E2E8E2;
+  --color-matcha-300: #A2BAA9;
+  --color-matcha-400: #8ba795;
+  --color-matcha-500: #738f7a;
+  --color-matcha-600: #5c7762;
+  --color-matcha-700: #465f4b;
+  --color-matcha-800: #2f4734;
+  --color-matcha-900: #12291C;
+  --color-matcha-950: #132019;
+  
+  --color-gold-50: #fbf8ef;
+  --color-gold-100: #f5eed3;
+  --color-gold-200: #ecdfa8;
+  --color-gold-300: #f0db95;
+  --color-gold-400: #E8C766;
+  --color-gold-500: #D4AF37;
+  --color-gold-600: #c5a02e;
+  --color-gold-700: #8a5921;
+  --color-gold-800: #744823;
+  --color-gold-900: #643c22;
+  --color-gold-950: #382010;
+  
+  --color-gray-900: #222222;
+  
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.12);
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.12), 0 2px 4px -2px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.12), 0 2px 4px -2px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.12), 0 4px 6px -4px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.12);
+  --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+@layer base {
+  body {
+    @apply text-gray-900 bg-matcha-50;
+  }
+}
+
+/* --- EXECUTIVE TOP NAVIGATION --- */
+.mitra-top-nav {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.03); /* Kaca sangat transparan */
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    border-radius: 50px; /* Bentuk kapsul/pil */
+    padding: 6px 6px 6px 20px; /* Padding tidak rata agar tombol kanan pas */
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.mitra-top-nav:hover {
+    border-color: rgba(212, 175, 55, 0.4);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Teks Kembali ke Beranda */
+.nav-back-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #a3b8aa; /* Hijau matcha terang */
+    text-decoration: none;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+.back-arrow {
+    font-size: 1.1rem;
+    transition: transform 0.3s ease;
+}
+
+.nav-back-link:hover {
+    color: #ffffff;
+}
+
+.nav-back-link:hover .back-arrow {
+    transform: translateX(-3px); /* Panah bergerak sedikit saat di-hover */
+}
+
+/* Garis Pemisah */
+.nav-divider {
+    width: 1px;
+    height: 20px;
+    background: rgba(212, 175, 55, 0.3);
+    margin: 0 15px;
+}
+
+/* Tombol Portal Mitra (Solid Gold) */
+.nav-portal-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(45deg, #D4AF37, #AA771C);
+    color: #050a07; /* Teks gelap khas tombol premium */
+    text-decoration: none;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    padding: 10px 24px;
+    border-radius: 40px; /* Mengikuti lengkungan kapsul luar */
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.2);
+}
+
+.portal-icon {
+    font-size: 1rem;
+}
+
+.nav-portal-btn:hover {
+    transform: scale(1.02);
+    box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4);
+}
+
+/* --- EXECUTIVE FOOTER SECTION --- */
+.mitra-footer {
+    background-color: #040906; /* Latar belakang Matcha paling gelap dan pekat */
+    color: #a3b8aa;
+    padding: 5rem 5% 2rem;
+    font-family: 'Inter', sans-serif;
+    border-top: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* Grid 4 Kolom Simetris */
+.footer-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr 0.9fr 1.1fr;
+    gap: 40px;
+    margin-bottom: 4rem;
+}
+
+/* Logo & Brand Area */
+.footer-logo-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.2rem;
+}
+
+.footer-logo-icon {
+    font-size: 2rem;
+    background: rgba(212, 175, 55, 0.1);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    padding: 8px 12px;
+    border-radius: 12px;
+}
+
+.footer-brand-text h3 {
+    font-family: 'Playfair Display', serif;
+    color: #ffffff;
+    font-size: 1.3rem;
+    margin: 0;
+}
+
+.footer-brand-text span {
+    font-size: 0.75rem;
+    color: #D4AF37;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+}
+
+.footer-desc {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #8fa697;
+    margin-bottom: 1.5rem;
+}
+
+/* Kotak Legalitas */
+.footer-legal-box {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 12px 15px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+}
+
+.footer-legal-box strong {
+    color: #ffffff;
+    display: block;
+}
+
+.footer-legal-box span {
+    color: #a3b8aa;
+    display: block;
+}
+
+.footer-legal-box .licence {
+    color: #D4AF37;
+    margin-top: 4px;
+    font-family: monospace;
+}
+
+/* Sosial Media Icons */
+.footer-socials {
+    display: flex;
+    gap: 10px;
+}
+
+.social-icon {
+    width: 38px;
+    height: 38px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.social-icon:hover {
+    background: #D4AF37;
+    border-color: #D4AF37;
+    transform: translateY(-3px);
+}
+
+/* Heading Kolom */
+.footer-col h4 {
+    font-family: 'Playfair Display', serif;
+    color: #D4AF37;
+    font-size: 1.15rem;
+    margin-bottom: 1.5rem;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.15);
+    padding-bottom: 8px;
+}
+
+.footer-col .sub-heading {
+    margin-top: 2rem;
+}
+
+/* Tautan Link */
+.footer-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.footer-links li a {
+    color: #a3b8aa;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.footer-links li a:hover {
+    color: #D4AF37;
+    padding-left: 5px; /* Efek geser kecil saat di-hover */
+}
+
+/* Kontak Informasi List */
+.contact-info-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.contact-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.contact-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.contact-item p {
+    margin: 0;
+    color: #c0d1c6;
+}
+
+.contact-item .note {
+    color: #8fa697;
+    font-size: 0.8rem;
+}
+
+/* Copyright Bar Bawah */
+.footer-bottom {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 2rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #7b8e83;
+}
+
+/* Responsif Mobile */
+@media (max-width: 992px) {
+    .footer-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+    }
+}
+@media (max-width: 600px) {
+    .footer-grid {
+        grid-template-columns: 1fr;
+        gap: 30px;
+    }
+}
+
+/* --- PORTAL TOPBAR / HEADER --- */
+.portal-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(5, 10, 7, 0.85); /* Deep Matcha semi-transparan */
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(212, 175, 55, 0.2); /* Garis emas tipis */
+    padding: 1rem 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    font-family: 'Inter', sans-serif;
+}
+
+/* Sisi Kiri (Menu & Judul) */
+.topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.menu-toggle-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    color: #D4AF37;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+}
+
+.menu-toggle-btn:hover {
+    background: rgba(212, 175, 55, 0.15);
+    border-color: #D4AF37;
+    transform: scale(1.05);
+}
+
+.page-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    color: #ffffff;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+/* Sisi Kanan (Greeting & Notifikasi) */
+.topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.user-greeting {
+    color: #a3b8aa;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.notification-btn {
+    position: relative;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    color: #D4AF37;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.3s ease;
+}
+
+.notification-btn:hover {
+    background: rgba(212, 175, 55, 0.15);
+    border-color: #D4AF37;
+    transform: scale(1.05);
+}
+
+/* Titik Merah Notifikasi Berpendar */
+.notif-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 8px;
+    height: 8px;
+    background-color: #ff4d4d;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #ff4d4d;
+}
+
+/* Responsif Mobile */
+@media (max-width: 768px) {
+    .portal-topbar { padding: 0.8rem 1rem; }
+    .user-greeting { display: none; } /* Menyembunyikan sapaan di HP agar tidak sempit */
+    .page-title { font-size: 1.3rem; }
+}
+
+
+/* --- AREA TINDAKAN DIPERLUKAN (TERANG / LIGHT MODE) --- */
+.portal-alert-section {
+    padding: 2rem 0;
+    font-family: 'Inter', sans-serif;
+}
+
+/* Header Section */
+.alert-header-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+}
+
+.alert-pulse-icon {
+    width: 28px;
+    height: 28px;
+    background: rgba(212, 175, 55, 0.15);
+    border: 1px solid #D4AF37;
+    color: #b58d20;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 0.9rem;
+    font-weight: bold;
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+    animation: pulseGoldLight 2s infinite;
+}
+
+@keyframes pulseGoldLight {
+    0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.3); }
+    70% { box-shadow: 0 0 0 8px rgba(212, 175, 55, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+}
+
+.alert-section-title {
+    color: #5c7063;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin: 0;
+}
+
+/* Layout Grid untuk Kartu (Ini yang membuat kotak-kotak menyamping) */
+.alert-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+/* Style Dasar Kartu Alert (Terang) */
+.alert-card {
+    display: flex;
+    gap: 16px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+}
+
+.alert-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}
+
+/* Icon Box di dalam Kartu */
+.alert-icon-box {
+    flex-shrink: 0;
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.2rem;
+}
+
+/* Konten Teks */
+.alert-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.alert-content h3 {
+    color: #102116;
+    font-size: 1.1rem;
+    margin: 0 0 6px 0;
+    font-weight: 700;
+}
+
+.alert-content p {
+    color: #4a5b50;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin: 0 0 15px 0;
+}
+
+.alert-action-btn {
+    align-self: flex-start;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.alert-action-btn span {
+    transition: transform 0.3s ease;
+}
+
+.alert-action-btn:hover span {
+    transform: translateX(4px);
+}
+
+/* --- VARIAN WARNA INDIKATOR --- */
+/* 1. KRITIKAL (Merah) */
+.alert-critical {
+    border-left: 4px solid #e53e3e;
+    background: linear-gradient(90deg, rgba(229, 62, 62, 0.05) 0%, rgba(255,255,255,1) 60%);
+}
+.alert-critical .alert-icon-box {
+    background: rgba(229, 62, 62, 0.1);
+    color: #e53e3e;
+}
+.alert-critical .alert-action-btn { color: #e53e3e; }
+
+/* 2. WARNING / PEMBAYARAN (Emas) */
+.alert-warning {
+    border-left: 4px solid #D4AF37;
+    background: linear-gradient(90deg, rgba(212, 175, 55, 0.08) 0%, rgba(255,255,255,1) 60%);
+}
+.alert-warning .alert-icon-box {
+    background: rgba(212, 175, 55, 0.15);
+    color: #b58d20;
+}
+.alert-warning .alert-action-btn { color: #b58d20; }
+
+/* 3. INFO / DOKUMEN (Biru) */
+.alert-info {
+    border-left: 4px solid #3182ce;
+    background: linear-gradient(90deg, rgba(49, 130, 206, 0.05) 0%, rgba(255,255,255,1) 60%);
+}
+.alert-info .alert-icon-box {
+    background: rgba(49, 130, 206, 0.1);
+    color: #3182ce;
+}
+.alert-info .alert-action-btn { color: #3182ce; }
+
+/* Responsif Mobile */
+@media (max-width: 600px) {
+    .alert-grid { grid-template-columns: 1fr; }
+    .alert-card { padding: 15px; flex-direction: column; gap: 10px; }
+    .alert-icon-box { width: 35px; height: 35px; font-size: 1rem; }
+}
+
+/* 4. SUCCESS / SELESAI (Hijau) */
+.alert-success {
+    border-left: 4px solid #48bb78; /* Hijau solid */
+    background: linear-gradient(90deg, rgba(72, 187, 120, 0.05) 0%, rgba(255,255,255,1) 60%);
+}
+.alert-success .alert-icon-box {
+    background: rgba(72, 187, 120, 0.1);
+    color: #48bb78;
+}
+
+/* Gaya opsional untuk kartu yang sudah selesai */
+.completed-card {
+    opacity: 0.85;
+}
+.completed-card .alert-content h3 {
+    color: #2f855a; /* Hijau lebih gelap */
+}
+.completed-card .alert-content p {
+    color: #4a5b50;
+}
