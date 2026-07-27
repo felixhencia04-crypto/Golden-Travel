@@ -39,9 +39,7 @@ export const createPool = () => {
       poolConfig.connectionString = rawDbUrl;
       
       const disableSSL = rawDbUrl.includes('sslmode=disable') || rawDbUrl.includes('ssl=false');
-      const forceSSL = rawDbUrl.includes('railway.app') || 
-                       rawDbUrl.includes('sslmode=require') ||
-                       rawDbUrl.includes('ssl=true');
+      const forceSSL = rawDbUrl.includes('sslmode=require') || rawDbUrl.includes('ssl=true');
       
       if (forceSSL && !disableSSL) {
         poolConfig.ssl = { rejectUnauthorized: false };
