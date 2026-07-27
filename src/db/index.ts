@@ -19,18 +19,22 @@ export const createPool = () => {
     console.log(`[DB Pool] Initializing pool with host: ${host}`);
     
     const poolConfig: pg.PoolConfig = {
-      max: 25,
+      max: 20,
       connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 30000,
-      ssl: false,
     };
 
     if (process.env.DATABASE_URL) {
+      console.log(`[DB Pool] Using DATABASE_URL`);
       poolConfig.connectionString = process.env.DATABASE_URL;
-      // Many cloud providers (like Railway/Heroku) need SSL for DATABASE_URL
-      // However, AI Studio's internal Cloud SQL connection usually doesn't.
-      // We only apply SSL if explicitly requested in the URL or for Railway.
-      if (process.env.DATABASE_URL.includes('railway.app') || process.env.DATABASE_URL.includes('sslmode=require')) {
+      
+      // Auto-detect if SSL is needed based on provider or URL params
+      const needsSSL = process.env.DATABASE_URL.includes('railway.app') || 
+                       process.env.DATABASE_URL.includes('sslmode=require') ||
+                       (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL.includes('localhost') && !process.env.DATABASE_URL.includes('127.0.0.1'));
+      
+      if (needsSSL) {
+        console.log(`[DB Pool] Enabling SSL (rejectUnauthorized: false)`);
         poolConfig.ssl = { rejectUnauthorized: false };
       }
     } else {

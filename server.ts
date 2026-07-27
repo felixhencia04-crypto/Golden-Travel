@@ -220,16 +220,13 @@ async function startServer() {
       
       let user;
       try {
-        const queryResult = await withRetry(() => db.execute(sql`
-          SELECT id, workspace_id, uid, email, name, phone, avatar_url, role, mitra_id, referral_code, created_at, deleted_at 
-          FROM users 
-          WHERE uid = ${decodedToken.uid} 
-          LIMIT 1
-        `));
-        user = queryResult.rows[0] as any;
+        const results = await withRetry(() => db.select().from(schema.users)
+          .where(eq(schema.users.uid, decodedToken.uid))
+          .limit(1));
+        user = results[0];
       } catch (err: any) {
-        console.error('Database query failed in /sync:', err);
-        throw err;
+        console.error('Database user lookup failed in /sync:', err);
+        throw new Error(`Gagal mencari user di database: ${err.message}`);
       }
 
       if (!user) {
