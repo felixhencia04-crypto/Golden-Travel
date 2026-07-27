@@ -215,6 +215,22 @@ async function startServer() {
     const { role: requestedRole, name: requestedName } = req.body;
     try {
       console.log('Verifying token in /sync:', idToken.substring(0, 50));
+      console.log('DB Config:', { 
+        hasUrl: !!process.env.DATABASE_URL, 
+        host: process.env.SQL_HOST, 
+        db: process.env.SQL_DB_NAME,
+        user: process.env.SQL_USER || process.env.SQL_ADMIN_USER
+      });
+      
+      // Test DB connection
+      try {
+        await withRetry(() => db.execute(sql`SELECT 1`));
+        console.log('DB Connection Test: SUCCESS');
+      } catch (dbErr: any) {
+        console.error('DB Connection Test: FAILED', dbErr.message);
+        throw new Error(`Koneksi database gagal: ${dbErr.message}`);
+      }
+
       // log header of jwt
       const parts = idToken.split('.');
       if (parts.length > 0) {
@@ -239,40 +255,73 @@ async function startServer() {
       
       let user;
       try {
-        user = await withRetry(() => db.query.users.findFirst({
-          where: eq(schema.users.uid, decodedToken.uid),
-        }));
+        console.log('Searching for user with UID:', decodedToken.uid);
+        const queryResult = await withRetry(() => db.execute(sql`
+          SELECT id, workspace_id, uid, email, name, phone, avatar_url, role, mitra_id, referral_code, created_at, deleted_at 
+          FROM users 
+          WHERE uid = ${decodedToken.uid} 
+          LIMIT 1
+        `));
+        user = queryResult.rows[0] as any;
+        if (user) console.log('User found:', user.id);
+        else console.log('User not found, will create.');
       } catch (err: any) {
-        console.error('Database query failed in /sync after retries:', err.message);
+        console.error('Raw database select failed in /sync:', err);
         throw err;
       }
 
       if (!user) {
         // Create user
-        // Only allow 'jamaah' or 'mitra' during sync. 'admin' must be manually set in DB.
         let role = (requestedRole === 'mitra') ? 'mitra' : 'jamaah';
         if (decodedToken.email === 'felix.hencia04@gmail.com') {
           role = 'admin';
         }
 
-        const [newUser] = await withRetry(() => db.insert(schema.users).values({
-          uid: decodedToken.uid,
-          email: decodedToken.email || `${decodedToken.uid}@goldentravel.local`,
-          name: requestedName || decodedToken.name || (decodedToken.email ? decodedToken.email.split('@')[0] : 'User'),
-          role: role as any,
-        }).returning());
-        user = newUser;
+        try {
+          const userEmail = decodedToken.email || `${decodedToken.uid}@goldentravel.local`;
+          const userName = requestedName || decodedToken.name || (decodedToken.email ? decodedToken.email.split('@')[0] : 'User');
+          
+          console.log('Inserting new user:', { email: userEmail, role });
+          
+          const [newUser] = await withRetry(() => db.insert(schema.users).values({
+            uid: decodedToken.uid,
+            email: userEmail,
+            name: userName,
+            role: role as any,
+          }).returning());
+          user = newUser;
+          console.log('New user created:', user.id);
+        } catch (err: any) {
+          console.error('Database insert failed in /sync:', err);
+          // Check if email already exists
+          if (err.message?.includes('users_email_unique')) {
+             console.log('User with this email already exists, linking UID...');
+             const [updatedUser] = await withRetry(() => db.update(schema.users)
+               .set({ uid: decodedToken.uid })
+               .where(eq(schema.users.email, decodedToken.email!))
+               .returning());
+             user = updatedUser;
+          } else {
+            throw err;
+          }
+        }
       } else if (decodedToken.email === 'felix.hencia04@gmail.com' && user.role !== 'admin') {
-        const [updatedUser] = await withRetry(() => db.update(schema.users)
-          .set({ role: 'admin' })
-          .where(eq(schema.users.id, user.id))
-          .returning());
-        user = updatedUser;
+        try {
+          console.log('Promoting user to admin:', user.id);
+          const [updatedUser] = await withRetry(() => db.update(schema.users)
+            .set({ role: 'admin' })
+            .where(eq(schema.users.id, user.id))
+            .returning());
+          user = updatedUser;
+        } catch (err: any) {
+          console.error('Database update failed in /sync:', err);
+          throw err;
+        }
       }
 
       res.json(user);
     } catch (error: any) {
-      console.error("Sync error details:", error);
+      console.error("Sync error details full object:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
       res.status(401).json({ error: `Gagal sinkronisasi: ${error.message || 'Token tidak valid'}` });
     }
   });
