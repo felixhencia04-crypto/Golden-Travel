@@ -18,16 +18,27 @@ export const createPool = () => {
     const host = process.env.SQL_HOST || '127.0.0.1';
     console.log(`[DB Pool] Initializing pool with host: ${host}`);
     
-    global._postgresPool = new Pool({
-      host: host,
-      user: user,
-      password: password,
-      database: process.env.SQL_DB_NAME,
-      max: 25, // More connections for polling dashboard
+    const poolConfig: pg.PoolConfig = {
+      max: 25,
       connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 30000, // Longer idle timeout
+      idleTimeoutMillis: 30000,
       ssl: false,
-    });
+    };
+
+    if (process.env.DATABASE_URL) {
+      poolConfig.connectionString = process.env.DATABASE_URL;
+      // Many cloud providers (like Railway/Heroku) need SSL for DATABASE_URL
+      if (process.env.DATABASE_URL.includes('railway.app') || process.env.NODE_ENV === 'production') {
+        poolConfig.ssl = { rejectUnauthorized: false };
+      }
+    } else {
+      poolConfig.host = host;
+      poolConfig.user = user;
+      poolConfig.password = password;
+      poolConfig.database = process.env.SQL_DB_NAME;
+    }
+
+    global._postgresPool = new Pool(poolConfig);
 
     global._postgresPool.on('error', (err: any) => {
       // Log as warning if it's a common transient connection issue
