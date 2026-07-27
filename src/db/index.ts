@@ -28,7 +28,9 @@ export const createPool = () => {
     if (process.env.DATABASE_URL) {
       poolConfig.connectionString = process.env.DATABASE_URL;
       // Many cloud providers (like Railway/Heroku) need SSL for DATABASE_URL
-      if (process.env.DATABASE_URL.includes('railway.app') || process.env.NODE_ENV === 'production') {
+      // However, AI Studio's internal Cloud SQL connection usually doesn't.
+      // We only apply SSL if explicitly requested in the URL or for Railway.
+      if (process.env.DATABASE_URL.includes('railway.app') || process.env.DATABASE_URL.includes('sslmode=require')) {
         poolConfig.ssl = { rejectUnauthorized: false };
       }
     } else {
