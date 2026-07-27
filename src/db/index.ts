@@ -38,11 +38,12 @@ export const createPool = () => {
       console.log(`[DB Pool] Using DATABASE_URL connection string`);
       poolConfig.connectionString = rawDbUrl;
       
-      const needsSSL = rawDbUrl.includes('railway.app') || 
+      const disableSSL = rawDbUrl.includes('sslmode=disable') || rawDbUrl.includes('ssl=false');
+      const forceSSL = rawDbUrl.includes('railway.app') || 
                        rawDbUrl.includes('sslmode=require') ||
-                       (!rawDbUrl.includes('localhost') && !rawDbUrl.includes('127.0.0.1'));
+                       rawDbUrl.includes('ssl=true');
       
-      if (needsSSL) {
+      if (forceSSL && !disableSSL) {
         poolConfig.ssl = { rejectUnauthorized: false };
       }
     } else {
@@ -55,8 +56,10 @@ export const createPool = () => {
       poolConfig.password = password;
       poolConfig.database = dbName;
 
-      const needsSSL = host && !host.includes('localhost') && !host.includes('127.0.0.1');
-      if (needsSSL) {
+      const enableSSL = process.env.SQL_SSL === 'true' || 
+                       process.env.PGSSLMODE === 'require' || 
+                       process.env.DB_SSL === 'true';
+      if (enableSSL) {
         poolConfig.ssl = { rejectUnauthorized: false };
       }
     }
