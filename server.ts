@@ -220,24 +220,35 @@ async function startServer() {
       
       let user;
       try {
-        const results = await withRetry(() => db.select().from(schema.users)
-          .where(eq(schema.users.uid, decodedToken.uid))
-          .limit(1));
-        user = results[0];
+        console.log('Searching for user with UID:', decodedToken.uid);
+        // Using raw SQL for the initial check to be as robust as possible
+        const queryResult = await withRetry(() => db.execute(sql`
+          SELECT id, email, name, role, uid 
+          FROM users 
+          WHERE uid = ${decodedToken.uid} 
+          LIMIT 1
+        `));
+        
+        user = queryResult.rows[0] as any;
+        
+        if (user) {
+          console.log('User found in DB:', user.id);
+        } else {
+          console.log('User not found in DB, will attempt creation');
+        }
       } catch (err: any) {
-        console.error('Database user lookup failed in /sync:', err);
-        throw new Error(`Gagal mencari user di database: ${err.message}`);
+        console.error('Database lookup error in /sync:', err);
+        throw new Error(`Database error: ${err.message || 'Gagal mencari user'}`);
       }
 
       if (!user) {
-        let role = (requestedRole === 'mitra') ? 'mitra' : 'jamaah';
-        if (decodedToken.email === 'felix.hencia04@gmail.com') {
-          role = 'admin';
-        }
-
+        // Create user
         try {
+          const role = (decodedToken.email === 'felix.hencia04@gmail.com') ? 'admin' : (requestedRole === 'mitra' ? 'mitra' : 'jamaah');
           const userEmail = decodedToken.email || `${decodedToken.uid}@goldentravel.local`;
-          const userName = requestedName || decodedToken.name || (decodedToken.email ? decodedToken.email.split('@')[0] : 'User');
+          const userName = requestedName || decodedToken.name || userEmail.split('@')[0];
+
+          console.log('Creating new user:', { email: userEmail, role });
           
           const [newUser] = await withRetry(() => db.insert(schema.users).values({
             uid: decodedToken.uid,
@@ -245,24 +256,35 @@ async function startServer() {
             name: userName,
             role: role as any,
           }).returning());
+          
           user = newUser;
-        } catch (err: any) {
-          if (err.message?.includes('users_email_unique')) {
-             const [updatedUser] = await withRetry(() => db.update(schema.users)
-               .set({ uid: decodedToken.uid })
-               .where(eq(schema.users.email, decodedToken.email!))
-               .returning());
-             user = updatedUser;
+          console.log('New user created successfully:', user.id);
+        } catch (insertErr: any) {
+          console.error('Database insert error in /sync:', insertErr);
+          
+          // Secondary check: if insert failed because of duplicate email, try to find and update
+          if (insertErr.message?.includes('users_email_unique')) {
+            console.log('Email already exists, linking UID...');
+            const [updatedUser] = await withRetry(() => db.update(schema.users)
+              .set({ uid: decodedToken.uid })
+              .where(eq(schema.users.email, decodedToken.email!))
+              .returning());
+            user = updatedUser;
           } else {
-            throw err;
+            throw new Error(`Gagal membuat user: ${insertErr.message}`);
           }
         }
       } else if (decodedToken.email === 'felix.hencia04@gmail.com' && user.role !== 'admin') {
-        const [updatedUser] = await withRetry(() => db.update(schema.users)
-          .set({ role: 'admin' })
-          .where(eq(schema.users.id, user.id))
-          .returning());
-        user = updatedUser;
+        // Upgrade to admin if email matches
+        try {
+          const [updatedUser] = await withRetry(() => db.update(schema.users)
+            .set({ role: 'admin' })
+            .where(eq(schema.users.id, user.id))
+            .returning());
+          user = updatedUser;
+        } catch (updateErr: any) {
+          console.error('Admin promotion failed:', updateErr);
+        }
       }
 
       res.json(user);

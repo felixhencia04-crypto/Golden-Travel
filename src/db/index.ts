@@ -25,17 +25,21 @@ export const createPool = () => {
     };
 
     if (process.env.DATABASE_URL) {
-      console.log(`[DB Pool] Using DATABASE_URL`);
+      console.log(`[DB Pool] Using DATABASE_URL (SSL auto-detect)`);
       poolConfig.connectionString = process.env.DATABASE_URL;
       
-      // Auto-detect if SSL is needed based on provider or URL params
+      // Auto-detect if SSL is needed. 
+      // In AI Studio environment, we typically DO NOT need SSL for the local proxy.
+      // We only enable it if explicitly requested in the URL or for Railway.
       const needsSSL = process.env.DATABASE_URL.includes('railway.app') || 
-                       process.env.DATABASE_URL.includes('sslmode=require') ||
-                       (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL.includes('localhost') && !process.env.DATABASE_URL.includes('127.0.0.1'));
+                       process.env.DATABASE_URL.includes('sslmode=require');
       
       if (needsSSL) {
         console.log(`[DB Pool] Enabling SSL (rejectUnauthorized: false)`);
         poolConfig.ssl = { rejectUnauthorized: false };
+      } else {
+        console.log(`[DB Pool] SSL Disabled`);
+        poolConfig.ssl = false;
       }
     } else {
       poolConfig.host = host;
