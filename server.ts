@@ -271,9 +271,9 @@ async function startServer() {
       }
 
       res.json(user);
-    } catch (error) {
-      console.error("Sync error:", error);
-      res.status(401).json({ error: 'Invalid token' });
+    } catch (error: any) {
+      console.error("Sync error details:", error);
+      res.status(401).json({ error: `Gagal sinkronisasi: ${error.message || 'Token tidak valid'}` });
     }
   });
 

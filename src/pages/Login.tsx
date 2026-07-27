@@ -89,6 +89,8 @@ export default function Login() {
       console.error('Google login error:', error);
       if (error.code === 'auth/unauthorized-domain') {
         toast.error('Domain ' + window.location.hostname + ' belum diizinkan di Firebase Console. Silakan tambahkan di Authentication > Settings > Authorized Domains.');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        toast.error('Metode login Google belum diaktifkan di Firebase Console. Silakan aktifkan di Authentication > Sign-in method.');
       } else if (error.code === 'auth/popup-closed-by-user') {
         toast.error('Jendela login ditutup sebelum selesai.');
       } else {
