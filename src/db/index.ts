@@ -12,14 +12,15 @@ declare global {
 
 export const createPool = () => {
   if (!global._postgresPool) {
-    const user = process.env.SQL_USER || process.env.SQL_ADMIN_USER;
-    const password = process.env.SQL_PASSWORD || process.env.SQL_ADMIN_PASSWORD;
-    const host = process.env.SQL_HOST || process.env.PGHOST || '127.0.0.1';
-    const port = process.env.SQL_PORT || process.env.PGPORT || '5432';
-    const dbName = process.env.SQL_DB_NAME || process.env.PGDATABASE;
+    const user = process.env.SQL_USER || process.env.SQL_ADMIN_USER || process.env.PGUSER || process.env.POSTGRES_USER;
+    const password = process.env.SQL_PASSWORD || process.env.SQL_ADMIN_PASSWORD || process.env.PGPASSWORD || process.env.POSTGRES_PASSWORD;
+    const host = process.env.SQL_HOST || process.env.PGHOST || process.env.POSTGRES_HOST || '127.0.0.1';
+    const port = process.env.SQL_PORT || process.env.PGPORT || process.env.POSTGRES_PORT || '5432';
+    const dbName = process.env.SQL_DB_NAME || process.env.PGDATABASE || process.env.POSTGRES_DB;
 
-    console.log(`[DB Pool] Initializing pool: host=${host}, port=${port}, user=${user}, db=${dbName}, DATABASE_URL=${process.env.DATABASE_URL ? 'SET' : 'UNSET'}`);
-    console.log(`[DB Pool] Available SQL Env Vars:`, Object.keys(process.env).filter(k => k.startsWith('SQL') || k.startsWith('PG') || k.includes('DB') || k.includes('DATABASE')));
+    const rawDbUrl = process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL || process.env.POSTGRES_URL;
+
+    console.log(`[DB Pool] Initializing pool: host=${host}, port=${port}, user=${user}, db=${dbName}, DATABASE_URL=${rawDbUrl ? 'SET' : 'UNSET'}`);
     
     const poolConfig: pg.PoolConfig = {
       max: 20,
@@ -27,7 +28,6 @@ export const createPool = () => {
       idleTimeoutMillis: 10000,
     };
 
-    const rawDbUrl = process.env.DATABASE_URL;
     const isPlaceholderUrl = rawDbUrl && (
       rawDbUrl.includes('user:password@host:port') ||
       rawDbUrl.includes('user:password@') ||
@@ -35,7 +35,7 @@ export const createPool = () => {
     );
 
     if (rawDbUrl && !isPlaceholderUrl) {
-      console.log(`[DB Pool] Using DATABASE_URL`);
+      console.log(`[DB Pool] Using DATABASE_URL connection string`);
       poolConfig.connectionString = rawDbUrl;
       
       const needsSSL = rawDbUrl.includes('railway.app') || 
@@ -50,10 +50,15 @@ export const createPool = () => {
         console.warn(`[DB Pool Warning] DATABASE_URL is set to a template placeholder ('${rawDbUrl}'). Falling back to individual host/user/password variables.`);
       }
       poolConfig.host = host;
-      poolConfig.port = process.env.SQL_PORT ? parseInt(process.env.SQL_PORT, 10) : 5432;
+      poolConfig.port = parseInt(port, 10);
       poolConfig.user = user;
       poolConfig.password = password;
-      poolConfig.database = process.env.SQL_DB_NAME;
+      poolConfig.database = dbName;
+
+      const needsSSL = host && !host.includes('localhost') && !host.includes('127.0.0.1');
+      if (needsSSL) {
+        poolConfig.ssl = { rejectUnauthorized: false };
+      }
     }
 
     global._postgresPool = new Pool(poolConfig);
