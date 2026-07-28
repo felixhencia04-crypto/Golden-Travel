@@ -76,7 +76,7 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <section id="hero-section" className="relative min-h-screen flex flex-col justify-center px-6 md:px-12 lg:px-24 overflow-hidden bg-cover bg-top bg-no-repeat pt-28 pb-16" style={{ backgroundImage: "linear-gradient(rgba(12, 60, 48, 0.8), rgba(12, 60, 48, 0.2)), url('/images/Baground.png')" }}>
+      <section id="hero-section" className="relative min-h-screen flex flex-col justify-center px-6 md:px-12 lg:px-24 overflow-hidden bg-cover bg-center bg-no-repeat pt-28 pb-16" style={{ backgroundImage: "url('/images/Baground.png')" }}>
         
         <div className="relative z-10 max-w-3xl">
           <h1 className="font-serif text-5xl md:text-6xl lg:text-7xl leading-[1.1] mb-6 drop-shadow-lg" style={{ background: 'linear-gradient(to right, #D4AF37, #BFA76E, #D4AF37)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
