@@ -1,10 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { Play, CheckCircle2, ChevronLeft, ChevronRight, Award, ShieldCheck, MapPin, Phone, Mail, Star, Quote, Menu, X, LogIn } from 'lucide-react';
+import { Play, CheckCircle2, ChevronLeft, ChevronRight, Award, ShieldCheck, MapPin, Phone, Mail, Star, Quote, Menu, X, LogIn, Sparkles, HeartHandshake, Compass, Layers, Hotel, FileCheck } from 'lucide-react';
 import { useLogo } from '../utils/logo';
 import heroBg from '../assets/bg-utama.jpg';
 import { HEADER_BG_DATA } from '../assets/headerBgData';
+import { ABOUT_BG_DATA } from '../assets/aboutBgData';
 
 export default function Home() {
   const logoImg = useLogo();
@@ -242,55 +243,220 @@ export default function Home() {
         </div>
       </section>
       
-      {/* Tentang Kami Section */}
-      <section className="py-12 sm:py-20 md:py-24 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#2F4F4F]/90" id="tentang-kami">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
-          <div className="flex-1 text-left">
-            <div className="text-[#D4AF37] text-xs md:text-sm font-bold tracking-[0.2em] uppercase mb-3 sm:mb-4">✨ Tentang Perusahaan</div>
-            <h2 className="font-serif text-2xl sm:text-3xl md:text-5xl text-white leading-tight mb-4 sm:mb-6">
-              Dedikasi Menjaga Kekhusyukan Ibadah Anda di <span className="text-[#D4AF37]">Tanah Suci</span>
-            </h2>
-            
-            <div className="space-y-3 sm:space-y-4 text-stone-300 text-sm sm:text-base md:text-lg leading-relaxed mb-6 sm:mb-10 font-light">
-              <p>
-                <strong className="text-white font-semibold">PT Golden Tour Haramain</strong> didirikan atas dasar niat suci untuk memfasilitasi umat Muslim di Indonesia dalam menunaikan ibadah Umrah dan Haji secara paripurna. Kami hadir bukan sekadar sebagai biro perjalanan, melainkan sebagai mitra spiritual yang mendampingi setiap langkah Anda menuju Baitullah.
-              </p>
-              <p>
-                Dengan berpegang teguh pada tuntunan Al-Qur'an dan Sunnah, kami merancang setiap program secara teliti—mulai dari manasik yang komprehensif, pemilihan maskapai penerbangan terpercaya, hingga akomodasi strategis di ring satu—untuk memastikan kenyamanan, keamanan, dan kesempurnaan ibadah Anda.
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 mb-6 sm:mb-10">
-              <div className="flex gap-3 sm:gap-4 items-start bg-white/5 p-3.5 sm:p-0 rounded-xl sm:bg-transparent">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#2F4F4F]/80 text-[#D4AF37] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#D4AF37]/30">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-serif text-base sm:text-xl text-white mb-1 sm:mb-2">Legalitas Terjamin</h4>
-                  <p className="text-stone-400 text-xs sm:text-sm leading-relaxed">Terdaftar resmi di Kemenag RI, memberikan kepastian jadwal keberangkatan tanpa rasa khawatir.</p>
-                </div>
-              </div>
-              <div className="flex gap-3 sm:gap-4 items-start bg-white/5 p-3.5 sm:p-0 rounded-xl sm:bg-transparent">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#2F4F4F]/80 text-[#D4AF37] flex items-center justify-center flex-shrink-0 mt-0.5 border border-[#D4AF37]/30">
-                  <Award className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-serif text-base sm:text-xl text-white mb-1 sm:mb-2">Bimbingan Sunnah</h4>
-                  <p className="text-stone-400 text-xs sm:text-sm leading-relaxed">Ibadah didampingi langsung oleh asatidz dan mutawwif berpengalaman lulusan Timur Tengah.</p>
-                </div>
-              </div>
-            </div>
-            
-            <a href="#pilihan-paket" className="inline-flex items-center gap-2 text-[#D4AF37] border-b-2 border-[#D4AF37] pb-1 font-bold text-xs sm:text-sm hover:text-amber-300 transition-colors tracking-wide" onClick={(e) => scrollToSection(e, 'pilihan-paket')}>
-              LIHAT PROFIL PERUSAHAAN &rarr;
-            </a>
-          </div>
+      {/* Tentang Kami Section - Ultra Luxury Executive Design with Kaaba Showcase */}
+      <section className="relative py-20 sm:py-28 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#0B2319] bg-cover bg-[position:right_center] sm:bg-right-top bg-no-repeat text-white overflow-hidden" id="tentang-kami" style={{ backgroundImage: `url("${ABOUT_BG_DATA}")` }}>
+        {/* Soft Vignette Overlay: Darker on left for text legibility, crystal clear on right to highlight Kaaba & Minarets */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#051710]/90 via-[#081F15]/50 to-transparent pointer-events-none"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-[#051710]/60 via-transparent to-[#04120C]/80 pointer-events-none"></div>
+
+        {/* Ambient Gold Radial Spotlights */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-[#D4AF37]/10 rounded-full blur-[120px] pointer-events-none"></div>
+
+        <div className="relative z-10 max-w-7xl mx-auto space-y-16">
           
-          <div className="flex-1 w-full flex justify-center lg:justify-end">
-            <div className="relative w-full max-w-[300px] sm:max-w-[360px] md:max-w-[400px] aspect-[4/5] p-2 bg-gradient-to-b from-[#D4AF37] to-transparent rounded-t-full rounded-b-3xl shadow-2xl overflow-hidden group">
-              <img src="/foto-about.jpg.jpeg" alt="Jemaah PT Golden Tour Haramain" className="w-full h-full object-cover rounded-t-full rounded-b-2xl transition-transform duration-700 group-hover:scale-105" onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&w=800&q=80'; }} />
+          {/* Main Title & Narrative Header */}
+          <div className="text-center max-w-4xl mx-auto space-y-5">
+            <div className="inline-flex items-center gap-2.5 px-5 py-1.5 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/40 text-[#D4AF37] text-xs sm:text-sm font-semibold tracking-[0.2em] uppercase shadow-lg backdrop-blur-md">
+              <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+              <span>Tentang Golden Travel</span>
+            </div>
+            
+            <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white leading-tight tracking-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]">
+              Perjalanan Kami Membantu Mewujudkan <br className="hidden sm:inline" />
+              <span className="bg-gradient-to-r from-[#F3E5AB] via-[#D4AF37] to-[#AA7C11] bg-clip-text text-transparent underline decoration-[#D4AF37]/40 underline-offset-8">
+                Ibadah Impian Anda
+              </span>
+            </h2>
+
+            {/* Slogan Banner Pill */}
+            <div className="pt-2">
+              <div className="inline-block bg-gradient-to-r from-[#D4AF37]/10 via-[#D4AF37]/25 to-[#D4AF37]/10 border border-[#D4AF37]/50 px-6 py-2 rounded-full shadow-md">
+                <p className="font-serif text-sm sm:text-base md:text-lg italic font-medium text-[#F3E5AB] tracking-wide">
+                  "Kenyamanan dan Kepercayaan Anda, Prioritas Kami."
+                </p>
+              </div>
             </div>
           </div>
+
+          {/* 2-Column Split Story Container - Translucent Glassmorphic Frame */}
+          <div className="bg-[#051710]/70 border-2 border-[#D4AF37]/50 rounded-3xl p-6 sm:p-10 lg:p-12 shadow-[0_25px_60px_rgba(0,0,0,0.7)] relative overflow-hidden backdrop-blur-md">
+            {/* Gold Metallic Corner Filigree Ornaments */}
+            <div className="absolute top-0 left-0 w-16 h-16 border-t-2 border-l-2 border-[#D4AF37] rounded-tl-3xl pointer-events-none"></div>
+            <div className="absolute top-0 right-0 w-16 h-16 border-t-2 border-r-2 border-[#D4AF37] rounded-tr-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 left-0 w-16 h-16 border-b-2 border-l-2 border-[#D4AF37] rounded-bl-3xl pointer-events-none"></div>
+            <div className="absolute bottom-0 right-0 w-16 h-16 border-b-2 border-r-2 border-[#D4AF37] rounded-br-3xl pointer-events-none"></div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+              {/* Story Box 1 */}
+              <div className="relative bg-[#082218]/80 backdrop-blur-md p-6 sm:p-8 rounded-2xl border border-[#D4AF37]/40 shadow-xl group hover:border-[#D4AF37]/80 transition-all duration-300">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#8B6508] p-0.5 shadow-md">
+                    <div className="w-full h-full bg-[#081E15] rounded-[10px] flex items-center justify-center text-[#D4AF37]">
+                      <Compass className="w-6 h-6" />
+                    </div>
+                  </div>
+                  <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#F3E5AB]">
+                    Kerinduan Suci Memanggil
+                  </h3>
+                </div>
+                <p className="font-sans text-stone-200 text-sm sm:text-base leading-relaxed font-light text-justify">
+                  Golden Travel hadir ke dunia berawal dari sebuah kerinduan yang mendalam—kerinduan untuk memfasilitasi panggilan suci ke Baitullah melalui layanan Haji dan Umroh yang tidak sekadar eksklusif, namun juga kaya akan makna dan kedalaman spiritual.
+                </p>
+              </div>
+
+              {/* Story Box 2 */}
+              <div className="relative bg-[#082218]/80 backdrop-blur-md p-6 sm:p-8 rounded-2xl border border-[#D4AF37]/40 shadow-xl group hover:border-[#D4AF37]/80 transition-all duration-300">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#8B6508] p-0.5 shadow-md">
+                    <div className="w-full h-full bg-[#081E15] rounded-[10px] flex items-center justify-center text-[#D4AF37]">
+                      <HeartHandshake className="w-6 h-6" />
+                    </div>
+                  </div>
+                  <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#F3E5AB]">
+                    Perjalanan Hati Sakral
+                  </h3>
+                </div>
+                <p className="font-sans text-stone-200 text-sm sm:text-base leading-relaxed font-light text-justify">
+                  Kami didirikan di atas fondasi kecintaan yang tulus pada perjalanan suci ini. Kami meyakini sepenuhnya bahwa setiap jejak langkah menuju Tanah Suci pada hakikatnya adalah perjalanan hati yang sakral. Oleh karena itu, seluruh tim ahli kami berkomitmen dengan dedikasi penuh untuk menjadi pendamping setia Anda, memastikan setiap detik momen ibadah Anda berjalan dengan tenang, khusyuk, dan sempurna.
+                </p>
+              </div>
+            </div>
+
+            {/* Micro Highlights Ribbon */}
+            <div className="mt-8 pt-6 border-t border-[#D4AF37]/30 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 text-center">
+              <div className="p-3 rounded-xl bg-[#081F15]/85 backdrop-blur-md border border-[#D4AF37]/30 shadow-inner">
+                <span className="block text-[#D4AF37] font-serif font-bold text-xs sm:text-sm">Izin Resmi Kemenag RI</span>
+                <span className="text-stone-300 text-[11px] font-light">Kepastian & Legalitas Paripurna</span>
+              </div>
+              <div className="p-3 rounded-xl bg-[#081F15]/85 backdrop-blur-md border border-[#D4AF37]/30 shadow-inner">
+                <span className="block text-[#D4AF37] font-serif font-bold text-xs sm:text-sm">Hotel Ring 1 Bintang 5</span>
+                <span className="text-stone-300 text-[11px] font-light">Pelataran Masjidil Haram & Nabawi</span>
+              </div>
+              <div className="p-3 rounded-xl bg-[#081F15]/85 backdrop-blur-md border border-[#D4AF37]/30 shadow-inner">
+                <span className="block text-[#D4AF37] font-serif font-bold text-xs sm:text-sm">Pembimbing Ahli Sunnah</span>
+                <span className="text-stone-300 text-[11px] font-light">Asatidz Timur Tengah</span>
+              </div>
+              <div className="p-3 rounded-xl bg-[#081F15]/85 backdrop-blur-md border border-[#D4AF37]/30 shadow-inner">
+                <span className="block text-[#D4AF37] font-serif font-bold text-xs sm:text-sm">Fasilitas Executive</span>
+                <span className="text-stone-300 text-[11px] font-light">Layanan Private & VIP Class</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Core Values Section Header */}
+          <div className="space-y-12 pt-6">
+            <div className="text-center space-y-3 max-w-3xl mx-auto">
+              <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-[#D4AF37]/15 text-[#D4AF37] text-xs font-semibold tracking-widest uppercase border border-[#D4AF37]/30">
+                <span>Fondasi Keunggulan Kami</span>
+              </div>
+              <h3 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-[#F3E5AB] drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">
+                Nilai Inti Perusahaan
+              </h3>
+              <p className="text-stone-300 text-sm sm:text-base font-light leading-relaxed">
+                Komitmen kami diwujudkan melalui empat pilar utama yang menjadi landasan setiap layanan kami:
+              </p>
+            </div>
+
+            {/* 4 Pilar Core Values - High Contrast Translucent Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-6 items-stretch">
+              {/* Pillar 1: Profesionalisme */}
+              <div className="bg-[#051710]/85 backdrop-blur-lg text-white border-2 border-[#D4AF37]/60 rounded-2xl p-6 sm:p-7 shadow-[0_15px_35px_rgba(0,0,0,0.5)] hover:border-[#D4AF37] hover:shadow-[0_20px_45px_rgba(212,175,55,0.35)] hover:-translate-y-2 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden">
+                <div className="h-1.5 bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#B8860B] absolute top-0 left-0 right-0"></div>
+                <div className="pt-2">
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#8B6508] p-0.5 shadow-md">
+                      <div className="w-full h-full bg-[#081E15] rounded-[10px] flex items-center justify-center text-[#D4AF37]">
+                        <Award className="w-6 h-6" />
+                      </div>
+                    </div>
+                    <span className="font-serif font-bold text-xs text-[#0B2319] bg-[#F3E5AB] px-3 py-1 rounded-full border border-[#D4AF37]">
+                      PILAR 01
+                    </span>
+                  </div>
+                  <h4 className="font-serif text-xl font-bold text-[#F3E5AB] mb-3.5 flex items-center gap-2">
+                    <span className="text-[#D4AF37]">✦</span> Profesionalisme
+                  </h4>
+                  <p className="font-sans text-stone-200 text-xs sm:text-sm leading-relaxed font-light text-left">
+                    Tim ahli kami yang berdedikasi bekerja tanpa henti di balik layar untuk memastikan setiap detail perjalanan Anda ditangani dengan standar kesempurnaan tertinggi. Kami hadir untuk mengangkat segala beban pengurusan, memberikan Anda ketenangan pikiran seutuhnya sejak langkah pertama.
+                  </p>
+                </div>
+                <div className="w-12 h-1 bg-[#D4AF37] mt-6 group-hover:w-full transition-all duration-500 rounded-full"></div>
+              </div>
+
+              {/* Pillar 2: Integritas */}
+              <div className="bg-[#051710]/85 backdrop-blur-lg text-white border-2 border-[#D4AF37]/60 rounded-2xl p-6 sm:p-7 shadow-[0_15px_35px_rgba(0,0,0,0.5)] hover:border-[#D4AF37] hover:shadow-[0_20px_45px_rgba(212,175,55,0.35)] hover:-translate-y-2 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden">
+                <div className="h-1.5 bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#B8860B] absolute top-0 left-0 right-0"></div>
+                <div className="pt-2">
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#8B6508] p-0.5 shadow-md">
+                      <div className="w-full h-full bg-[#081E15] rounded-[10px] flex items-center justify-center text-[#D4AF37]">
+                        <ShieldCheck className="w-6 h-6" />
+                      </div>
+                    </div>
+                    <span className="font-serif font-bold text-xs text-[#0B2319] bg-[#F3E5AB] px-3 py-1 rounded-full border border-[#D4AF37]">
+                      PILAR 02
+                    </span>
+                  </div>
+                  <h4 className="font-serif text-xl font-bold text-[#F3E5AB] mb-3.5 flex items-center gap-2">
+                    <span className="text-[#D4AF37]">✦</span> Integritas
+                  </h4>
+                  <p className="font-sans text-stone-200 text-xs sm:text-sm leading-relaxed font-light text-left">
+                    Fondasi utama kami adalah kejujuran dan keterbukaan. Kami menjunjung tinggi prinsip-prinsip moral ini dalam setiap interaksi, membangun jembatan kepercayaan yang kokoh dengan setiap jemaah melalui transparansi operasional yang tanpa cela.
+                  </p>
+                </div>
+                <div className="w-12 h-1 bg-[#D4AF37] mt-6 group-hover:w-full transition-all duration-500 rounded-full"></div>
+              </div>
+
+              {/* Pillar 3: Kenyamanan Tanpa Kompromi */}
+              <div className="bg-[#051710]/85 backdrop-blur-lg text-white border-2 border-[#D4AF37]/60 rounded-2xl p-6 sm:p-7 shadow-[0_15px_35px_rgba(0,0,0,0.5)] hover:border-[#D4AF37] hover:shadow-[0_20px_45px_rgba(212,175,55,0.35)] hover:-translate-y-2 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden">
+                <div className="h-1.5 bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#B8860B] absolute top-0 left-0 right-0"></div>
+                <div className="pt-2">
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#8B6508] p-0.5 shadow-md">
+                      <div className="w-full h-full bg-[#081E15] rounded-[10px] flex items-center justify-center text-[#D4AF37]">
+                        <Hotel className="w-6 h-6" />
+                      </div>
+                    </div>
+                    <span className="font-serif font-bold text-xs text-[#0B2319] bg-[#F3E5AB] px-3 py-1 rounded-full border border-[#D4AF37]">
+                      PILAR 03
+                    </span>
+                  </div>
+                  <h4 className="font-serif text-xl font-bold text-[#F3E5AB] mb-3.5 flex items-center gap-2">
+                    <span className="text-[#D4AF37]">✦</span> Kenyamanan Tanpa Kompromi
+                  </h4>
+                  <p className="font-sans text-stone-200 text-xs sm:text-sm leading-relaxed font-light text-left">
+                    Fokus dan kekhusyukan ibadah Anda adalah prioritas absolut kami. Untuk mewujudkannya, kami menyediakan fasilitas premium dan akomodasi bertaraf internasional terbaik. Kami memastikan Anda dapat beribadah dengan tingkat kenyamanan yang maksimal, tanpa ada satu pun kompromi pada kualitas.
+                  </p>
+                </div>
+                <div className="w-12 h-1 bg-[#D4AF37] mt-6 group-hover:w-full transition-all duration-500 rounded-full"></div>
+              </div>
+
+              {/* Pillar 4: Transparansi Setiap Langkah */}
+              <div className="bg-[#051710]/85 backdrop-blur-lg text-white border-2 border-[#D4AF37]/60 rounded-2xl p-6 sm:p-7 shadow-[0_15px_35px_rgba(0,0,0,0.5)] hover:border-[#D4AF37] hover:shadow-[0_20px_45px_rgba(212,175,55,0.35)] hover:-translate-y-2 transition-all duration-300 flex flex-col justify-between group relative overflow-hidden">
+                <div className="h-1.5 bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#B8860B] absolute top-0 left-0 right-0"></div>
+                <div className="pt-2">
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#8B6508] p-0.5 shadow-md">
+                      <div className="w-full h-full bg-[#081E15] rounded-[10px] flex items-center justify-center text-[#D4AF37]">
+                        <FileCheck className="w-6 h-6" />
+                      </div>
+                    </div>
+                    <span className="font-serif font-bold text-xs text-[#0B2319] bg-[#F3E5AB] px-3 py-1 rounded-full border border-[#D4AF37]">
+                      PILAR 04
+                    </span>
+                  </div>
+                  <h4 className="font-serif text-xl font-bold text-[#F3E5AB] mb-3.5 flex items-center gap-2">
+                    <span className="text-[#D4AF37]">✦</span> Transparansi Setiap Langkah
+                  </h4>
+                  <p className="font-sans text-stone-200 text-xs sm:text-sm leading-relaxed font-normal text-left">
+                    Kami sangat mengerti bahwa kepastian adalah kunci dari ketenangan beribadah. Oleh sebab itu, setiap proses—mulai dari tahap pendaftaran, persiapan, pelaksanaan ibadah, hingga momen kepulangan Anda ke Tanah Air—selalu kami jelaskan secara jernih, terperinci, dan transparan.
+                  </p>
+                </div>
+                <div className="w-12 h-1 bg-[#D4AF37] mt-6 group-hover:w-full transition-all duration-500 rounded-full"></div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
