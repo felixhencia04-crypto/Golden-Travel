@@ -77,7 +77,33 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <section id="hero-section" className="relative min-h-screen flex flex-col justify-center px-6 md:px-12 lg:px-24 overflow-hidden bg-[#0C3C30] bg-no-repeat bg-cover pt-28 pb-16 w-full" style={{ backgroundImage: `url(${heroBg})`, backgroundPosition: 'center top' }}>
+      <section id="hero-section" className="relative min-h-screen flex flex-col justify-center px-6 md:px-12 lg:px-24 overflow-hidden bg-[#0C3C30] pt-28 pb-16 w-full">
+        {/* Hero Background Image */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+          <img 
+            src={heroBg} 
+            alt="Background Golden Travel Ka'bah" 
+            className="w-full h-full object-cover object-[80%_center] md:object-center transition-opacity duration-300"
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (!target.dataset.attempt) {
+                target.dataset.attempt = '1';
+                target.src = '/bg-utama.jpg';
+              } else if (target.dataset.attempt === '1') {
+                target.dataset.attempt = '2';
+                target.src = '/bg-utama.webp';
+              } else if (target.dataset.attempt === '2') {
+                target.dataset.attempt = '3';
+                target.src = '/images/bg-utama.jpg';
+              } else if (target.dataset.attempt === '3') {
+                target.dataset.attempt = '4';
+                target.src = '/bg-utama.png';
+              }
+            }}
+          />
+          {/* Subtle overlay gradient on left for text legibility */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0C3C30]/80 via-[#0C3C30]/40 to-transparent"></div>
+        </div>
         
         <div className="relative z-10 max-w-3xl">
           <h1 className="font-serif text-5xl md:text-6xl lg:text-7xl leading-[1.1] mb-6 drop-shadow-lg" style={{ background: 'linear-gradient(to right, #D4AF37, #BFA76E, #D4AF37)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
