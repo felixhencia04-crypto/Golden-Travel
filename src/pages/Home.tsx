@@ -76,18 +76,18 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <section id="hero-section" className="relative min-h-screen flex flex-col justify-center px-6 md:px-12 lg:px-24 overflow-hidden bg-cover bg-top bg-no-repeat" style={{ backgroundImage: "linear-gradient(rgba(12, 60, 48, 0.95), rgba(12, 60, 48, 0.6)), url('/images/Baground.png')" }}>
+      <section id="hero-section" className="relative min-h-screen flex flex-col justify-center px-6 md:px-12 lg:px-24 overflow-hidden bg-cover bg-top bg-no-repeat pt-28 pb-16" style={{ backgroundImage: "linear-gradient(rgba(12, 60, 48, 0.8), rgba(12, 60, 48, 0.2)), url('/images/Baground.png')" }}>
         
-        <div className="relative z-10 max-w-3xl pt-20 md:pt-12">
-          <h1 className="font-serif text-5xl md:text-6xl lg:text-7xl leading-[1.1] mb-6" style={{ background: 'linear-gradient(to right, #D4AF37, #BFA76E, #D4AF37)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+        <div className="relative z-10 max-w-3xl">
+          <h1 className="font-serif text-5xl md:text-6xl lg:text-7xl leading-[1.1] mb-6 drop-shadow-lg" style={{ background: 'linear-gradient(to right, #D4AF37, #BFA76E, #D4AF37)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             Wujudkan Perjalanan Suci yang Khusyuk dan Penuh Berkah.
           </h1>
-          <p className="text-[#E6DBC6] text-lg md:text-xl leading-relaxed mb-8 max-w-2xl font-light">
+          <p className="text-[#E6DBC6] text-lg md:text-xl leading-relaxed mb-8 max-w-2xl font-light drop-shadow">
             Golden Travel menghadirkan layanan ibadah Haji dan Umroh eksklusif dengan fasilitas personal, premium, dan kedalaman spiritual. Aman, nyaman, dan profesional.
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 mb-10">
-            <a href="#pilihan-paket" className="bg-[#D4AF37] text-white text-center px-8 py-3 rounded-full font-semibold transition-transform duration-300 hover:opacity-90 shadow-lg" onClick={(e) => scrollToSection(e, 'pilihan-paket')}>
+            <a href="#pilihan-paket" className="bg-[#D4AF37] text-white text-center px-8 py-3 rounded-full font-semibold transition-transform duration-300 hover:scale-105 shadow-lg" onClick={(e) => scrollToSection(e, 'pilihan-paket')}>
               Lihat Paket Umroh
             </a>
             <a href="https://wa.me/628123456789" className="border-2 border-[#d4af37] text-white text-center px-8 py-3 rounded-full font-semibold transition-all hover:bg-[#d4af37]/20" target="_blank" rel="noreferrer">
@@ -95,9 +95,9 @@ export default function Home() {
             </a>
           </div>
 
-          <p className="text-[#d4af37] font-serif italic text-lg mb-12">Kenyamanan dan Kepercayaan Anda, Prioritas Kami.</p>
+          <p className="text-[#d4af37] font-serif italic text-lg mb-12 drop-shadow-md">Kenyamanan dan Kepercayaan Anda, Prioritas Kami.</p>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-auto">
             <div className="bg-white/95 backdrop-blur-sm rounded-xl p-4 flex items-center gap-3 shadow-lg border-b-4 border-[#d4af37]">
               <div className="w-10 h-10 rounded-full border border-[#d4af37]/30 flex items-center justify-center shrink-0">
                 <Award className="text-[#d4af37] w-5 h-5" />
