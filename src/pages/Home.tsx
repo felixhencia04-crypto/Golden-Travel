@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Play, CheckCircle2, ChevronLeft, ChevronRight, Award, ShieldCheck, MapPin, Phone, Mail, Star, Quote } from 'lucide-react';
+import heroBg from '../assets/bg-utama.png';
 
 export default function Home() {
   const [packages, setPackages] = useState<any[]>([]);
@@ -76,7 +77,7 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <section id="hero-section" className="relative min-h-screen flex flex-col justify-center px-6 md:px-12 lg:px-24 overflow-hidden bg-cover bg-top bg-no-repeat pt-28 pb-16 w-full" style={{ backgroundImage: `url('/images/bg-utama.png')` }}>
+      <section id="hero-section" className="relative min-h-screen flex flex-col justify-center px-6 md:px-12 lg:px-24 overflow-hidden bg-[#0C3C30] bg-cover bg-top bg-no-repeat pt-28 pb-16 w-full" style={{ backgroundImage: `url(${heroBg})` }}>
         
         <div className="relative z-10 max-w-3xl">
           <h1 className="font-serif text-5xl md:text-6xl lg:text-7xl leading-[1.1] mb-6 drop-shadow-lg" style={{ background: 'linear-gradient(to right, #D4AF37, #BFA76E, #D4AF37)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
