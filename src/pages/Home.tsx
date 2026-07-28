@@ -6,6 +6,8 @@ import { useLogo } from '../utils/logo';
 import heroBg from '../assets/bg-utama.jpg';
 import { HEADER_BG_DATA } from '../assets/headerBgData';
 import { ABOUT_BG_DATA } from '../assets/aboutBgData';
+import LegalitasShowcase from '../components/LegalitasShowcase';
+import WhyChooseGoldenTravel from '../components/WhyChooseGoldenTravel';
 
 export default function Home() {
   const logoImg = useLogo();
@@ -549,34 +551,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Legalitas Section */}
-      <section className="py-12 sm:py-20 md:py-24 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#2F4F4F]" id="legalitas">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="text-[#D4AF37] text-xs md:text-sm font-bold tracking-[0.2em] uppercase mb-3 sm:mb-4">✨ Legalitas & Sertifikasi Resmi</div>
-          <h2 className="font-serif text-2xl sm:text-3xl md:text-5xl text-white leading-tight mb-4 sm:mb-6 max-w-3xl mx-auto">
-            Keamanan & Kenyamanan Anda Adalah <span className="text-[#D4AF37]">Prioritas Utama</span>
-          </h2>
-          <p className="text-stone-300 text-sm sm:text-base md:text-lg leading-relaxed max-w-3xl mx-auto mb-10 sm:mb-16 font-light">
-            Sebagai komitmen pelayanan prima, PT. Golden Tour Haramain beroperasi dengan perizinan penuh yang diawasi langsung oleh Kementerian Agama Republik Indonesia, memastikan setiap keberangkatan aman dan sesuai prosedur negara.
-          </p>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
-            {[
-              { title: 'Izin Penyelenggara Umrah (PPIU)', desc: 'Memiliki SK Kemenag RI resmi sebagai penyelenggara perjalanan ibadah umrah yang kredibel.', icon: '📜' },
-              { title: 'Izin Haji Khusus (PIHK)', desc: 'Tersertifikasi untuk menyelenggarakan program Haji Khusus dengan kuota resmi negara.', icon: '🏛️' },
-              { title: 'Keanggotaan Asosiasi', desc: 'Anggota aktif AMPHURI / HIMPUH, menjamin standar pelayanan industri travel ibadah.', icon: '🤝' },
-              { title: 'Legalitas Perusahaan', desc: 'Terdaftar secara sah dengan NIB & Akta Pendirian Perusahaan yang tersertifikasi hukum.', icon: '🏢' }
-            ].map((item, idx) => (
-              <div key={idx} className="bg-[#2F4F4F]/90 rounded-2xl p-6 sm:p-8 border border-[#2F4F4F]/80 shadow-sm hover:shadow-xl hover:border-[#D4AF37] transition-all duration-300 text-left group">
-                <div className="text-3xl sm:text-4xl mb-4 sm:mb-6">{item.icon}</div>
-                <h3 className="font-serif text-lg sm:text-xl text-white mb-2 sm:mb-3">{item.title}</h3>
-                <p className="text-stone-400 text-xs sm:text-sm leading-relaxed">{item.desc}</p>
-                <div className="w-0 h-1 bg-[#D4AF37] mt-4 sm:mt-6 transition-all duration-500 group-hover:w-full rounded-full"></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Legalitas Section - Executive Modern Showcase with Kaaba Background */}
+      <LegalitasShowcase />
+
+      {/* Mengapa Memilih Golden Travel Section */}
+      <WhyChooseGoldenTravel />
 
       {/* Paket Umroh Section */}
       <section className="py-12 sm:py-20 md:py-24 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#2F4F4F]/90" id="pilihan-paket">

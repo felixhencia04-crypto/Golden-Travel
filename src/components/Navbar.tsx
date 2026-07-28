@@ -31,13 +31,76 @@ export default function Navbar() {
           <div className="hidden md:flex md:items-center md:space-x-6 lg:space-x-8">
             {!isAdmin && !isMitra && (
               <>
-                <Link to="/" className="font-button text-[#064e3b] font-bold border-b-2 border-[#064e3b] pb-1 transition-colors">Beranda</Link>
-                <a href="/#tentang-kami" className="font-button text-[#1f3a30] hover:text-[#064e3b] font-medium transition-colors">Tentang Kami</a>
-                <Link to="/legalitas" className="font-button text-[#1f3a30] hover:text-[#064e3b] font-medium transition-colors">Legalitas</Link>
-                <a href="/#pilihan-paket" className="font-button text-[#1f3a30] hover:text-[#064e3b] font-medium transition-colors">Paket Umroh</a>
-                <a href="/#pilihan-haji" className="font-button text-[#1f3a30] hover:text-[#064e3b] font-medium transition-colors">Paket Haji</a>
-                <Link to="/blog" className="font-button text-[#1f3a30] hover:text-[#064e3b] font-medium transition-colors">Blog</Link>
-                <Link to="/mitra" className="font-button text-[#1f3a30] hover:text-[#064e3b] font-medium transition-colors">Kemitraan</Link>
+                <Link 
+                  to="/" 
+                  className={`font-button text-sm lg:text-base font-bold pb-1 transition-colors ${
+                    location.pathname === '/' && !location.hash
+                      ? 'text-[#064e3b] border-b-2 border-[#064e3b]' 
+                      : 'text-[#1f3a30] hover:text-[#064e3b]'
+                  }`}
+                >
+                  Beranda
+                </Link>
+                <a 
+                  href="/#tentang-kami" 
+                  className={`font-button text-sm lg:text-base font-medium transition-colors ${
+                    location.hash === '#tentang-kami'
+                      ? 'text-[#064e3b] font-bold border-b-2 border-[#064e3b] pb-1'
+                      : 'text-[#1f3a30] hover:text-[#064e3b]'
+                  }`}
+                >
+                  Tentang Kami
+                </a>
+                <Link 
+                  to="/legalitas" 
+                  className={`font-button text-sm lg:text-base transition-colors ${
+                    location.pathname === '/legalitas' 
+                      ? 'text-[#064e3b] font-bold border-b-2 border-[#064e3b] pb-1' 
+                      : 'text-[#1f3a30] hover:text-[#064e3b] font-medium'
+                  }`}
+                >
+                  Legalitas
+                </Link>
+                <a 
+                  href="/#pilihan-paket" 
+                  className={`font-button text-sm lg:text-base font-medium transition-colors ${
+                    location.hash === '#pilihan-paket'
+                      ? 'text-[#064e3b] font-bold border-b-2 border-[#064e3b] pb-1'
+                      : 'text-[#1f3a30] hover:text-[#064e3b]'
+                  }`}
+                >
+                  Paket Umroh
+                </a>
+                <a 
+                  href="/#pilihan-haji" 
+                  className={`font-button text-sm lg:text-base font-medium transition-colors ${
+                    location.hash === '#pilihan-haji'
+                      ? 'text-[#064e3b] font-bold border-b-2 border-[#064e3b] pb-1'
+                      : 'text-[#1f3a30] hover:text-[#064e3b]'
+                  }`}
+                >
+                  Paket Haji
+                </a>
+                <Link 
+                  to="/blog" 
+                  className={`font-button text-sm lg:text-base transition-colors ${
+                    location.pathname.startsWith('/blog') 
+                      ? 'text-[#064e3b] font-bold border-b-2 border-[#064e3b] pb-1' 
+                      : 'text-[#1f3a30] hover:text-[#064e3b] font-medium'
+                  }`}
+                >
+                  Blog
+                </Link>
+                <Link 
+                  to="/mitra" 
+                  className={`font-button text-sm lg:text-base transition-colors ${
+                    location.pathname.startsWith('/mitra') 
+                      ? 'text-[#064e3b] font-bold border-b-2 border-[#064e3b] pb-1' 
+                      : 'text-[#1f3a30] hover:text-[#064e3b] font-medium'
+                  }`}
+                >
+                  Kemitraan
+                </Link>
                 <Link to="/login" className="font-button bg-[#064e3b] hover:bg-[#04382a] text-white px-5 sm:px-6 py-2 rounded-full font-bold transition-all duration-300 flex items-center shadow-md">
                   <LogIn className="w-4 h-4 mr-2 text-[#D4AF37]" />
                   Masuk
