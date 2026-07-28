@@ -243,11 +243,11 @@ export default function Home() {
         </div>
       </section>
       
-      {/* Tentang Kami Section - Ultra Luxury Executive Design with Kaaba Showcase */}
-      <section className="relative py-20 sm:py-28 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#0B2319] bg-cover bg-[position:right_center] sm:bg-right-top bg-no-repeat text-white overflow-hidden" id="tentang-kami" style={{ backgroundImage: `url("${ABOUT_BG_DATA}")` }}>
-        {/* Soft Vignette Overlay: Darker on left for text legibility, crystal clear on right to highlight Kaaba & Minarets */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#051710]/90 via-[#081F15]/50 to-transparent pointer-events-none"></div>
-        <div className="absolute inset-0 bg-gradient-to-b from-[#051710]/60 via-transparent to-[#04120C]/80 pointer-events-none"></div>
+      {/* Tentang Kami Section - Ultra Luxury Executive Design with Kaaba & Green Pattern Showcase */}
+      <section className="relative py-20 sm:py-28 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#012519] bg-[size:100%_auto] sm:bg-cover lg:bg-[size:100%_auto] bg-center bg-no-repeat text-white overflow-hidden" id="tentang-kami" style={{ backgroundImage: `url("${ABOUT_BG_DATA}")` }}>
+        {/* Soft Vignette Overlay: Preserves full visibility of left green ornament & right Kaaba */}
+        <div className="absolute inset-0 bg-gradient-to-r from-[#012519]/70 via-[#012519]/20 to-transparent pointer-events-none"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-[#012519]/50 via-transparent to-[#012519]/70 pointer-events-none"></div>
 
         {/* Ambient Gold Radial Spotlights */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-[#D4AF37]/10 rounded-full blur-[120px] pointer-events-none"></div>
