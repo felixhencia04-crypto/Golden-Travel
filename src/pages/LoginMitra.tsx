@@ -4,8 +4,10 @@ import { auth } from '../lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { api } from '../lib/api';
 import { toast } from 'sonner';
+import { useLogo } from '../utils/logo';
 
 export default function LoginMitra() {
+  const logoImg = useLogo();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -288,7 +290,9 @@ export default function LoginMitra() {
             {/* Sisi Kiri: Pesan Bisnis */}
             <div className="ml-left">
                 <div className="ml-brand">
-                    <div className="ml-logo">GT</div>
+                    <div className="ml-logo overflow-hidden p-0.5 bg-[#064e3b]">
+                        <img src={logoImg} alt="Logo" className="w-full h-full object-contain rounded-full" />
+                    </div>
                     <span>GOLDEN TRAVEL PARTNER</span>
                 </div>
                 <h2 className="ml-title">Akselerasi<br />Bisnis Anda.</h2>

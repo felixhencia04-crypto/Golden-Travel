@@ -608,7 +608,9 @@ export default function Home() {
             
             <div className="col-span-1 lg:col-span-1">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-full border border-[#D4AF37]/50 bg-[url('/logo.png')] bg-cover bg-center"></div>
+                <div className="w-10 h-10 rounded-full border border-[#D4AF37]/50 overflow-hidden bg-[#064e3b] shrink-0 flex items-center justify-center">
+                  <img src={logoImg} alt="Logo" className="w-full h-full object-contain" />
+                </div>
                 <div>
                   <h3 className="font-serif text-lg text-white m-0">PT Golden Tour Haramain</h3>
                   <span className="text-[10px] text-[#D4AF37] tracking-wider">HAJI & UMROH PREMIUM</span>

@@ -1,7 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useLogo } from '../utils/logo';
 
 export default function Footer() {
+  const logoImg = useLogo();
+
   return (
     <footer className="mitra-footer">
         <div className="footer-container">
@@ -10,7 +13,7 @@ export default function Footer() {
                 {/* KOLOM 1: BRAND & LEGALITAS */}
                 <div className="footer-col brand-col">
                     <div className="footer-logo-area">
-                        <img src="/logo.png" alt="Logo" className="w-12 h-12 object-contain mr-3" />
+                        <img src={logoImg} alt="Logo" className="w-12 h-12 object-contain mr-3 rounded-full" />
                         <div className="footer-brand-text">
                             <h3 className="whitespace-nowrap">GOLDEN TOUR HARAMAIN</h3>
                             <span className="whitespace-nowrap">PT. GOLDEN TOUR HARAMAIN</span>

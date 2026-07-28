@@ -4,8 +4,10 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithP
 import { auth } from '../lib/firebase';
 import { api } from '../lib/api';
 import { toast } from 'sonner';
+import { useLogo } from '../utils/logo';
 
 export default function Login() {
+  const logoImg = useLogo();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -444,7 +446,9 @@ export default function Login() {
           {/* PANEL KIRI: Edukasi & Sambutan */}
           <div className="jamaah-left-panel">
               <div className="jamaah-brand-header">
-                  <div className="brand-logo-circle">GT</div>
+                  <div className="brand-logo-circle overflow-hidden p-0.5 bg-[#064e3b]">
+                      <img src={logoImg} alt="Logo" className="w-full h-full object-contain rounded-full" />
+                  </div>
                   <div className="brand-text-group">
                       <h1>GOLDEN TRAVEL</h1>
                       <span>PT. GOLDEN TOUR HARAMAIN</span>

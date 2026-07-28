@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { toast } from 'sonner';
+import { useLogo } from '../utils/logo';
 
 export default function LoginAdmin() {
+  const logoImg = useLogo();
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -345,8 +347,9 @@ export default function LoginAdmin() {
           <div className="admin-left-panel">
               <div className="admin-header-nav">
                   <div className="admin-brand">
-                      {/* Ganti src dengan logo asli Anda */}
-                      <div className="brand-circle">GT</div> 
+                      <div className="brand-circle overflow-hidden p-0.5 bg-[#064e3b]">
+                          <img src={logoImg} alt="Logo" className="w-full h-full object-contain rounded-full" />
+                      </div> 
                       <div className="brand-text">
                           <h1>GOLDEN TRAVEL</h1>
                           <span>PORTAL ADMINISTRATOR</span>

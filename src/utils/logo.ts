@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
-const logoImg = 'https://placehold.co/200x50?text=Logo';
+import { DEFAULT_LOGO_DATA } from '../assets/logoData';
+
+const defaultLogo = DEFAULT_LOGO_DATA;
 
 export const useLogo = () => {
-  const [logo, setLogo] = useState<string>(logoImg);
+  const [logo, setLogo] = useState<string>(defaultLogo);
 
   useEffect(() => {
     const handleStorageChange = () => {
       const savedLogo = localStorage.getItem('golden_travel_logo');
-      if (savedLogo) {
+      if (savedLogo && !savedLogo.includes('placehold.co')) {
         setLogo(savedLogo);
       } else {
-        setLogo(logoImg);
+        setLogo(defaultLogo);
       }
     };
 
