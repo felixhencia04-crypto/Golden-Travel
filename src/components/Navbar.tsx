@@ -2,7 +2,7 @@ import { useLogo } from '../utils/logo';
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Plane, LogIn, Menu, X, Briefcase } from 'lucide-react';
-import headerBg from '../assets/header-bg.png';
+import { HEADER_BG_DATA } from '../assets/headerBgData';
 
 export default function Navbar() {
   const logoImg = useLogo();
@@ -14,7 +14,7 @@ export default function Navbar() {
   const isJamaah = location.pathname.startsWith('/dashboard') || location.pathname.startsWith('/jamaah');
 
   return (
-    <nav className="bg-[#F9F5EC] bg-cover bg-center bg-no-repeat shadow-md border-b border-[#D4AF37]/40 sticky top-0 z-50 transition-all duration-300" style={{ backgroundImage: `url(${headerBg})` }}>
+    <nav className="bg-[#F9F5EC] bg-cover bg-center bg-no-repeat shadow-md border-b border-[#D4AF37]/40 sticky top-0 z-50 transition-all duration-300" style={{ backgroundImage: `url("${HEADER_BG_DATA}")` }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-20 sm:h-24">
           <div className="flex items-center">
@@ -92,7 +92,7 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       {isOpen && (
-        <div className="md:hidden bg-[#FAF7F2] bg-cover bg-center border-t border-[#D4AF37]/40 max-h-[calc(100vh-80px)] overflow-y-auto shadow-2xl transition-all" style={{ backgroundImage: `url(${headerBg})` }}>
+        <div className="md:hidden bg-[#FAF7F2] bg-cover bg-center border-t border-[#D4AF37]/40 max-h-[calc(100vh-80px)] overflow-y-auto shadow-2xl transition-all" style={{ backgroundImage: `url("${HEADER_BG_DATA}")` }}>
           <div className="px-4 pt-3 pb-6 space-y-2">
             {!isAdmin && !isMitra && (
               <>

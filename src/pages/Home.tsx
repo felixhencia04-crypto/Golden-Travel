@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { Play, CheckCircle2, ChevronLeft, ChevronRight, Award, ShieldCheck, MapPin, Phone, Mail, Star, Quote, Menu, X, LogIn } from 'lucide-react';
 import { useLogo } from '../utils/logo';
 import heroBg from '../assets/bg-utama.jpg';
-import headerBg from '../assets/header-bg.png';
+import { HEADER_BG_DATA } from '../assets/headerBgData';
 
 export default function Home() {
   const logoImg = useLogo();
@@ -55,7 +55,7 @@ export default function Home() {
   return (
     <div className="font-['Montserrat',sans-serif] bg-stone-50 text-[#2F4F4F] min-h-screen selection:bg-[#C8D5B9] selection:text-[#2F4F4F]">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-[#F9F5EC] bg-cover bg-center bg-no-repeat border-b border-[#D4AF37]/40 py-2.5 sm:py-3.5 px-3 sm:px-6 md:px-12 flex justify-between items-center shadow-md transition-all duration-300" style={{ backgroundImage: `url(${headerBg})` }}>
+      <header className="sticky top-0 z-50 bg-[#F9F5EC] bg-cover bg-center bg-no-repeat border-b border-[#D4AF37]/40 py-2.5 sm:py-3.5 px-3 sm:px-6 md:px-12 flex justify-between items-center shadow-md transition-all duration-300" style={{ backgroundImage: `url("${HEADER_BG_DATA}")` }}>
         <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
           <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full border-[1.5px] border-[#f59e0b] overflow-hidden flex items-center justify-center bg-[#064e3b] shrink-0 shadow-sm">
             {logoImg ? (
@@ -110,7 +110,7 @@ export default function Home() {
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-x-0 top-[52px] sm:top-[68px] z-40 bg-[#FAF7F2] bg-cover bg-center border-b border-[#D4AF37]/40 shadow-2xl px-4 py-4 max-h-[calc(100vh-60px)] overflow-y-auto rounded-b-2xl transition-all duration-300 space-y-3" style={{ backgroundImage: `url(${headerBg})` }}>
+        <div className="lg:hidden fixed inset-x-0 top-[52px] sm:top-[68px] z-40 bg-[#FAF7F2] bg-cover bg-center border-b border-[#D4AF37]/40 shadow-2xl px-4 py-4 max-h-[calc(100vh-60px)] overflow-y-auto rounded-b-2xl transition-all duration-300 space-y-3" style={{ backgroundImage: `url("${HEADER_BG_DATA}")` }}>
           {/* Quick Login Section inside Drawer */}
           <div className="p-3 bg-stone-50 rounded-xl border border-stone-200/80 space-y-2">
             <p className="text-[11px] font-bold text-[#064e3b] uppercase tracking-wider">Akses Portal System</p>
