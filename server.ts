@@ -12,7 +12,7 @@ import firebaseConfig from './firebase-applet-config.json' with { type: 'json' }
 import * as dotenv from 'dotenv';
 dotenv.config();
 
-import { db } from './src/db/index.ts';
+import { db, createPool } from './src/db/index.ts';
 import { withRetry } from './src/db/retry.ts';
 import * as schema from './src/db/schema.ts';
 import http from "http";
