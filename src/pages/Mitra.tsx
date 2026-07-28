@@ -1,6 +1,6 @@
 import { useLogo } from '../utils/logo';
 import { toast } from 'sonner';
-import direkturImg from '../assets/direktur.jpg';
+const direkturImg = 'https://placehold.co/400x500?text=Direktur';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Briefcase, Building, FileText, Phone, Mail, CheckCircle2, ArrowRight, TrendingUp, Users, Clock, Compass, Target, Heart, Award, Star, BookOpen, Handshake, Plane, DollarSign, Crown, MessageSquare, Quote } from 'lucide-react';

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import logoImg from '../assets/logo.png';
+const logoImg = 'https://placehold.co/200x50?text=Logo';
 
 export const useLogo = () => {
   const [logo, setLogo] = useState<string>(logoImg);
