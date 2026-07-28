@@ -347,7 +347,7 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
           doc.setFontSize(7.5);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(120, 120, 120);
-          doc.text('PT Golden Tour Haromain — Dokumen Laporan Keuangan Audit Internal', 14, pageHeight - 7);
+          doc.text('PT Golden Tour Haramain — Dokumen Laporan Keuangan Audit Internal', 14, pageHeight - 7);
           
           const pageStr = `Halaman ${data.pageNumber} dari ${(doc as any).internal.getNumberOfPages()}`;
           doc.text(pageStr, pageWidth - 14, pageHeight - 7, { align: 'right' });

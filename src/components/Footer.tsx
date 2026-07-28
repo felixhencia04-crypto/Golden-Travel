@@ -12,14 +12,14 @@ export default function Footer() {
                     <div className="footer-logo-area">
                         <img src="/logo.png" alt="Logo" className="w-12 h-12 object-contain mr-3" />
                         <div className="footer-brand-text">
-                            <h3>GOLDEN TOUR HAROMAIN</h3>
-                            <span>PT. GOLDEN TOUR HAROMAIN</span>
+                            <h3 className="whitespace-nowrap">GOLDEN TOUR HARAMAIN</h3>
+                            <span className="whitespace-nowrap">PT. GOLDEN TOUR HARAMAIN</span>
                         </div>
                     </div>
                     <p className="footer-desc">Biro perjalanan Haji dan Umroh terpercaya. Melayani dengan sepenuh hati untuk ibadah yang mabrur dan perjalanan yang berkesan.</p>
                     
                     <div className="footer-legal-box">
-                        <strong>PT. GOLDEN TOUR HAROMAIN</strong>
+                        <strong>PT. GOLDEN TOUR HARAMAIN</strong>
                         <span>Mitra PT. SEDERHANA ALMAIDANI GROUP</span>
                         <span className="licence">Izin PPIU: 08012300040570002</span>
                     </div>
@@ -84,7 +84,7 @@ export default function Footer() {
             </div>
 
             <div className="footer-bottom">
-                <p>&copy; {new Date().getFullYear()} PT Golden Tour Haromain Haji & Umroh. Hak Cipta Dilindungi.</p>
+                <p>&copy; {new Date().getFullYear()} PT Golden Tour Haramain Haji & Umroh. Hak Cipta Dilindungi.</p>
             </div>
         </div>
     </footer>

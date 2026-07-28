@@ -152,7 +152,7 @@ export default function InvoiceDetails() {
                 <div>
                   <p className="text-[10px] font-bold text-matcha-200 uppercase tracking-widest mb-2">Bank Mandiri</p>
                   <p className="text-lg font-mono font-bold text-gold-400">1090064995673</p>
-                  <p className="text-sm mt-1 font-medium">A.N. PT. Golden Tour Haromain</p>
+                  <p className="text-sm mt-1 font-medium">A.N. PT. Golden Tour Haramain</p>
                 </div>
                 <button 
                   className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"

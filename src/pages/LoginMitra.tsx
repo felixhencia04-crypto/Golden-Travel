@@ -296,7 +296,7 @@ export default function LoginMitra() {
                 
                 <div className="ml-testimonial">
                     <div className="ml-quote">"Sistem kemitraan yang transparan dan sangat mudah dijalankan."</div>
-                    <div className="ml-author">- Mitra Resmi PT Golden Tour Haromain</div>
+                    <div className="ml-author">- Mitra Resmi PT Golden Tour Haramain</div>
                 </div>
             </div>
 

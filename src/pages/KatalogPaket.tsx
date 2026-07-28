@@ -50,7 +50,7 @@ export default function KatalogPaket() {
             GT
           </div>
           <div>
-            <h1 className="text-white font-bold text-lg leading-tight">PT Golden Tour Haromain</h1>
+            <h1 className="text-white font-bold text-lg leading-tight">PT Golden Tour Haramain</h1>
             <p className="text-xs text-gray-500">Sistem Pendaftaran</p>
           </div>
         </div>

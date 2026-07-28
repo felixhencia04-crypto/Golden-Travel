@@ -201,7 +201,7 @@ export const generateJamaahRecapPdf = (jamaahList: Consultation[], options?: Rec
   doc.setTextColor(...TEXT_DARK);
 
   doc.text('Dibuat & Diverifikasi Oleh,', 20, finalY);
-  doc.text('PT Golden Tour Haromain', 20, finalY + 5);
+  doc.text('PT Golden Tour Haramain', 20, finalY + 5);
   doc.text('( ______________________ )', 20, finalY + 25);
   doc.text('Staff Administrasi & CRM', 20, finalY + 30);
 
@@ -219,7 +219,7 @@ export const generateJamaahRecapPdf = (jamaahList: Consultation[], options?: Rec
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(140, 140, 140);
-    doc.text('PT Golden Tour Haromain — Laporan Rekapan Database Jamaah Dokumen Resmi', 14, pageHeight - 7);
+    doc.text('PT Golden Tour Haramain — Laporan Rekapan Database Jamaah Dokumen Resmi', 14, pageHeight - 7);
     doc.text(`Halaman ${i} dari ${totalPages}`, pageWidth - 14, pageHeight - 7, { align: 'right' });
   }
 
@@ -418,7 +418,7 @@ export const generateDepartureManifestPdf = (
   doc.setTextColor(...TEXT_DARK);
 
   doc.text('Petugas Embarkasi / Administrasi,', 20, finalY);
-  doc.text('PT Golden Tour Haromain', 20, finalY + 5);
+  doc.text('PT Golden Tour Haramain', 20, finalY + 5);
   doc.text('( ______________________ )', 20, finalY + 25);
   doc.text('Staff Flight & Manifest', 20, finalY + 30);
 
@@ -435,7 +435,7 @@ export const generateDepartureManifestPdf = (
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(140, 140, 140);
-    doc.text('PT Golden Tour Haromain — Document Manifest Official Manifest Departure List', 14, pageHeight - 7);
+    doc.text('PT Golden Tour Haramain — Document Manifest Official Manifest Departure List', 14, pageHeight - 7);
     doc.text(`Halaman ${i} dari ${totalPages}`, pageWidth - 14, pageHeight - 7, { align: 'right' });
   }
 

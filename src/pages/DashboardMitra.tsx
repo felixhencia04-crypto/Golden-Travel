@@ -484,7 +484,7 @@ export default function DashboardMitra() {
                 { title: 'Brosur Umroh 2026', type: 'PDF', icon: <FileText className="w-8 h-8 text-blue-500" /> },
                 { title: 'Banner Sosial Media', type: 'PNG/JPG', icon: <Image className="w-8 h-8 text-green-500" /> },
                 { title: 'Video Promosi', type: 'MP4', icon: <Video className="w-8 h-8 text-red-500" /> },
-                { title: 'Logo PT Golden Tour Haromain', type: 'PNG', icon: <Image className="w-8 h-8 text-purple-500" /> },
+                { title: 'Logo PT Golden Tour Haramain', type: 'PNG', icon: <Image className="w-8 h-8 text-purple-500" /> },
                 { title: 'Price List Terbaru', type: 'PDF', icon: <FileText className="w-8 h-8 text-gold-500" /> },
               ].map((item, idx) => (
                 <div key={idx} className="bg-matcha-50 p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col items-center text-center hover:shadow-md transition-all">

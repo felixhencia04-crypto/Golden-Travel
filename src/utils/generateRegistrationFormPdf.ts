@@ -188,7 +188,7 @@ export const generateRegistrationFormPdf = (jamaah: any) => {
     '1. Seluruh data biodata dan dokumen yang diserahkan adalah sah dan dapat dipertanggungjawabkan.',
     '2. Paspor jamaah wajib memiliki masa berlaku minimal 7 bulan sebelum tanggal keberangkatan.',
     '3. Pelunasan biaya perjalanan wajib diselesaikan sesuai batas waktu yang telah ditentukan oleh travel.',
-    '4. Pembatalan pendaftaran tunduk pada syarat dan ketentuan kebijakan pengembalian biaya PT Golden Tour Haromain.'
+    '4. Pembatalan pendaftaran tunduk pada syarat dan ketentuan kebijakan pengembalian biaya PT Golden Tour Haramain.'
   ];
 
   terms.forEach(term => {
@@ -217,7 +217,7 @@ export const generateRegistrationFormPdf = (jamaah: any) => {
 
   // Right Signature
   doc.text(`Batam, ${dateToday}`, pageWidth - 65, yPos + 5);
-  doc.text('PT Golden Tour Haromain,', pageWidth - 65, yPos + 10);
+  doc.text('PT Golden Tour Haramain,', pageWidth - 65, yPos + 10);
   doc.setFont('helvetica', 'bold');
   doc.text('Petugas Administrasi', pageWidth - 65, yPos + 28);
   doc.setFont('helvetica', 'normal');
@@ -230,7 +230,7 @@ export const generateRegistrationFormPdf = (jamaah: any) => {
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(140, 140, 140);
-    doc.text('PT Golden Tour Haromain — Formulir Pendaftaran Jamaah Digital Resmi', 14, pageHeight - 8);
+    doc.text('PT Golden Tour Haramain — Formulir Pendaftaran Jamaah Digital Resmi', 14, pageHeight - 8);
     doc.text(`Halaman ${i} dari ${totalPages}`, pageWidth - 14, pageHeight - 8, { align: 'right' });
   }
 

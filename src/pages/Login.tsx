@@ -455,7 +455,7 @@ export default function Login() {
                   <div className="badge-exclusive">✨ PORTAL EKSKLUSIF JEMAAH</div>
                   <h2 className="jamaah-hero-title">Melayani Perjalanan Suci <br/><span className="gold-text">Sepenuh Hati</span></h2>
                   <p className="jamaah-hero-desc">
-                      Selamat datang di ruang digital khusus Jemaah PT Golden Tour Haromain. Akses seluruh kebutuhan persiapan ibadah Anda dengan mudah, tenang, dan terorganisir dalam satu genggaman.
+                      Selamat datang di ruang digital khusus Jemaah PT Golden Tour Haramain. Akses seluruh kebutuhan persiapan ibadah Anda dengan mudah, tenang, dan terorganisir dalam satu genggaman.
                   </p>
 
                   {/* Daftar Fitur Portal Jemaah */}

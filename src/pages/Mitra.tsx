@@ -190,11 +190,11 @@ export default function Mitra() {
               <div className="mitra-badge-top">✨ PROGRAM KEMITRAAN RESMI</div>
               
               <h1 className="mitra-title">
-                  Bangun Bisnis Penuh Berkah<br />Bersama <span className="gold-text">PT Golden Tour Haromain</span>
+                  Bangun Bisnis Penuh Berkah<br />Bersama <span className="gold-text">PT Golden Tour Haramain</span>
               </h1>
               
               <p className="mitra-desc">
-                  Jadilah representatif resmi PT. Golden Tour Haromain di kota Anda. Raih kebebasan finansial melalui bisnis Umrah & Haji dengan sistem bagi hasil yang transparan, legalitas terjamin, dan dukungan pemasaran penuh dari tim pusat.
+                  Jadilah representatif resmi PT. Golden Tour Haramain di kota Anda. Raih kebebasan finansial melalui bisnis Umrah & Haji dengan sistem bagi hasil yang transparan, legalitas terjamin, dan dukungan pemasaran penuh dari tim pusat.
               </p>
               
               <div className="mitra-action-group">
@@ -547,7 +547,7 @@ function MitraInfo({ setActiveTab }: { setActiveTab: (tab: 'register' | 'login')
                           <span className="reason-icon">⚙️</span>
                       </div>
                       <h3>Sistem Bisnis Teruji</h3>
-                      <p>Anda tidak perlu merintis dari nol. PT Golden Tour Haromain menyediakan sistem operasional, legalitas, dan destinasi tetap yang siap dijalankan dengan mudah.</p>
+                      <p>Anda tidak perlu merintis dari nol. PT Golden Tour Haramain menyediakan sistem operasional, legalitas, dan destinasi tetap yang siap dijalankan dengan mudah.</p>
                   </div>
 
                   {/* Kartu 5 */}
@@ -748,7 +748,7 @@ function MitraInfo({ setActiveTab }: { setActiveTab: (tab: 'register' | 'login')
               <div className="s3in-header">
                   <span className="gold-badge">EKSKLUSIF UNTUK MITRA</span>
                   <h2 className="s3in-title">Bergabung Bersama Kami dengan<br /><span className="gold-text">Sistem "3-IN"</span></h2>
-                  <p className="s3in-desc">Anda tidak akan berjuang sendirian. PT. Golden Tour Haromain telah merancang ekosistem pendampingan bisnis yang terstruktur dan terbukti berhasil.</p>
+                  <p className="s3in-desc">Anda tidak akan berjuang sendirian. PT. Golden Tour Haramain telah merancang ekosistem pendampingan bisnis yang terstruktur dan terbukti berhasil.</p>
               </div>
 
               <div className="s3in-grid">
@@ -778,7 +778,7 @@ function MitraInfo({ setActiveTab }: { setActiveTab: (tab: 'register' | 'login')
                       <div className="s3in-icon">✈️</div>
                       <div className="s3in-content">
                           <h3>DIUMROHIN <br /><span>(Reward Spiritual)</span></h3>
-                          <p>Raih kesempatan luar biasa untuk menjejakkan kaki di Tanah Suci bersama PT Golden Tour Haromain. Apresiasi ini diberikan melalui pencapaian bonus kinerja mitra atau dengan kualifikasi sebagai <em>Tour Leader</em>.</p>
+                          <p>Raih kesempatan luar biasa untuk menjejakkan kaki di Tanah Suci bersama PT Golden Tour Haramain. Apresiasi ini diberikan melalui pencapaian bonus kinerja mitra atau dengan kualifikasi sebagai <em>Tour Leader</em>.</p>
                       </div>
                   </div>
               </div>
@@ -1026,7 +1026,7 @@ function MitraInfo({ setActiveTab }: { setActiveTab: (tab: 'register' | 'login')
               <div className="komisi-header">
                   <span className="gold-badge">PROFIT SHARE & REWARD</span>
                   <h2 className="komisi-title">Skema Profitabilitas <span className="gold-text">Eksklusif</span></h2>
-                  <p className="komisi-desc">Berikut adalah transparansi ilustrasi Ujroh (Bagi Hasil) dan bonus pencapaian yang akan menjadi hak Anda sebagai representatif resmi PT Golden Tour Haromain.</p>
+                  <p className="komisi-desc">Berikut adalah transparansi ilustrasi Ujroh (Bagi Hasil) dan bonus pencapaian yang akan menjadi hak Anda sebagai representatif resmi PT Golden Tour Haramain.</p>
               </div>
 
               <div className="komisi-grid">
@@ -1236,7 +1236,7 @@ function MitraInfo({ setActiveTab }: { setActiveTab: (tab: 'register' | 'login')
               <div className="award-header">
                   <span className="gold-badge">REKOGNISI & APRESIASI</span>
                   <h2 className="award-title">Tingkatan Prestasi <span className="gold-text">Mitra Eksekutif</span></h2>
-                  <p className="award-desc">Kami sangat menghargai setiap dedikasi Anda. Capai tingkatan prestasi berikut dan nikmati eksklusivitas penghargaan dari PT. Golden Tour Haromain.</p>
+                  <p className="award-desc">Kami sangat menghargai setiap dedikasi Anda. Capai tingkatan prestasi berikut dan nikmati eksklusivitas penghargaan dari PT. Golden Tour Haramain.</p>
               </div>
 
               <div className="award-grid">
@@ -1481,7 +1481,7 @@ function MitraInfo({ setActiveTab }: { setActiveTab: (tab: 'register' | 'login')
                           
                           <div className="director-identity">
                               <h4 className="director-name">Ahmad Daud</h4>
-                              <p className="director-title">Direktur Utama PT. Golden Tour Haromain</p>
+                              <p className="director-title">Direktur Utama PT. Golden Tour Haramain</p>
                               {/* Lencana Kisah Inspiratif */}
                               <div className="story-badge">
                                   <span className="badge-icon">🌟</span> Kisah Inspiratif: Dari Tukang Ojek Menuju Baitullah
@@ -1772,7 +1772,7 @@ function MitraInfo({ setActiveTab }: { setActiveTab: (tab: 'register' | 'login')
 
                       {/* Tombol Kontak (Representatif) */}
                       <div className="action-buttons-area">
-                          <p className="action-text">Pilih Representatif PT Golden Tour Haromain untuk proses verifikasi:</p>
+                          <p className="action-text">Pilih Representatif PT Golden Tour Haramain untuk proses verifikasi:</p>
                           <div className="contact-buttons">
                               <a href="https://wa.me/6282283201103?text=Halo%20Admin%2C%20saya%20ingin%20mengambil%20Promo%20Kemitraan%20Rp%20350.000%20dari%20Golden%20Travel" target="_blank" rel="noopener noreferrer" className="btn-wa-gold">
                                   <span className="wa-icon"><MessageSquare className="w-5 h-5" /></span> Representatif 1
@@ -2010,7 +2010,7 @@ function MitraRegister() {
           <div className="register-container">
               <div className="register-header">
                   <h2>Formulir Pendaftaran <span className="gold-text">Mitra</span></h2>
-                  <p>Lengkapi data di bawah ini untuk proses verifikasi kemitraan resmi PT. Golden Tour Haromain.</p>
+                  <p>Lengkapi data di bawah ini untuk proses verifikasi kemitraan resmi PT. Golden Tour Haramain.</p>
               </div>
 
               <div className="register-card">
@@ -2078,7 +2078,7 @@ function MitraRegister() {
                           <label className="terms-checkbox">
                               <input type="checkbox" required />
                               <span className="checkmark"></span>
-                              Saya menyatakan bahwa data yang diisi adalah benar dan menyetujui <a href="#">Syarat & Ketentuan</a> kemitraan PT Golden Tour Haromain.
+                              Saya menyatakan bahwa data yang diisi adalah benar dan menyetujui <a href="#">Syarat & Ketentuan</a> kemitraan PT Golden Tour Haramain.
                           </label>
                       </div>
 

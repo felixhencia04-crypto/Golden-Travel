@@ -571,7 +571,7 @@ export default function Admin() {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text('Batam, ' + new Date().toLocaleDateString('id-ID'), 140, signatureY + 10);
-    doc.text('Admin PT Golden Tour Haromain', 140, signatureY + 20);
+    doc.text('Admin PT Golden Tour Haramain', 140, signatureY + 20);
     doc.text('( ____________________ )', 140, signatureY + 45);
 
     doc.save(`Biodata_${jamaah.name.replace(/\s+/g, '_')}.pdf`);
@@ -982,7 +982,7 @@ export default function Admin() {
       doc.setFontSize(7.5);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(120, 120, 120);
-      doc.text('PT Golden Tour Haromain — Bukti Sah Kuitansi Pembayaran Digital', 14, pageHeight - 7);
+      doc.text('PT Golden Tour Haramain — Bukti Sah Kuitansi Pembayaran Digital', 14, pageHeight - 7);
       doc.text('Halaman 1 dari 1', pageWidth - 14, pageHeight - 7, { align: 'right' });
 
       doc.save(`Kuitansi_${jamaah.name.replace(/\s+/g, '_')}_${receiptNo.replace(/\//g, '_')}.pdf`);

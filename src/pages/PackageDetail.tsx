@@ -220,7 +220,7 @@ export default function PackageDetail() {
                     </div>
                     <h4 className="font-serif text-xl font-bold text-matcha-950 mb-2">Terima Kasih!</h4>
                     <p className="text-matcha-600 font-light text-sm">
-                      Pesan Anda telah kami terima. Tim Admin PT Golden Tour Haromain akan segera menghubungi Anda melalui WhatsApp untuk proses selanjutnya.
+                      Pesan Anda telah kami terima. Tim Admin PT Golden Tour Haramain akan segera menghubungi Anda melalui WhatsApp untuk proses selanjutnya.
                     </p>
                     <div className="flex gap-4 mt-8">
                       <Link 
@@ -289,7 +289,7 @@ export default function PackageDetail() {
                       Daftar Umroh Sekarang <Send className="ml-2 w-5 h-5" />
                     </button>
                     <p className="text-xs text-center text-matcha-100 mt-4">
-                      Dengan menekan tombol kirim, Anda menyetujui untuk dihubungi oleh tim PT Golden Tour Haromain.
+                      Dengan menekan tombol kirim, Anda menyetujui untuk dihubungi oleh tim PT Golden Tour Haramain.
                     </p>
                   </form>
                 )}

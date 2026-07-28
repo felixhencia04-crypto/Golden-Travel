@@ -31,7 +31,7 @@ export default function Legalitas() {
               <span className="text-[#D4AF37]">Adalah Prioritas Utama</span>
             </h1>
             <p className="text-white/60 font-light text-base md:text-lg max-w-3xl mx-auto leading-relaxed mt-6">
-              PT. Golden Tour Haromain telah terdaftar secara resmi dan diawasi langsung oleh Kementerian Agama Republik Indonesia. Kami berkomitmen memberikan kepastian jadwal keberangkatan tanpa keraguan.
+              PT. Golden Tour Haramain telah terdaftar secara resmi dan diawasi langsung oleh Kementerian Agama Republik Indonesia. Kami berkomitmen memberikan kepastian jadwal keberangkatan tanpa keraguan.
             </p>
           </motion.div>
         </div>
@@ -160,7 +160,7 @@ export default function Legalitas() {
                 <Search className="w-12 h-12 text-[#D4AF37] mx-auto mb-6" strokeWidth={1.5} />
                 <h3 className="font-serif text-2xl font-normal text-white mb-4">Verifikasi Legalitas Kami</h3>
                 <p className="text-white/50 text-sm mb-10 leading-relaxed font-light">
-                  Anda dapat mengecek status legalitas PT. Golden Tour Haromain secara langsung melalui sistem resmi Siskopatuh Kemenag RI.
+                  Anda dapat mengecek status legalitas PT. Golden Tour Haramain secara langsung melalui sistem resmi Siskopatuh Kemenag RI.
                 </p>
                 <a href="#" className="inline-flex items-center justify-center px-8 py-4 bg-[#D4AF37] hover:bg-[#c5a02e] text-[#0A110D] font-bold rounded-full transition-all duration-300 w-full shadow-[0_0_20px_rgba(212,175,55,0.15)] text-sm uppercase tracking-wider">
                   <ExternalLink className="w-4 h-4 mr-2" />

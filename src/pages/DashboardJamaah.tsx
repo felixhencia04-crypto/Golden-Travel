@@ -887,7 +887,7 @@ export default function DashboardJamaah() {
              <div className="flex items-center space-x-3">
                <img src={logoImg} alt="Logo" className="h-10 w-10 rounded-full border border-white/10 shadow-sm" />
                <div className="flex flex-col">
-                 <span className="font-bold text-white text-lg leading-tight">PT Golden Tour Haromain</span>
+                 <span className="font-bold text-white text-lg leading-tight">PT Golden Tour Haramain</span>
                  <span className="text-[10px] text-gold-400 font-bold uppercase tracking-wider">Portal Jamaah</span>
                </div>
              </div>
@@ -1703,7 +1703,7 @@ export default function DashboardJamaah() {
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                               </button>
                             </p>
-                            <p className="text-[10px] text-gray-500 mt-1">A.N. PT. Golden Tour Haromain</p>
+                            <p className="text-[10px] text-gray-500 mt-1">A.N. PT. Golden Tour Haramain</p>
                           </div>
                         </div>
                       </div>
@@ -4143,7 +4143,7 @@ export default function DashboardJamaah() {
                   </button>
                 </div>
                 <p className="text-[9px] text-gray-400 mt-4 text-center uppercase tracking-widest font-bold">
-                  Balasan Anda akan dikirim langsung ke tim Customer Service PT Golden Tour Haromain
+                  Balasan Anda akan dikirim langsung ke tim Customer Service PT Golden Tour Haramain
                 </p>
               </div>
             ) : (
