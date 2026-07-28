@@ -11,6 +11,7 @@ import {
   Check
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { LEGALITAS_BG_DATA } from '../assets/legalitasBgData';
 import { ABOUT_BG_DATA } from '../assets/aboutBgData';
 
 export interface LegalCardItem {
@@ -83,23 +84,41 @@ export const LEGAL_CARD_ITEMS: LegalCardItem[] = [
 export default function LegalitasShowcase() {
   return (
     <section className="relative py-20 sm:py-28 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#012519] text-white overflow-hidden" id="legalitas">
-      {/* Background Image Container with Kaaba Overlay */}
+      {/* Background Image Container with Kaaba & Gold Mandalas */}
       <div className="absolute inset-0 pointer-events-none select-none z-0 overflow-hidden">
+        {/* Deep Emerald Dark Canvas */}
         <div className="absolute inset-0 bg-[#012519]"></div>
         
-        {/* Kaaba & Courtyard Background Right-Aligned */}
-        <div className="absolute right-0 top-0 bottom-0 w-full lg:w-3/4 h-full">
+        {/* Base Layer: Uploaded Emerald & Gold Mandala Pattern Background */}
+        <div 
+          className="absolute inset-0 bg-no-repeat bg-center bg-cover opacity-75"
+          style={{ backgroundImage: `url(${LEGALITAS_BG_DATA})` }}
+        ></div>
+
+        {/* Prominent Majestic Kaaba Image Overlay - Right Side Display */}
+        <div className="absolute right-0 top-0 bottom-0 w-full lg:w-3/5 h-full overflow-hidden">
           <img 
             src={ABOUT_BG_DATA} 
-            alt="Latar Belakang Ka'bah Legalitas" 
-            className="w-full h-full object-cover object-right sm:object-[85%_center] opacity-85"
+            alt="Latar Belakang Ka'bah Masjidil Haram" 
+            className="w-full h-full object-cover object-right sm:object-[80%_center] opacity-90 drop-shadow-2xl"
+          />
+          {/* Smooth Gradient Masks to Blend Kaaba with Emerald Green Mandalas */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#012519] via-[#012519]/60 to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-[#012519]/70 via-transparent to-[#012519]/85"></div>
+        </div>
+
+        {/* Left Side Gold Mandala Accent Overlay for Symmetry */}
+        <div className="absolute top-0 left-0 bottom-0 w-40 sm:w-64 md:w-80 lg:w-[420px] pointer-events-none overflow-hidden opacity-90 mix-blend-screen">
+          <img 
+            src={LEGALITAS_BG_DATA} 
+            alt="Corak Mandala Emas Kiri" 
+            className="h-full w-auto max-w-none object-cover object-left"
           />
         </div>
 
-        {/* Soft Contrast Gradient Vignette Overlay for Text Legibility */}
-        <div className="absolute inset-0 bg-gradient-to-r from-[#012519] via-[#012519]/90 to-transparent sm:via-[#012519]/75"></div>
-        <div className="absolute inset-0 bg-gradient-to-b from-[#012519]/80 via-transparent to-[#012519]/90"></div>
-        <div className="absolute top-1/4 left-1/3 w-[600px] h-[450px] bg-[#D4AF37]/10 rounded-full blur-[140px]"></div>
+        {/* Soft Golden Glow & Vignette */}
+        <div className="absolute top-1/3 left-1/4 w-[600px] h-[400px] bg-[#D4AF37]/15 rounded-full blur-[150px]"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-[#012519]/60 via-transparent to-[#012519]/85"></div>
       </div>
 
       <div className="relative z-10 max-w-7xl mx-auto space-y-12 sm:space-y-16">

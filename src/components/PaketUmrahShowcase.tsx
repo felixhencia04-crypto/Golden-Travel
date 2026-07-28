@@ -1,0 +1,811 @@
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Sparkles, 
+  Compass, 
+  CheckCircle2, 
+  Calendar, 
+  Hotel, 
+  Plane, 
+  MessageCircle, 
+  ChevronRight, 
+  Info, 
+  X, 
+  Clock, 
+  Award, 
+  ShieldCheck, 
+  MapPin, 
+  Users, 
+  FileText,
+  Star,
+  Layers,
+  ArrowRight
+} from 'lucide-react';
+import { PAKET_UMRAH_BG_DATA } from '../assets/paketUmrahBgData';
+
+export interface UmrahPackage {
+  id: string;
+  name: string;
+  category: 'reguler' | 'vip' | 'plus' | 'ramadhan';
+  categoryLabel: string;
+  duration: string;
+  price: number;
+  dpAmount: string;
+  priceLabel?: string;
+  isPopular?: boolean;
+  isBestSeller?: boolean;
+  imageUrl: string;
+  airline: string;
+  hotelMakkah: string;
+  hotelMakkahStars: number;
+  hotelMakkahDistance: string;
+  hotelMadinah: string;
+  hotelMadinahStars: number;
+  hotelMadinahDistance: string;
+  departureSchedule: string;
+  seatsLeft: number;
+  highlights: string[];
+  includes: string[];
+  excludes: string[];
+  itinerary: { day: number; title: string; description: string }[];
+}
+
+const DEFAULT_UMRAH_PACKAGES: UmrahPackage[] = [
+  {
+    id: 'pkg-safa-reguler',
+    name: 'Paket Safa (Umrah Reguler 9 Hari)',
+    category: 'reguler',
+    categoryLabel: 'Reguler Bintang 4',
+    duration: '9 Hari',
+    price: 28500000,
+    dpAmount: 'Rp 5.000.000',
+    imageUrl: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&w=800&q=80',
+    airline: 'Saudia Airlines / Garuda Indonesia (Direct)',
+    hotelMakkah: 'Azka Al Safa / Le Meridian',
+    hotelMakkahStars: 4,
+    hotelMakkahDistance: '± 200m dari Masjidil Haram',
+    hotelMadinah: 'Taiba Front / Grand Plaza',
+    hotelMadinahStars: 4,
+    hotelMadinahDistance: '± 100m dari Masjid Nabawi',
+    departureSchedule: 'September - November 2026',
+    seatsLeft: 6,
+    highlights: [
+      'Penerbangan Direct tanpa transit',
+      'Hotel Ring 1 dekat pelataran masjid',
+      'Kereta Cepat Haramain (Makkah - Madinah)',
+      'Free Ziarah Kota Taif & Air Zamzam 5L'
+    ],
+    includes: [
+      'Tiket Pesawat PP Economy Class',
+      'Visa Umrah Resmi & Asuransi Perjalanan',
+      'Akomodasi Hotel Bintang 4 Makkah & Madinah',
+      'Makan 3x Sehari Menu Indonesia (Buffet)',
+      'Kereta Cepat Haramain Express',
+      'Transportasi Bus Full AC Executive',
+      'Muthawwif / Pembimbing Bersertifikat',
+      'Koper & Perlengkapan Eksklusif Golden Travel',
+      'Air Zamzam 5 Liter (jika diizinkan)'
+    ],
+    excludes: [
+      'Pembuatan Paspor & Tambah Nama',
+      'Vaksinasi Meningitis',
+      'Kebutuhan / Pengeluaran Pribadi (Laundry, Roaming)',
+      'Biaya Kelebihan Bagasi'
+    ],
+    itinerary: [
+      { day: 1, title: 'Keberangkatan Jakarta - Jeddah / Madinah', description: 'Berkumpul di Bandara Soekarno-Hatta, briefing, pembagian perlengkapan, dan terbang menuju Tanah Suci.' },
+      { day: 2, title: 'Tiba di Madinah - Ziarah Raudhah & Masjid Nabawi', description: 'Check-in hotel Madinah, shalat di Masjid Nabawi, ziarah ke Raudhah & Makam Rasulullah SAW.' },
+      { day: 3, title: 'Ziarah Kota Madinah', description: 'Mengunjungi Masjid Quba, Jabal Uhud, Masjid Qiblatain, dan Kebun Kurma.' },
+      { day: 4, title: 'Madinah ke Makkah - Umrah Pertama', description: 'Mengambil Miqat di Bir Ali, perjalanan dengan Kereta Cepat Haramain ke Makkah, check-in hotel dan melaksanakan Ibadah Umrah 1 (Tawaf, Sa\'i, Tahallul).' },
+      { day: 5, title: 'Memperbanyak Ibadah di Masjidil Haram', description: 'Shalat fardhu berjamaah, iktikaf, dan tawaf sunnah.' },
+      { day: 6, title: 'Ziarah Kota Makkah & Umrah Kedua', description: 'Mengunjungi Jabal Thawr, Padang Arafah, Jabal Rahmah, Muzdalifah, Mina, dan Miqat di Ji\'ranah untuk Umrah 2.' },
+      { day: 7, title: 'Wisata Religi Kota Taif', description: 'Perjalanan ke Kota Taif (Masjid Abdullah bin Abbas, Pabrik Parfum Mawar, Kereta Gantung Taif).' },
+      { day: 8, title: 'Tawaf Wada\' & Kepulangan ke Indonesia', description: 'Melaksanakan Tawaf Wada\', check-out hotel, transfer ke Bandara Jeddah untuk kepulangan.' },
+      { day: 9, title: 'Tiba di Jakarta', description: 'Tiba di Bandara Soekarno-Hatta dengan selamat. Semoga menjadi Umrah yang Mabrur.' }
+    ]
+  },
+  {
+    id: 'pkg-marwa-vip',
+    name: 'Paket Marwa (Umrah VIP Executive 12 Hari)',
+    category: 'vip',
+    categoryLabel: 'VIP Executive Bintang 5',
+    duration: '12 Hari',
+    price: 35000000,
+    dpAmount: 'Rp 5.000.000',
+    isPopular: true,
+    isBestSeller: true,
+    imageUrl: 'https://images.unsplash.com/photo-1565552403565-5ba2a9539f90?auto=format&fit=crop&w=800&q=80',
+    airline: 'Saudia Airlines Direct (Direct Flight)',
+    hotelMakkah: 'Pullman ZamZam / Dar Al Eiman Royal',
+    hotelMakkahStars: 5,
+    hotelMakkahDistance: 'Pelataran Masjidil Haram (Clock Tower)',
+    hotelMadinah: 'Anwar Movenpick / Frontel Al Harithia',
+    hotelMadinahStars: 5,
+    hotelMadinahDistance: 'Pelataran Masjid Nabawi',
+    departureSchedule: 'Agustus, September & November 2026',
+    seatsLeft: 3,
+    highlights: [
+      'Hotel Pelataran Masjid (Akses Langsung)',
+      'Tiket Kereta Cepat Haramain VIP Class',
+      'Muthawwif Senior Alumni Universitas Madinah',
+      'Free City Tour Taif & Cable Car'
+    ],
+    includes: [
+      'Tiket Pesawat Direct Flight Saudia Airlines PP',
+      'Akomodasi Hotel Bintang 5 Pelataran Makkah & Madinah',
+      'Visa Umrah VIP & Asuransi Kesehatan',
+      'Menu Internasional & Indonesia Buffet Bintang 5',
+      'Kereta Cepat Haramain Express VIP Class',
+      'Handling Airport & Hotel VIP Fast Track',
+      'Sertifikat Umrah Resmi Golden Travel',
+      'Perlengkapan Executive (Koper Fiber Hardcase, Kain Ihram/Mukena Premium, Batik, Tas Paspor)',
+      'Air Zamzam 5 Liter'
+    ],
+    excludes: [
+      'Pembuatan / Perpanjangan Paspor',
+      'Suntik Meningitis',
+      'Kebutuhan Pribadi & Kelebihan Bagasi'
+    ],
+    itinerary: [
+      { day: 1, title: 'Jakarta - Jeddah / Madinah Direct', description: 'Keberangkatan dengan Saudia Airlines Direct Flight, pelayanan Lounge VIP sebelum departure.' },
+      { day: 2, title: 'Tiba di Madinah - Check-in Hotel Pelataran Nabawi', description: 'Penyambutan VIP di Bandara, transfer bus executive ke Anwar Movenpick, shalat di Nabawi.' },
+      { day: 3, title: 'Ziarah Raudhah & Kota Madinah', description: 'Ibadah di Raudhah Mubarakah dengan tasrih resmi, ziarah Quba & Uhud.' },
+      { day: 4, title: 'Santai & Ibadah di Masjid Nabawi', description: 'Hari khusus memperbanyak shalat, selawat, dan doa di Masjid Nabawi.' },
+      { day: 5, title: 'Madinah ke Makkah via Kereta Cepat VIP', description: 'Perjalanan Kereta Cepat Haramain VIP Class. Check-in Pullman ZamZam, Umrah 1.' },
+      { day: 6, title: 'Ibadah Khusyuk di Masjidil Haram', description: 'Iktikaf dan Tawaf Sunnah di pelataran Ka\'bah.' },
+      { day: 7, title: 'Ziarah Makkah Al-Mukarramah', description: 'City tour Arafah, Muzdalifah, Mina, Jabal Rahmah, Miqat Ji\'ranah.' },
+      { day: 8, title: 'Wisata Eksekutif Kota Taif', description: 'Kunjungan lengkap Taif, naik kereta gantung, makan siang kuliner lokal khas Taif.' },
+      { day: 9, title: 'Ibadah Mandiri & Kuliner Makkah', description: 'Acara bebas untuk memperbanyak ibadah dan belanja oleh-oleh.' },
+      { day: 10, title: 'Umrah Ketiga & Ziarah Hudaibiyah', description: 'Miqat Hudaibiyah, wisata museum Al-Amoudi, dan Ibadah Umrah 3.' },
+      { day: 11, title: 'Tawaf Wada\' & Kepulangan', description: 'Tawaf perpisahan, transfer ke Bandara Jeddah VIP Lounge, penerbangan ke Jakarta.' },
+      { day: 12, title: 'Tiba di Jakarta', description: 'Mendarat di Bandara Soekarno-Hatta. Semoga ibadah diterima dan Mabrur.' }
+    ]
+  },
+  {
+    id: 'pkg-zamzam-turki',
+    name: 'Paket Zamzam (Umrah Plus Turki 12 Hari)',
+    category: 'plus',
+    categoryLabel: 'Umrah Plus Wisata Turki',
+    duration: '12 Hari',
+    price: 42500000,
+    dpAmount: 'Rp 7.500.000',
+    isPopular: true,
+    imageUrl: 'https://images.unsplash.com/photo-1527838832700-54595d978669?auto=format&fit=crop&w=800&q=80',
+    airline: 'Turkish Airlines / Saudia Airlines',
+    hotelMakkah: 'Makkah Tower / Swissotel',
+    hotelMakkahStars: 5,
+    hotelMakkahDistance: 'Pelataran Masjidil Haram',
+    hotelMadinah: 'Pullman Zamzam Madinah',
+    hotelMadinahStars: 5,
+    hotelMadinahDistance: '± 50m dari Masjid Nabawi',
+    departureSchedule: 'Oktober & Desember 2026',
+    seatsLeft: 5,
+    highlights: [
+      'Ibadah Umrah + Jelajah Istanbul & Bursa',
+      'Cruising Selat Bosphorus & Hagia Sophia',
+      'Naik Cable Car di Uludag Mountain Bursa',
+      'Hotel Bintang 5 Makkah, Madinah & Istanbul'
+    ],
+    includes: [
+      'Tiket Pesawat International Full Service PP',
+      'Visa Umrah + Visa Turki Single Entry',
+      'Akomodasi Hotel Bintang 5 Makkah, Madinah & Turki',
+      'Makan Penuh (Buffet Indonesia di Saudi + Culinary Turki)',
+      'Bosphorus Private Cruise in Istanbul',
+      'Tiket Masuk Objek Wisata Turki (Hagia Sophia, Topkapi, Grand Bazaar)',
+      'Tour Guide Berbahasa Indonesia di Turki + Muthawwif Saudi',
+      'Perlengkapan Umrah Plus Eksklusif',
+      'Air Zamzam 5 Liter'
+    ],
+    excludes: [
+      'Paspor & Vaksin Meningitis',
+      'Pengeluaran Pribadi & Tipping Guide'
+    ],
+    itinerary: [
+      { day: 1, title: 'Jakarta - Istanbul (Turki)', description: 'Penerbangan menuju Istanbul, penerimaan visa & transfer ke hotel.' },
+      { day: 2, title: 'Istanbul Tour - Hagia Sophia & Bosphorus Cruise', description: 'Mengunjungi Blue Mosque, Hagia Sophia, Hippodrome, dan private Bosphorus Cruise.' },
+      { day: 3, title: 'Istanbul ke Bursa - Gunung Uludag & Grand Bazaar', description: 'Wisata ke Kota Bursa, naik cable car di Gunung Uludag, belanja sutra di Koza Han & Grand Bazaar.' },
+      { day: 4, title: 'Istanbul ke Madinah', description: 'Penerbangan dari Istanbul ke Madinah, check-in hotel Pullman Zamzam Madinah.' },
+      { day: 5, title: 'Ziarah Raudhah & Kota Madinah', description: 'Shalat di Masjid Nabawi, ziarah Raudhah, Masjid Quba, Jabal Uhud.' },
+      { day: 6, title: 'Madinah ke Makkah - Umrah Pertama', description: 'Miqat di Bir Ali, perjalanan dengan Kereta Cepat ke Makkah, Ibadah Umrah 1.' },
+      { day: 7, title: 'Memperbanyak Ibadah di Makkah', description: 'Iktikaf di Masjidil Haram, shalat berjamaah, tawaf sunnah.' },
+      { day: 8, title: 'Ziarah Makkah & City Tour', description: 'Arafah, Muzdalifah, Mina, Jabal Rahmah, Miqat Ji\'ranah untuk Umrah 2.' },
+      { day: 9, title: 'Wisata Sejarah Kota Taif', description: 'City tour Taif, pabrik minyak mawar, wisata kuliner.' },
+      { day: 10, title: 'Ibadah Mandiri & Shopping Tour', description: 'Acara bebas di Makkah Clock Tower Mall.' },
+      { day: 11, title: 'Tawaf Wada\' & Kepulangan', description: 'Tawaf Wada\', transfer ke Bandara Jeddah untuk penerbangan kembali ke Jakarta.' },
+      { day: 12, title: 'Tiba di Jakarta', description: 'Tiba di Indonesia dengan kenangan manis ibadah & wisata syariah.' }
+    ]
+  },
+  {
+    id: 'pkg-rawdah-ramadhan',
+    name: 'Paket Rawdah (Umrah Ramadhan 14 Hari)',
+    category: 'ramadhan',
+    categoryLabel: 'Spesial Ramadhan & Lailatul Qadr',
+    duration: '14 Hari',
+    price: 48000000,
+    dpAmount: 'Rp 10.000.000',
+    isPopular: true,
+    imageUrl: 'https://images.unsplash.com/photo-1541432901042-2d8bd64b4a9b?auto=format&fit=crop&w=800&q=80',
+    airline: 'Saudia Airlines (Direct Flight)',
+    hotelMakkah: 'Clock Tower Fairmont / Raffles Makkah',
+    hotelMakkahStars: 5,
+    hotelMakkahDistance: 'Pelataran Utama Masjidil Haram',
+    hotelMadinah: 'Dar Al Taqwa / Movenpick',
+    hotelMadinahStars: 5,
+    hotelMadinahDistance: 'Pelataran Utama Masjid Nabawi',
+    departureSchedule: 'Maret / April 2027 (Ramadhan 1447H)',
+    seatsLeft: 4,
+    highlights: [
+      'Meraih Keberkahan Ramadhan & Lailatul Qadr di Haramain',
+      'Prasmanan Bintang 5 untuk Sahur & Buka Puasa',
+      'Iktikaf Khusyuk dengan Bimbingan Syariah Intensif',
+      'View Ka\'bah Langsung dari Hotel Clock Tower'
+    ],
+    includes: [
+      'Tiket Direct Flight Saudia Airlines PP',
+      'Akomodasi Bintang 5 Fairmont / Raffles Clock Tower',
+      'Visa Umrah Ramadhan & Asuransi Kesehatan',
+      'Menu Buka Puasa & Sahur Buffet Bintang 5 Spesial Ramadhan',
+      'Kereta Cepat Haramain Express VIP Class',
+      'Bimbingan Iktikaf Lailatul Qadr oleh Ustadz Senior Alumni Madinah',
+      'Perlengkapan Umrah Ramadhan Eksklusif',
+      'Air Zamzam 5 Liter'
+    ],
+    excludes: [
+      'Paspor & Vaksin Meningitis',
+      'Kebutuhan Pribadi'
+    ],
+    itinerary: [
+      { day: 1, title: 'Keberangkatan Jakarta - Madinah Direct', description: 'Terbang langsung ke Madinah bersama rombongan Umrah Ramadhan.' },
+      { day: 2, title: 'Madinah - Suasana Ramadhan di Masjid Nabawi', description: 'Check-in hotel, merasakan keindahan Buka Puasa bersama di pelataran Masjid Nabawi.' },
+      { day: 3, title: 'Ziarah Raudhah & Kota Madinah', description: 'Ziarah Raudhah Mubarakah, Masjid Quba, Jabal Uhud.' },
+      { day: 4, title: 'Persiapan Ke Makkah Al-Mukarramah', description: 'Memperbanyak ibadah dan iktikaf di Masjid Nabawi.' },
+      { day: 5, title: 'Madinah ke Makkah - Umrah Pertama Ramadhan', description: 'Naik Kereta Cepat Haramain ke Makkah, check-in Fairmont Clock Tower, Umrah 1.' },
+      { day: 6, title: 'Ibadah Ramadhan & Tarawih di Masjidil Haram', description: 'Shalat Tarawih & Witir berjamaah di pelataran Masjidil Haram.' },
+      { day: 7, title: 'Ziarah Kota Makkah', description: 'City tour Arafah, Muzdalifah, Mina, Jabal Rahmah.' },
+      { day: 8, title: 'Program Iktikaf & Qiyamul Lail', description: 'Bimbingan khusus iktikaf dan qiyamul lail berburu Lailatul Qadr.' },
+      { day: 9, title: 'Umrah Kedua & Ziarah Taif', description: 'City tour Taif & Miqat Ji\'ranah untuk Umrah 2.' },
+      { day: 10, title: 'Ibadah Khusyuk Malam-Malam Terakhir Ramadhan', description: 'Memperbanyak doa, tadarus Al-Qur\'an, dan iktikaf.' },
+      { day: 11, title: 'Ibadah Mandiri & Persiapan Kepulangan', description: 'Acara bebas di Masjidil Haram.' },
+      { day: 12, title: 'Tawaf Wada\' Ramadhan', description: 'Melaksanakan Tawaf Wada\' penuh haru.' },
+      { day: 13, title: 'Jeddah ke Jakarta', description: 'Transfer ke Bandara Jeddah untuk kepulangan ke Tanah Air.' },
+      { day: 14, title: 'Tiba di Jakarta', description: 'Tiba di Indonesia dengan ampunan dan keberkahan Ramadhan.' }
+    ]
+  }
+];
+
+export default function PaketUmrahShowcase() {
+  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [selectedPkg, setSelectedPkg] = useState<UmrahPackage | null>(null);
+  const [modalTab, setModalTab] = useState<'facilities' | 'itinerary' | 'terms'>('facilities');
+
+  // Filtered packages
+  const filteredPackages = DEFAULT_UMRAH_PACKAGES.filter(pkg => {
+    if (activeCategory === 'all') return true;
+    return pkg.category === activeCategory;
+  });
+
+  const getWhatsAppUrl = (pkgName: string, price: number) => {
+    const formattedPrice = `Rp ${price.toLocaleString('id-ID')}`;
+    const text = encodeURIComponent(
+      `Assalamu'alaikum Golden Travel, saya tertarik dengan "${pkgName}" (${formattedPrice}). Mohon informasi ketersediaan seat dan jadwal rincinya.`
+    );
+    return `https://wa.me/6282283201103?text=${text}`;
+  };
+
+  return (
+    <section className="relative py-20 sm:py-28 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#011E15] text-white overflow-hidden border-t border-[#D4AF37]/30" id="pilihan-paket">
+      
+      {/* Background Texture & Gold Accents - Clean Elegant Single-Layer Background */}
+      <div className="absolute inset-0 pointer-events-none select-none z-0 overflow-hidden">
+        {/* Deep Emerald Background Base */}
+        <div className="absolute inset-0 bg-[#011E15]"></div>
+        
+        {/* Single Full Artwork Background Image - 100% Opacity for Crisp Lanterns & Mandalas */}
+        <div 
+          className="absolute inset-0 bg-no-repeat bg-center bg-cover opacity-100"
+          style={{ backgroundImage: `url(${PAKET_UMRAH_BG_DATA})` }}
+        ></div>
+
+        {/* Natural Subtle Golden Lamp Glow behind the Top-Right Hanging Lanterns */}
+        <div className="absolute top-0 right-4 sm:right-12 md:right-20 w-48 h-48 sm:w-64 sm:h-64 bg-[#D4AF37]/25 rounded-full blur-3xl"></div>
+
+        {/* Center Soft Radial Glow */}
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#D4AF37]/10 rounded-full blur-[160px]"></div>
+
+        {/* Minimal Vignette Overlay to maintain contrast while preserving image details */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#011E15]/15 via-transparent to-[#011E15]/35"></div>
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto space-y-12 sm:space-y-16">
+        
+        {/* Section Header */}
+        <div className="text-center max-w-4xl mx-auto space-y-4">
+          <div className="inline-flex items-center gap-2.5 px-5 py-2 rounded-full bg-[#022A1F]/90 border border-[#D4AF37]/60 text-[#D4AF37] text-xs sm:text-sm font-semibold tracking-[0.2em] uppercase shadow-lg backdrop-blur-md">
+            <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+            <span>Paket Umrah Eksklusif & Reguler</span>
+          </div>
+
+          <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-tight drop-shadow-lg">
+            Pilihan Perjalanan Ibadah <br className="hidden sm:inline" />
+            <span className="bg-gradient-to-r from-[#F3E5AB] via-[#D4AF37] to-[#B8860B] bg-clip-text text-transparent">
+              Sesuai Kerinduan Anda
+            </span>
+          </h2>
+
+          <p className="font-sans text-stone-200 text-sm sm:text-base md:text-lg font-light leading-relaxed max-w-3xl mx-auto text-center pt-2 drop-shadow-sm">
+            Nikmati ketenangan ibadah ke Tanah Suci dengan garansi kepastian penerbangan Direct Flight, akomodasi hotel Ring 1 Masjidil Haram & Nabawi, serta bimbingan ibadah yang sesuai tuntunan Sunnah.
+          </p>
+        </div>
+
+        {/* Filter Category Pills */}
+        <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 pt-2 pb-4">
+          {[
+            { id: 'all', label: 'Semua Paket' },
+            { id: 'reguler', label: 'Umrah Reguler (4⭐)' },
+            { id: 'vip', label: 'Umrah VIP Executive (5⭐)' },
+            { id: 'plus', label: 'Umrah Plus Turki' },
+            { id: 'ramadhan', label: 'Spesial Ramadhan' }
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={`px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 shadow-md ${
+                activeCategory === cat.id
+                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-[#011E15] shadow-[#D4AF37]/30 scale-105 border border-[#F3E5AB]'
+                  : 'bg-[#022A1F]/80 text-stone-300 hover:text-white hover:bg-[#023829] border border-[#D4AF37]/30 backdrop-blur-md'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Package Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-8 items-stretch">
+          {filteredPackages.map((pkg) => (
+            <motion.div
+              key={pkg.id}
+              layout
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.4 }}
+              className={`bg-[#022A1F]/85 border-2 ${
+                pkg.isBestSeller ? 'border-[#D4AF37]' : 'border-[#D4AF37]/50'
+              } rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:border-[#D4AF37] hover:shadow-[0_25px_60px_rgba(212,175,55,0.25)] transition-all duration-500 flex flex-col justify-between relative group backdrop-blur-md`}
+            >
+              {/* Top Metallic Gold Accent Bar */}
+              <div className="h-1.5 bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#B8860B] w-full"></div>
+
+              {/* Card Header Media */}
+              <div>
+                <div className="relative h-60 sm:h-72 overflow-hidden">
+                  <img 
+                    src={pkg.imageUrl} 
+                    alt={pkg.name} 
+                    className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700" 
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#022A1F] via-[#022A1F]/20 to-transparent"></div>
+
+                  {/* Top Right Badges */}
+                  <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-10">
+                    <span className="bg-[#011E15]/90 border border-[#D4AF37] text-[#F3E5AB] px-3.5 py-1.5 rounded-full text-xs font-bold shadow-lg backdrop-blur-md flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-[#D4AF37]" />
+                      {pkg.duration}
+                    </span>
+                    <span className="bg-[#D4AF37] text-[#011E15] px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider shadow-md">
+                      {pkg.categoryLabel}
+                    </span>
+                  </div>
+
+                  {/* Featured Tag Badge */}
+                  {pkg.isBestSeller && (
+                    <div className="absolute top-4 left-4 bg-gradient-to-r from-[#B8860B] via-[#D4AF37] to-[#F3E5AB] text-[#011E15] px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider shadow-xl flex items-center gap-1.5 z-10">
+                      <Award className="w-4 h-4 fill-current text-[#011E15]" />
+                      <span>BEST SELLER</span>
+                    </div>
+                  )}
+
+                  {/* Airline Badge at Bottom of Image */}
+                  <div className="absolute bottom-3 left-4 right-4 flex items-center gap-2 bg-[#011E15]/80 backdrop-blur-md p-2 rounded-xl border border-[#D4AF37]/30 text-stone-200 text-xs font-medium">
+                    <Plane className="w-4 h-4 text-[#D4AF37] shrink-0" />
+                    <span className="truncate">{pkg.airline}</span>
+                  </div>
+                </div>
+
+                {/* Card Content Body */}
+                <div className="p-6 sm:p-8 space-y-6">
+                  
+                  {/* Title & Price Header */}
+                  <div>
+                    <h3 className="font-serif font-bold text-2xl sm:text-3xl text-white mb-2 leading-snug group-hover:text-[#F3E5AB] transition-colors">
+                      {pkg.name}
+                    </h3>
+
+                    <div className="flex flex-wrap items-baseline gap-2 pt-1">
+                      <span className="font-serif text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-[#F3E5AB] via-[#D4AF37] to-[#B8860B] bg-clip-text text-transparent">
+                        Rp {pkg.price.toLocaleString('id-ID')}
+                      </span>
+                      <span className="text-stone-300 text-xs sm:text-sm font-light">/ pax</span>
+                      
+                      {/* DP Badge */}
+                      <span className="ml-auto bg-[#D4AF37]/15 border border-[#D4AF37]/50 text-[#F3E5AB] text-[11px] font-bold px-2.5 py-1 rounded-md">
+                        DP {pkg.dpAmount}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Schedule & Seats Badge */}
+                  <div className="bg-[#011E15]/80 rounded-2xl p-3.5 border border-[#D4AF37]/30 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 text-stone-200">
+                      <Calendar className="w-4 h-4 text-[#D4AF37]" />
+                      <span>{pkg.departureSchedule}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[#F3E5AB] font-bold bg-[#D4AF37]/20 px-2.5 py-0.5 rounded-full border border-[#D4AF37]/40">
+                      <span>Sisa {pkg.seatsLeft} Seat</span>
+                    </div>
+                  </div>
+
+                  {/* Hotel Specs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="bg-[#021811]/70 p-3 rounded-xl border border-[#D4AF37]/25 space-y-1">
+                      <div className="flex items-center justify-between text-[#D4AF37] font-semibold">
+                        <span className="flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> Makkah</span>
+                        <span className="flex items-center gap-0.5 text-[10px]">
+                          {Array.from({ length: pkg.hotelMakkahStars }).map((_, i) => (
+                            <Star key={i} className="w-3 h-3 fill-[#D4AF37] text-[#D4AF37]" />
+                          ))}
+                        </span>
+                      </div>
+                      <div className="font-bold text-white truncate">{pkg.hotelMakkah}</div>
+                      <div className="text-[11px] text-stone-300 font-light">{pkg.hotelMakkahDistance}</div>
+                    </div>
+
+                    <div className="bg-[#021811]/70 p-3 rounded-xl border border-[#D4AF37]/25 space-y-1">
+                      <div className="flex items-center justify-between text-[#D4AF37] font-semibold">
+                        <span className="flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> Madinah</span>
+                        <span className="flex items-center gap-0.5 text-[10px]">
+                          {Array.from({ length: pkg.hotelMadinahStars }).map((_, i) => (
+                            <Star key={i} className="w-3 h-3 fill-[#D4AF37] text-[#D4AF37]" />
+                          ))}
+                        </span>
+                      </div>
+                      <div className="font-bold text-white truncate">{pkg.hotelMadinah}</div>
+                      <div className="text-[11px] text-stone-300 font-light">{pkg.hotelMadinahDistance}</div>
+                    </div>
+                  </div>
+
+                  {/* Highlights Bullet List */}
+                  <div className="space-y-2 pt-2 border-t border-[#D4AF37]/20">
+                    <div className="text-xs font-bold uppercase tracking-wider text-[#D4AF37] mb-2 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
+                      <span>Keunggulan Fasilitas Paket:</span>
+                    </div>
+                    {pkg.highlights.map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-2.5 text-xs text-stone-100 font-medium">
+                        <div className="w-4 h-4 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37] flex items-center justify-center flex-shrink-0 mt-0.5 text-[#F3E5AB]">
+                          <CheckCircle2 className="w-2.5 h-2.5 stroke-[3]" />
+                        </div>
+                        <span className="leading-tight">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Card Footer Actions */}
+              <div className="p-6 sm:p-8 pt-0 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Detail Modal Trigger */}
+                  <button
+                    onClick={() => {
+                      setSelectedPkg(pkg);
+                      setModalTab('facilities');
+                    }}
+                    className="w-full py-3 px-4 rounded-xl border border-[#D4AF37] bg-[#011E15]/90 hover:bg-[#D4AF37]/15 text-[#F3E5AB] text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-md group/btn"
+                  >
+                    <Info className="w-4 h-4 text-[#D4AF37]" />
+                    <span>Detail & Itinerary</span>
+                  </button>
+
+                  {/* WhatsApp Direct Consult Button */}
+                  <a
+                    href={getWhatsAppUrl(pkg.name, pkg.price)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#D4AF37] via-[#EEDCA2] to-[#B8860B] hover:brightness-110 text-[#011E15] text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 shadow-lg group/wa"
+                  >
+                    <MessageCircle className="w-4 h-4 fill-[#011E15]" />
+                    <span>Booking / Tanya WA</span>
+                  </a>
+                </div>
+              </div>
+
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Bottom Guarantee Banner */}
+        <div className="bg-gradient-to-r from-[#022A1F] via-[#043d2d] to-[#022A1F] rounded-3xl p-6 sm:p-8 border border-[#D4AF37]/50 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 backdrop-blur-md">
+          <div className="flex items-center gap-4 text-left">
+            <div className="w-14 h-14 rounded-2xl bg-[#011E15] border border-[#D4AF37] flex items-center justify-center shrink-0 shadow-lg text-[#D4AF37]">
+              <ShieldCheck className="w-8 h-8" />
+            </div>
+            <div>
+              <h4 className="font-serif font-bold text-lg text-white">Butuh Jadwal Khusus atau Umrah Rombongan / Private?</h4>
+              <p className="text-xs sm:text-sm text-stone-200 font-light">Tim konsultan ibadah Golden Travel siap merancang paket custom sesuai budget dan preferensi keluarga Anda.</p>
+            </div>
+          </div>
+
+          <a
+            href="https://wa.me/6282283201103?text=Halo%20Golden%20Travel,%20saya%20ingin%20konsultasi%20Paket%20Umrah%20Custom%20/%20Keluarga"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-6 py-3.5 rounded-xl bg-[#D4AF37] text-[#011E15] text-xs sm:text-sm font-extrabold hover:bg-[#F3E5AB] transition-all shrink-0 shadow-lg flex items-center gap-2"
+          >
+            <span>Konsultasi Paket Custom</span>
+            <ArrowRight className="w-4 h-4" />
+          </a>
+        </div>
+
+      </div>
+
+      {/* Detail Modal */}
+      <AnimatePresence>
+        {selectedPkg && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedPkg(null)}
+              className="fixed inset-0 bg-black/80 backdrop-blur-sm"
+            />
+
+            {/* Modal Dialog */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-4xl bg-[#012519] border-2 border-[#D4AF37] rounded-3xl shadow-2xl overflow-hidden z-10 my-8 text-white max-h-[90vh] flex flex-col"
+            >
+              {/* Modal Header */}
+              <div className="p-6 sm:p-8 bg-gradient-to-r from-[#022A1F] via-[#043a2b] to-[#022A1F] border-b border-[#D4AF37]/30 flex items-start justify-between gap-4">
+                <div>
+                  <div className="inline-block bg-[#D4AF37]/20 border border-[#D4AF37]/50 text-[#F3E5AB] px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2">
+                    {selectedPkg.categoryLabel} • {selectedPkg.duration}
+                  </div>
+                  <h3 className="font-serif font-bold text-2xl sm:text-3xl text-white">
+                    {selectedPkg.name}
+                  </h3>
+                  <div className="text-xl sm:text-2xl font-bold text-[#F3E5AB] mt-1 font-serif">
+                    Rp {selectedPkg.price.toLocaleString('id-ID')} <span className="text-xs font-sans text-stone-300 font-normal">/ pax</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setSelectedPkg(null)}
+                  className="w-10 h-10 rounded-full bg-[#011E15] border border-[#D4AF37]/50 text-stone-300 hover:text-white hover:bg-[#D4AF37] hover:text-[#011E15] transition-all flex items-center justify-center shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Navigation Tabs Inside Modal */}
+              <div className="flex border-b border-[#D4AF37]/25 bg-[#011E15]">
+                <button
+                  onClick={() => setModalTab('facilities')}
+                  className={`flex-1 py-3 px-4 text-xs sm:text-sm font-bold text-center border-b-2 transition-all flex items-center justify-center gap-2 ${
+                    modalTab === 'facilities'
+                      ? 'border-[#D4AF37] text-[#F3E5AB] bg-[#022A1F]'
+                      : 'border-transparent text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  <Hotel className="w-4 h-4" />
+                  <span>Fasilitas & Hotel</span>
+                </button>
+
+                <button
+                  onClick={() => setModalTab('itinerary')}
+                  className={`flex-1 py-3 px-4 text-xs sm:text-sm font-bold text-center border-b-2 transition-all flex items-center justify-center gap-2 ${
+                    modalTab === 'itinerary'
+                      ? 'border-[#D4AF37] text-[#F3E5AB] bg-[#022A1F]'
+                      : 'border-transparent text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>Itinerary Perjalanan</span>
+                </button>
+
+                <button
+                  onClick={() => setModalTab('terms')}
+                  className={`flex-1 py-3 px-4 text-xs sm:text-sm font-bold text-center border-b-2 transition-all flex items-center justify-center gap-2 ${
+                    modalTab === 'terms'
+                      ? 'border-[#D4AF37] text-[#F3E5AB] bg-[#022A1F]'
+                      : 'border-transparent text-stone-400 hover:text-stone-200'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Persyaratan & Legalitas</span>
+                </button>
+              </div>
+
+              {/* Modal Body Content */}
+              <div className="p-6 sm:p-8 overflow-y-auto flex-1 space-y-6">
+                
+                {/* Tab 1: Fasilitas & Hotel */}
+                {modalTab === 'facilities' && (
+                  <div className="space-y-6">
+                    {/* Hotel Specs */}
+                    <div>
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-[#D4AF37] mb-3 flex items-center gap-2">
+                        <Hotel className="w-4 h-4" />
+                        <span>Akomodasi Hotel Bintang Pilihan</span>
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-[#022A1F] p-4 rounded-2xl border border-[#D4AF37]/30 space-y-2">
+                          <div className="flex items-center justify-between text-[#F3E5AB]">
+                            <span className="font-bold text-sm">Makkah Al-Mukarramah</span>
+                            <div className="flex text-[#D4AF37]">
+                              {Array.from({ length: selectedPkg.hotelMakkahStars }).map((_, i) => (
+                                <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-white font-bold text-base">{selectedPkg.hotelMakkah}</div>
+                          <p className="text-xs text-stone-300 font-light">{selectedPkg.hotelMakkahDistance}</p>
+                        </div>
+
+                        <div className="bg-[#022A1F] p-4 rounded-2xl border border-[#D4AF37]/30 space-y-2">
+                          <div className="flex items-center justify-between text-[#F3E5AB]">
+                            <span className="font-bold text-sm">Madinah Al-Munawwarah</span>
+                            <div className="flex text-[#D4AF37]">
+                              {Array.from({ length: selectedPkg.hotelMadinahStars }).map((_, i) => (
+                                <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-white font-bold text-base">{selectedPkg.hotelMadinah}</div>
+                          <p className="text-xs text-stone-300 font-light">{selectedPkg.hotelMadinahDistance}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Includes & Excludes */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                      <div className="bg-[#022A1F]/70 p-5 rounded-2xl border border-[#D4AF37]/30 space-y-3">
+                        <h5 className="text-xs font-bold uppercase tracking-wider text-[#F3E5AB] flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-[#D4AF37]" />
+                          <span>Harga Sudah Termasuk (Included):</span>
+                        </h5>
+                        <ul className="space-y-2 text-xs text-stone-200">
+                          {selectedPkg.includes.map((inc, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-[#D4AF37] font-bold">•</span>
+                              <span>{inc}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="bg-[#022A1F]/70 p-5 rounded-2xl border border-stone-700/50 space-y-3">
+                        <h5 className="text-xs font-bold uppercase tracking-wider text-stone-400 flex items-center gap-1.5">
+                          <X className="w-4 h-4 text-red-400" />
+                          <span>Belum Termasuk (Excluded):</span>
+                        </h5>
+                        <ul className="space-y-2 text-xs text-stone-300">
+                          {selectedPkg.excludes.map((exc, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <span className="text-red-400 font-bold">•</span>
+                              <span>{exc}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab 2: Itinerary */}
+                {modalTab === 'itinerary' && (
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-[#D4AF37] mb-2 flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      <span>Rencana Perjalanan {selectedPkg.duration} Hari</span>
+                    </h4>
+
+                    <div className="space-y-3 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#D4AF37]/30">
+                      {selectedPkg.itinerary.map((item) => (
+                        <div key={item.day} className="relative pl-10">
+                          <div className="absolute left-1.5 top-1.5 w-5 h-5 rounded-full bg-[#D4AF37] text-[#011E15] font-black text-[10px] flex items-center justify-center ring-4 ring-[#012519]">
+                            {item.day}
+                          </div>
+                          <div className="bg-[#022A1F] p-4 rounded-2xl border border-[#D4AF37]/25 space-y-1">
+                            <div className="font-serif font-bold text-sm text-[#F3E5AB]">
+                              Hari ke-{item.day}: {item.title}
+                            </div>
+                            <p className="text-xs text-stone-200 font-light leading-relaxed">
+                              {item.description}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab 3: Persyaratan & Legalitas */}
+                {modalTab === 'terms' && (
+                  <div className="space-y-6">
+                    <div className="bg-[#022A1F] p-5 rounded-2xl border border-[#D4AF37]/30 space-y-3">
+                      <h4 className="text-sm font-bold text-[#F3E5AB] flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-[#D4AF37]" />
+                        <span>Dokumen Pendaftaran Umrah</span>
+                      </h4>
+                      <ul className="space-y-2 text-xs text-stone-200">
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#D4AF37] font-bold">1.</span>
+                          <span><strong>Paspor Asli:</strong> Masih berlaku minimal 7 bulan sebelum tanggal keberangkatan dengan nama minimal 2-3 kata (contoh: Muhammad Felix Hencia).</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#D4AF37] font-bold">2.</span>
+                          <span><strong>Fotokopi Dokumen Pribadi:</strong> Kartu Tanda Penduduk (KTP), Kartu Keluarga (KK), dan Buku Nikah (bagi suami istri) / Akta Kelahiran (bagi anak-anak).</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#D4AF37] font-bold">3.</span>
+                          <span><strong>Buku Kesehatan / Vaksin:</strong> Sertifikat Vaksin Meningitis & Meningokokus (Sertifikat Internasional ICV).</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#D4AF37] font-bold">4.</span>
+                          <span><strong>Pasfoto Terbaru:</strong> Ukuran 4x6 sebanyak 4 lembar (Background Putih, Tampak Wajah 80%).</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="bg-[#022A1F] p-5 rounded-2xl border border-[#D4AF37]/30 space-y-3">
+                      <h4 className="text-sm font-bold text-[#F3E5AB] flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
+                        <span>Sistem Pembayaran & Legalitas Resmi</span>
+                      </h4>
+                      <div className="space-y-2 text-xs text-stone-200">
+                        <p>• <strong>Pembayaran DP:</strong> Minimal {selectedPkg.dpAmount} per jemaah saat booking seat.</p>
+                        <p>• <strong>Pelunasan:</strong> Wajib dilunasi paling lambat 30 hari sebelum tanggal keberangkatan.</p>
+                        <p>• <strong>Legalitas PPIU:</strong> PT Golden Tour Haramain terdaftar resmi Kemenag RI dengan Izin No. 91202028128320002.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+
+              {/* Modal Footer CTA */}
+              <div className="p-6 bg-[#022A1F] border-t border-[#D4AF37]/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                  <div className="text-xs text-stone-300">Total Biaya Paket:</div>
+                  <div className="font-serif font-bold text-2xl text-[#F3E5AB]">
+                    Rp {selectedPkg.price.toLocaleString('id-ID')} <span className="text-xs font-sans text-stone-300 font-normal">/ pax</span>
+                  </div>
+                </div>
+
+                <a
+                  href={getWhatsAppUrl(selectedPkg.name, selectedPkg.price)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-[#D4AF37] via-[#EEDCA2] to-[#B8860B] text-[#011E15] text-xs sm:text-sm font-extrabold hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-xl"
+                >
+                  <MessageCircle className="w-4 h-4 fill-[#011E15]" />
+                  <span>Daftar & Booking via WhatsApp</span>
+                </a>
+              </div>
+
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+    </section>
+  );
+}

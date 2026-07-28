@@ -8,6 +8,7 @@ import { HEADER_BG_DATA } from '../assets/headerBgData';
 import { ABOUT_BG_DATA } from '../assets/aboutBgData';
 import LegalitasShowcase from '../components/LegalitasShowcase';
 import WhyChooseGoldenTravel from '../components/WhyChooseGoldenTravel';
+import PaketUmrahShowcase from '../components/PaketUmrahShowcase';
 
 export default function Home() {
   const logoImg = useLogo();
@@ -557,105 +558,8 @@ export default function Home() {
       {/* Mengapa Memilih Golden Travel Section */}
       <WhyChooseGoldenTravel />
 
-      {/* Paket Umroh Section */}
-      <section className="py-12 sm:py-20 md:py-24 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#2F4F4F]/90" id="pilihan-paket">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 md:gap-8 mb-10 sm:mb-16">
-            <div className="max-w-2xl">
-              <div className="inline-block bg-[#2F4F4F] text-[#D4AF37] px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase mb-3 border border-[#D4AF37]/30">Paket Reguler & Plus</div>
-              <h2 className="font-serif text-2xl sm:text-3xl md:text-5xl text-white leading-tight mb-3 sm:mb-4">
-                Pilih Perjalanan Ibadah <span className="text-[#D4AF37]">Sesuai Kebutuhan Anda</span>
-              </h2>
-              <p className="text-stone-300 text-sm sm:text-base md:text-lg leading-relaxed font-light">
-                Nikmati kenyamanan ibadah ke Tanah Suci dengan berbagai pilihan durasi dan fasilitas kelas dunia yang dirancang khusus untuk ketenangan batiniah dan lahiriah.
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => scrollTrack(trackRef, 'left')} className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-stone-600 flex justify-center items-center text-stone-300 hover:bg-[#D4AF37] hover:text-[#2F4F4F] hover:border-[#D4AF37] transition-all"><ChevronLeft className="w-5 h-5" /></button>
-              <button onClick={() => scrollTrack(trackRef, 'right')} className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-stone-600 flex justify-center items-center text-stone-300 hover:bg-[#D4AF37] hover:text-[#2F4F4F] hover:border-[#D4AF37] transition-all"><ChevronRight className="w-5 h-5" /></button>
-            </div>
-          </div>
-
-          <div ref={trackRef} className="flex gap-4 sm:gap-8 overflow-x-auto snap-x snap-mandatory pb-8 pt-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
-            
-            {loading ? (
-              <div className="w-full text-center py-20 text-stone-500 text-lg">Memuat paket pilihan...</div>
-            ) : umrahPackages.length > 0 ? (
-              umrahPackages.map((pkg) => (
-                <div key={pkg.id} className="min-w-[280px] sm:min-w-[340px] max-w-[340px] snap-center bg-[#2F4F4F] rounded-2xl sm:rounded-3xl border border-[#2F4F4F]/80 overflow-hidden shadow-sm hover:shadow-2xl hover:border-[#D4AF37] transition-all duration-500 flex flex-col group">
-                  <div className="relative h-48 sm:h-64 overflow-hidden">
-                    <img src={pkg.imageUrl || "https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&w=600&q=80"} alt={pkg.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-[#2F4F4F]/90 backdrop-blur text-[#D4AF37] px-3 py-1 sm:px-4 sm:py-1.5 rounded-full text-xs sm:text-sm font-bold shadow-sm border border-[#D4AF37]/20">{pkg.duration}</div>
-                  </div>
-                  <div className="p-5 sm:p-8 flex-1 flex flex-col">
-                    <h3 className="font-serif text-xl sm:text-2xl text-white mb-2">{pkg.name}</h3>
-                    <div className="text-[#D4AF37] font-serif text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">
-                      <span className="text-base sm:text-lg align-top mr-1">Rp</span>{Number(pkg.price).toLocaleString('id-ID')}
-                      <span className="font-sans text-xs sm:text-sm text-stone-400 font-normal ml-1">/ pax</span>
-                    </div>
-                    
-                    <div className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8 flex-1">
-                      {Array.isArray(pkg.description) ? (
-                        pkg.description.slice(0, 4).map((line: string, i: number) => (
-                          <div key={i} className="flex items-start gap-2.5 text-stone-300 text-xs sm:text-sm">
-                            <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> <span>{line}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-stone-300 text-xs sm:text-sm line-clamp-4 leading-relaxed">{pkg.description}</p>
-                      )}
-                    </div>
-                    
-                    <Link to="/login" className="block w-full text-center py-3 sm:py-3.5 rounded-xl border border-[#D4AF37] text-[#D4AF37] text-xs sm:text-sm font-semibold hover:bg-[#D4AF37] hover:text-[#2F4F4F] transition-colors">
-                      Lihat Detail Jadwal
-                    </Link>
-                  </div>
-                </div>
-              ))
-            ) : (
-              // Fallback
-              <>
-                <div className="min-w-[280px] sm:min-w-[340px] max-w-[340px] snap-center bg-[#2F4F4F] rounded-2xl sm:rounded-3xl border border-[#2F4F4F]/80 overflow-hidden shadow-sm flex flex-col group hover:shadow-xl hover:border-[#D4AF37] transition-all duration-300">
-                  <div className="relative h-48 sm:h-64 overflow-hidden">
-                    <img src="https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&w=600&q=80" alt="Paket Safa" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-[#2F4F4F]/90 text-[#D4AF37] px-3 py-1 sm:px-4 sm:py-1.5 rounded-full text-xs sm:text-sm font-bold shadow-sm border border-[#D4AF37]/20">9 Hari</div>
-                  </div>
-                  <div className="p-5 sm:p-8 flex-1 flex flex-col">
-                    <h3 className="font-serif text-xl sm:text-2xl text-white mb-2">Paket Safa (Reguler)</h3>
-                    <div className="text-[#D4AF37] font-serif text-2xl sm:text-3xl font-bold mb-4 sm:mb-6"><span className="text-base sm:text-lg align-top mr-1">Rp</span>28.500.000<span className="font-sans text-xs sm:text-sm text-stone-400 font-normal ml-1">/ pax</span></div>
-                    <div className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8 flex-1 text-xs sm:text-sm text-stone-300">
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Maskapai Saudia Airlines / Garuda Indonesia</div>
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Makkah: Hotel Azka Al Safa (4⭐)</div>
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Madinah: Hotel Taiba Front (4⭐)</div>
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Bus Full AC / Kereta Cepat Haramain</div>
-                    </div>
-                    <Link to="/login" className="block w-full text-center py-3 sm:py-3.5 rounded-xl border border-[#D4AF37] text-[#D4AF37] text-xs sm:text-sm font-bold hover:bg-[#D4AF37] hover:text-[#2F4F4F] transition-colors">Lihat Detail Jadwal</Link>
-                  </div>
-                </div>
-                
-                <div className="min-w-[280px] sm:min-w-[340px] max-w-[340px] snap-center bg-[#2F4F4F] rounded-2xl sm:rounded-3xl border-2 border-[#D4AF37] overflow-hidden shadow-2xl flex flex-col relative transform lg:-translate-y-2 group">
-                  <div className="absolute top-6 -right-12 bg-[#D4AF37] text-[#2F4F4F] px-12 py-1 rotate-45 text-[10px] font-black tracking-[0.2em] z-20 shadow-md">TERFAVORIT</div>
-                  <div className="relative h-48 sm:h-64 overflow-hidden">
-                    <img src="https://images.unsplash.com/photo-1565552403565-5ba2a9539f90?auto=format&fit=crop&w=600&q=80" alt="Paket Marwa" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-[#2F4F4F]/90 text-[#D4AF37] px-3 py-1 sm:px-4 sm:py-1.5 rounded-full text-xs sm:text-sm font-bold shadow-sm border border-[#D4AF37]/20">12 Hari</div>
-                  </div>
-                  <div className="p-5 sm:p-8 flex-1 flex flex-col">
-                    <h3 className="font-serif text-xl sm:text-2xl text-white mb-2">Paket Marwa (VIP)</h3>
-                    <div className="text-[#D4AF37] font-serif text-2xl sm:text-3xl font-bold mb-4 sm:mb-6"><span className="text-base sm:text-lg align-top mr-1">Rp</span>35.000.000<span className="font-sans text-xs sm:text-sm text-stone-400 font-normal ml-1">/ pax</span></div>
-                    <div className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8 flex-1 text-xs sm:text-sm text-stone-300">
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Saudia Airlines (Direct Flight)</div>
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Makkah: Pullman ZamZam (5⭐)</div>
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Madinah: Anwar Movenpick (5⭐)</div>
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Tiket Kereta Cepat Haramain (VIP Class)</div>
-                    </div>
-                    <Link to="/login" className="block w-full text-center py-3 sm:py-3.5 rounded-xl bg-[#D4AF37] text-[#2F4F4F] text-xs sm:text-sm font-bold hover:bg-amber-300 transition-colors shadow-lg">Booking Sekarang</Link>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </section>
+      {/* Paket Umrah Section - Executive Showcase Component */}
+      <PaketUmrahShowcase />
 
       {/* Paket Haji Section */}
       <section className="py-12 sm:py-20 md:py-24 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#2F4F4F] border-t border-[#2F4F4F]/90/50" id="pilihan-haji">
