@@ -68,7 +68,7 @@ export default function Footer() {
                     <div className="contact-info-list">
                         <div className="contact-item">
                             <span className="contact-icon">📍</span>
-                            <p>Jl. Engku Putri No. 123, Batam Center, Batam, Kepulauan Riau 29461</p>
+                            <p>Komplek Marbella Residence Blok D7 Nomor : 09, Desa/Kelurahan Belian, Kec. Batam Kota, Kota Batam, Provinsi Kepulauan Riau, Kode Pos: 29464</p>
                         </div>
                         <div className="contact-item">
                             <span className="contact-icon">📞</span>
@@ -79,7 +79,7 @@ export default function Footer() {
                         </div>
                         <div className="contact-item">
                             <span className="contact-icon">✉️</span>
-                            <p>info@goldentravel.com</p>
+                            <p>travelgolden2026@gmail.com</p>
                         </div>
                     </div>
                 </div>

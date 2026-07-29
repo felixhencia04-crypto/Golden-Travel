@@ -11,13 +11,48 @@ import LegalitasShowcase from '../components/LegalitasShowcase';
 import WhyChooseGoldenTravel from '../components/WhyChooseGoldenTravel';
 import PaketUmrahShowcase from '../components/PaketUmrahShowcase';
 import PaketHajiShowcase from '../components/PaketHajiShowcase';
+import TestimonialsShowcase from '../components/TestimonialsShowcase';
+import DepartureGalleryShowcase from '../components/DepartureGalleryShowcase';
+import VideoProfileShowcase from '../components/VideoProfileShowcase';
 
 export default function Home() {
   const logoImg = useLogo();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<string>('beranda');
   const [packages, setPackages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [direkturImgSrc, setDirekturImgSrc] = useState(DIREKTUR_PHOTO_DATA);
+
+  // ScrollSpy to update active nav underline as user scrolls
+  useEffect(() => {
+    const handleScroll = () => {
+      const sections = [
+        { id: 'beranda', elementId: 'hero-section' },
+        { id: 'tentang-kami', elementId: 'tentang-kami' },
+        { id: 'pilihan-paket', elementId: 'pilihan-paket' },
+        { id: 'pilihan-haji', elementId: 'pilihan-haji' },
+        { id: 'galeri', elementId: 'galeri' }
+      ];
+
+      const scrollPosition = window.scrollY + 140;
+
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const sec = sections[i];
+        const el = document.getElementById(sec.elementId);
+        if (el) {
+          const top = el.offsetTop;
+          if (scrollPosition >= top) {
+            setActiveSection(sec.id);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const fetchPackages = async () => {
     try {
@@ -47,6 +82,12 @@ export default function Home() {
 
   const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, sectionId: string) => {
     e.preventDefault();
+    const targetId = sectionId === 'hero-section' ? 'beranda' : sectionId;
+    setActiveSection(targetId);
+    if (sectionId === 'beranda' || sectionId === 'hero-section') {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     const element = document.getElementById(sectionId);
     if (element) {
       const headerOffset = 80;
@@ -78,14 +119,68 @@ export default function Home() {
         </div>
         
         {/* Desktop Menu */}
-        <nav className="hidden lg:flex gap-5 xl:gap-7 text-xs xl:text-sm font-semibold items-center">
-          <a href="#" className="text-[#064e3b] font-bold border-b-2 border-[#064e3b] pb-1" onClick={(e) => { e.preventDefault(); window.scrollTo({top: 0, behavior: "smooth"}); }}>Beranda</a>
-          <a href="#tentang-kami" className="text-[#1f3a30] hover:text-[#064e3b] transition-colors" onClick={(e) => scrollToSection(e, 'tentang-kami')}>Tentang Kami</a>
-          <Link to="/legalitas" className="text-[#1f3a30] hover:text-[#064e3b] transition-colors">Legalitas</Link>
-          <a href="#pilihan-paket" className="text-[#1f3a30] hover:text-[#064e3b] transition-colors" onClick={(e) => scrollToSection(e, 'pilihan-paket')}>Paket Umroh</a>
-          <a href="#pilihan-haji" className="text-[#1f3a30] hover:text-[#064e3b] transition-colors" onClick={(e) => scrollToSection(e, 'pilihan-haji')}>Paket Haji</a>
-          <a href="#galeri" className="text-[#1f3a30] hover:text-[#064e3b] transition-colors" onClick={(e) => scrollToSection(e, 'galeri')}>Galeri</a>
-          <Link to="/mitra" className="text-[#1f3a30] hover:text-[#064e3b] transition-colors">Kemitraan</Link>
+        <nav className="hidden lg:flex gap-5 xl:gap-8 text-xs xl:text-sm font-semibold items-center">
+          <a 
+            href="#" 
+            className={`pb-1 border-b-2 transition-all duration-200 ${
+              activeSection === 'beranda' 
+                ? 'text-[#064e3b] font-bold border-[#064e3b]' 
+                : 'text-[#1f3a30] hover:text-[#064e3b] border-transparent'
+            }`} 
+            onClick={(e) => scrollToSection(e, 'beranda')}
+          >
+            Beranda
+          </a>
+          <a 
+            href="#tentang-kami" 
+            className={`pb-1 border-b-2 transition-all duration-200 ${
+              activeSection === 'tentang-kami' 
+                ? 'text-[#064e3b] font-bold border-[#064e3b]' 
+                : 'text-[#1f3a30] hover:text-[#064e3b] border-transparent'
+            }`} 
+            onClick={(e) => scrollToSection(e, 'tentang-kami')}
+          >
+            Tentang Kami
+          </a>
+          <Link to="/legalitas" className="text-[#1f3a30] hover:text-[#064e3b] transition-colors pb-1 border-b-2 border-transparent">
+            Legalitas
+          </Link>
+          <a 
+            href="#pilihan-paket" 
+            className={`pb-1 border-b-2 transition-all duration-200 ${
+              activeSection === 'pilihan-paket' 
+                ? 'text-[#064e3b] font-bold border-[#064e3b]' 
+                : 'text-[#1f3a30] hover:text-[#064e3b] border-transparent'
+            }`} 
+            onClick={(e) => scrollToSection(e, 'pilihan-paket')}
+          >
+            Paket Umroh
+          </a>
+          <a 
+            href="#pilihan-haji" 
+            className={`pb-1 border-b-2 transition-all duration-200 ${
+              activeSection === 'pilihan-haji' 
+                ? 'text-[#064e3b] font-bold border-[#064e3b]' 
+                : 'text-[#1f3a30] hover:text-[#064e3b] border-transparent'
+            }`} 
+            onClick={(e) => scrollToSection(e, 'pilihan-haji')}
+          >
+            Paket Haji
+          </a>
+          <a 
+            href="#galeri" 
+            className={`pb-1 border-b-2 transition-all duration-200 ${
+              activeSection === 'galeri' 
+                ? 'text-[#064e3b] font-bold border-[#064e3b]' 
+                : 'text-[#1f3a30] hover:text-[#064e3b] border-transparent'
+            }`} 
+            onClick={(e) => scrollToSection(e, 'galeri')}
+          >
+            Galeri
+          </a>
+          <Link to="/mitra" className="text-[#1f3a30] hover:text-[#064e3b] transition-colors pb-1 border-b-2 border-transparent">
+            Kemitraan
+          </Link>
         </nav>
         
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -140,29 +235,59 @@ export default function Home() {
 
           {/* Navigation Links */}
           <div className="py-1 space-y-1">
-            <a href="#" className="flex items-center justify-between py-2.5 px-3 rounded-lg text-[#064e3b] font-bold bg-emerald-50/70" onClick={(e) => { e.preventDefault(); setMobileMenuOpen(false); window.scrollTo({top: 0, behavior: "smooth"}); }}>
+            <a 
+              href="#" 
+              className={`flex items-center justify-between py-2.5 px-3 rounded-lg transition-colors ${
+                activeSection === 'beranda' ? 'text-[#064e3b] font-bold bg-emerald-50/70' : 'text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]'
+              }`} 
+              onClick={(e) => { setMobileMenuOpen(false); scrollToSection(e, 'beranda'); }}
+            >
               <span>Beranda</span>
               <span className="text-xs text-[#064e3b]">›</span>
             </a>
-            <a href="#tentang-kami" className="flex items-center justify-between py-2.5 px-3 rounded-lg text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]" onClick={(e) => { setMobileMenuOpen(false); scrollToSection(e, 'tentang-kami'); }}>
+            <a 
+              href="#tentang-kami" 
+              className={`flex items-center justify-between py-2.5 px-3 rounded-lg transition-colors ${
+                activeSection === 'tentang-kami' ? 'text-[#064e3b] font-bold bg-emerald-50/70' : 'text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]'
+              }`} 
+              onClick={(e) => { setMobileMenuOpen(false); scrollToSection(e, 'tentang-kami'); }}
+            >
               <span>Tentang Kami</span>
-              <span className="text-xs text-gray-400">›</span>
+              <span className="text-xs text-[#064e3b]">›</span>
             </a>
             <Link to="/legalitas" className="flex items-center justify-between py-2.5 px-3 rounded-lg text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]" onClick={() => setMobileMenuOpen(false)}>
               <span>Legalitas Resmi</span>
               <span className="text-xs text-gray-400">›</span>
             </Link>
-            <a href="#pilihan-paket" className="flex items-center justify-between py-2.5 px-3 rounded-lg text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]" onClick={(e) => { setMobileMenuOpen(false); scrollToSection(e, 'pilihan-paket'); }}>
+            <a 
+              href="#pilihan-paket" 
+              className={`flex items-center justify-between py-2.5 px-3 rounded-lg transition-colors ${
+                activeSection === 'pilihan-paket' ? 'text-[#064e3b] font-bold bg-emerald-50/70' : 'text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]'
+              }`} 
+              onClick={(e) => { setMobileMenuOpen(false); scrollToSection(e, 'pilihan-paket'); }}
+            >
               <span>Paket Umroh</span>
-              <span className="text-xs text-gray-400">›</span>
+              <span className="text-xs text-[#064e3b]">›</span>
             </a>
-            <a href="#pilihan-haji" className="flex items-center justify-between py-2.5 px-3 rounded-lg text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]" onClick={(e) => { setMobileMenuOpen(false); scrollToSection(e, 'pilihan-haji'); }}>
+            <a 
+              href="#pilihan-haji" 
+              className={`flex items-center justify-between py-2.5 px-3 rounded-lg transition-colors ${
+                activeSection === 'pilihan-haji' ? 'text-[#064e3b] font-bold bg-emerald-50/70' : 'text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]'
+              }`} 
+              onClick={(e) => { setMobileMenuOpen(false); scrollToSection(e, 'pilihan-haji'); }}
+            >
               <span>Paket Haji</span>
-              <span className="text-xs text-gray-400">›</span>
+              <span className="text-xs text-[#064e3b]">›</span>
             </a>
-            <a href="#galeri" className="flex items-center justify-between py-2.5 px-3 rounded-lg text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]" onClick={(e) => { setMobileMenuOpen(false); scrollToSection(e, 'galeri'); }}>
+            <a 
+              href="#galeri" 
+              className={`flex items-center justify-between py-2.5 px-3 rounded-lg transition-colors ${
+                activeSection === 'galeri' ? 'text-[#064e3b] font-bold bg-emerald-50/70' : 'text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]'
+              }`} 
+              onClick={(e) => { setMobileMenuOpen(false); scrollToSection(e, 'galeri'); }}
+            >
               <span>Galeri Keberangkatan</span>
-              <span className="text-xs text-gray-400">›</span>
+              <span className="text-xs text-[#064e3b]">›</span>
             </a>
             <Link to="/mitra" className="flex items-center justify-between py-2.5 px-3 rounded-lg text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]" onClick={() => setMobileMenuOpen(false)}>
               <span>Program Kemitraan</span>
@@ -228,20 +353,20 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Right Column: Director Photo Display (Frameless, Seamless Bottom Fade & Transparent Cutout) */}
+            {/* Right Column: Director Photo Display (Frameless & Clean Cutout) */}
             <div className="lg:col-span-5 xl:col-span-4 flex flex-col items-center justify-center text-center">
-              {/* Direct Photo cutout - with gentle bottom fade mask so cut-off edge is completely invisible */}
+              {/* Direct Photo Cutout - No card, no background box, frameless */}
               <div 
                 className="relative w-full max-w-[300px] sm:max-w-[340px] group transition-transform duration-300 hover:scale-[1.02]"
                 style={{
-                  maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 68%, rgba(0,0,0,0) 98%)',
-                  WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 68%, rgba(0,0,0,0) 98%)'
+                  maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 75%, rgba(0,0,0,0) 98%)',
+                  WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 75%, rgba(0,0,0,0) 98%)'
                 }}
               >
                 <img 
                   src={direkturImgSrc} 
-                  alt="Ustadz Ahmad Daud - Direktur Utama PT. Golden Tour Haromain" 
-                  className="w-full h-auto max-h-[380px] sm:max-h-[440px] object-contain mx-auto drop-shadow-[0_20px_35px_rgba(0,0,0,0.7)]"
+                  alt="Ustadz Ahmad Daud - Direktur Utama PT. Golden Tour Haramain" 
+                  className="w-full h-auto max-h-[380px] sm:max-h-[420px] object-contain mx-auto drop-shadow-[0_20px_35px_rgba(0,0,0,0.7)]"
                   onError={() => {
                     if (direkturImgSrc === '/owner.png') {
                       setDirekturImgSrc('/direktur.png');
@@ -250,20 +375,18 @@ export default function Home() {
                     }
                   }}
                 />
-                {/* Soft dark gradient at bottom edge to guarantee zero cut-off line */}
-                <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#01251a] via-[#01251a]/60 to-transparent pointer-events-none" />
               </div>
 
-              {/* Name & Official Title below photo */}
-              <div className="mt-1 space-y-1 relative z-10">
+              {/* Clean, Neat Name & Title Below Photo (Frameless) */}
+              <div className="mt-2 space-y-1 relative z-10">
                 <h3 className="font-serif text-2xl sm:text-3xl font-bold text-[#F3E5AB] drop-shadow-md tracking-wide">
                   Ustadz Ahmad Daud
                 </h3>
-                <p className="text-[#D4AF37] text-sm sm:text-base font-medium">
-                  Direktur Utama PT. Golden Tour Haromain
+                <p className="text-[#D4AF37] text-sm sm:text-base font-semibold tracking-wide">
+                  Direktur Utama PT. Golden Tour Haramain
                 </p>
-                <div className="pt-2 flex items-center justify-center gap-2 text-xs text-[#10B981] font-semibold">
-                  <CheckCircle2 className="w-4 h-4" />
+                <div className="pt-1.5 flex items-center justify-center gap-1.5 text-xs sm:text-sm text-[#10B981] font-medium">
+                  <CheckCircle2 className="w-4 h-4 text-[#10B981] shrink-0" />
                   <span>Resmi &amp; Terverifikasi Kemenag RI</span>
                 </div>
               </div>
@@ -619,163 +742,139 @@ export default function Home() {
       {/* Paket Haji Section - Executive Showcase Component */}
       <PaketHajiShowcase />
 
-      {/* Testimonial Section */}
-      <section className="py-12 sm:py-20 md:py-24 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#2F4F4F]/90" id="testimoni">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="text-[#D4AF37] text-xs md:text-sm font-bold tracking-[0.2em] uppercase mb-3 sm:mb-4">✨ Ulasan Jemaah</div>
-          <h2 className="font-serif text-2xl sm:text-3xl md:text-5xl text-white leading-tight mb-4 sm:mb-6 max-w-3xl mx-auto">
-            Apa Kata Mereka Tentang <span className="text-[#D4AF37]">Pelayanan Kami?</span>
-          </h2>
-          <p className="text-stone-300 text-sm sm:text-base md:text-lg leading-relaxed max-w-3xl mx-auto mb-10 sm:mb-16 font-light">
-            Pengalaman nyata dari para jemaah yang telah mempercayakan perjalanan ibadah mereka kepada Golden Travel.
-          </p>
+      {/* Testimonial Section - Executive Testimonials Showcase Component */}
+      <TestimonialsShowcase />
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 text-left">
-            {[
-              { name: "Bapak H. Abdullah", role: "Jemaah Umroh Plus", text: "Pelayanan sangat memuaskan, mulai dari keberangkatan hingga kepulangan. Mutawwif sangat sabar dan berilmu, fasilitas hotel bintang 5 sesuai dengan yang dijanjikan. Alhamdulillah ibadah jadi lebih khusyuk." },
-              { name: "Ibu Hj. Siti Aminah", role: "Jemaah Haji Khusus", text: "Awalnya khawatir karena berangkat Haji untuk pertama kali, tapi berkat bimbingan intensif dari Golden Travel, semua berjalan lancar. Tenda di Arafah sangat nyaman dan makanan terjamin." },
-              { name: "Keluarga Bapak Budi", role: "Jemaah Umroh Reguler", text: "Terima kasih Golden Travel telah mewujudkan impian keluarga kami untuk ke Baitullah. Harga yang ditawarkan sangat sepadan dengan kualitas pelayanan VIP yang diberikan. Sangat direkomendasikan!" }
-            ].map((testi, idx) => (
-              <div key={idx} className="bg-[#2F4F4F] rounded-2xl p-6 sm:p-8 border border-[#2F4F4F]/80 shadow-sm relative">
-                <Quote className="w-8 h-8 sm:w-10 sm:h-10 text-[#2F4F4F]/80 absolute top-5 right-5 sm:top-6 sm:right-6 opacity-50" />
-                <div className="flex gap-1 mb-3 sm:mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] fill-[#D4AF37]" />
-                  ))}
-                </div>
-                <p className="text-stone-300 text-xs sm:text-sm leading-relaxed mb-5 sm:mb-6 font-light italic">"{testi.text}"</p>
-                <div>
-                  <h4 className="text-white font-bold text-sm sm:text-base">{testi.name}</h4>
-                  <p className="text-[#D4AF37] text-xs">{testi.role}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Gallery Section - Departure Gallery Showcase Component */}
+      <DepartureGalleryShowcase />
 
-      {/* Gallery Section */}
-      <section className="py-12 sm:py-20 md:py-24 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#2F4F4F]" id="galeri">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-10 sm:mb-16">
-            <div className="text-[#D4AF37] text-xs md:text-sm font-bold tracking-[0.2em] uppercase mb-3 sm:mb-4">✨ Jejak Langkah Spiritual</div>
-            <h2 className="font-serif text-2xl sm:text-3xl md:text-5xl text-white leading-tight mb-3 sm:mb-4">
-              Galeri <span className="text-[#D4AF37]">Keberangkatan</span>
-            </h2>
-            <p className="text-stone-300 text-sm sm:text-base md:text-lg leading-relaxed max-w-2xl mx-auto font-light">
-              Momen-momen indah dan penuh kekhusyukan para Tamu Allah yang telah mempercayakan perjalanan sucinya bersama kami.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-12 sm:mb-20">
-            {[
-              { src: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?ixlib=rb-1.2.1&auto=format&fit=crop&w=600&q=80', title: 'Khusyuk di Baitullah' },
-              { src: 'https://images.unsplash.com/photo-1565552643954-1a4be7aa0fc8?ixlib=rb-1.2.1&auto=format&fit=crop&w=600&q=80', title: 'Ziarah Masjid Nabawi' },
-              { src: 'https://images.unsplash.com/photo-1527838832700-5059252407fa?ixlib=rb-1.2.1&auto=format&fit=crop&w=600&q=80', title: 'City Tour Bersejarah' },
-              { src: 'https://images.unsplash.com/photo-1580418827493-f2b22c0a76cb?ixlib=rb-1.2.1&auto=format&fit=crop&w=600&q=80', title: 'Keberangkatan Jemaah' },
-            ].map((img, idx) => (
-              <div key={idx} className="relative aspect-square rounded-xl sm:rounded-2xl overflow-hidden group cursor-pointer shadow-sm">
-                <img src={img.src} alt={img.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                <div className="absolute inset-0 bg-[#2F4F4F]/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                  <span className="font-serif text-[#D4AF37] text-xs sm:text-lg font-bold translate-y-4 group-hover:translate-y-0 transition-transform duration-300 text-center px-2 sm:px-4">{img.title}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Cinematic Video Showcase */}
-          <div className="relative max-w-5xl mx-auto rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl group cursor-pointer border border-[#2F4F4F]/80 aspect-video">
-            <img src="https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80" alt="Cinematic Profile" className="w-full h-full object-cover brightness-75 group-hover:brightness-50 transition-all duration-700 group-hover:scale-105" />
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-4 sm:p-6 text-center bg-[#2F4F4F]/20">
-              <div className="w-14 h-14 sm:w-20 sm:h-20 bg-[#D4AF37]/90 text-[#2F4F4F] rounded-full flex items-center justify-center mb-3 sm:mb-6 transition-transform duration-300 group-hover:scale-110 group-hover:bg-[#D4AF37] shadow-xl shadow-[#D4AF37]/30">
-                <Play className="w-6 h-6 sm:w-8 sm:h-8 ml-1" fill="currentColor" />
-              </div>
-              <h3 className="font-serif text-lg sm:text-2xl md:text-4xl text-white font-bold mb-2 sm:mb-3 drop-shadow-md">Kenyamanan Beribadah Bersama Kami</h3>
-              <p className="text-white/90 text-xs sm:text-sm md:text-lg max-w-xl font-light drop-shadow">Saksikan cuplikan perjalanan khusyuk para jemaah menikmati layanan VIP di Tanah Suci.</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Video Profile & Special Documentary Section */}
+      <VideoProfileShowcase />
 
       {/* Footer */}
-      <footer className="bg-[#2F4F4F] pt-20 pb-8 px-6 md:px-12 lg:px-24 border-t border-[#2F4F4F]/90">
+      <footer 
+        className="bg-[#F9F5EC] bg-cover bg-center bg-no-repeat border-t-2 border-[#D4AF37]/60 pt-10 sm:pt-12 pb-6 px-5 sm:px-8 md:px-12 lg:px-20 shadow-[0_-10px_30px_rgba(0,0,0,0.04)] relative z-20 text-xs sm:text-sm"
+        style={{ backgroundImage: `url("${HEADER_BG_DATA}")` }}
+      >
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8 mb-8">
             
-            <div className="col-span-1 lg:col-span-1">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-full border border-[#D4AF37]/50 overflow-hidden bg-[#064e3b] shrink-0 flex items-center justify-center">
-                  <img src={logoImg} alt="Logo" className="w-full h-full object-contain" />
-                </div>
-                <div>
-                  <h3 className="font-serif text-lg text-white m-0">PT Golden Tour Haramain</h3>
-                  <span className="text-[10px] text-[#D4AF37] tracking-wider">HAJI & UMROH PREMIUM</span>
-                </div>
-              </div>
-              <p className="text-stone-400 text-sm leading-relaxed mb-6">
-                Biro perjalanan Haji dan Umroh terpercaya, berkomitmen melayani sepenuh hati untuk ibadah mabrur dan pengalaman religius yang sempurna.
-              </p>
-              <div className="bg-[#2F4F4F]/90/50 border border-[#2F4F4F]/80 p-4 rounded-xl text-xs text-stone-300 leading-relaxed">
-                <strong className="text-white block mb-1">PT. GOLDEN TOUR HARAMAIN</strong>
-                Mitra PT. SEDERHANA ALMAIDANI GROUP
-                <div className="text-[#D4AF37] font-mono mt-2 tracking-widest font-bold">Izin PPIU: 08012300040570002</div>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="font-serif text-[#D4AF37] text-xl mb-6 pb-3 border-b border-[#2F4F4F]/90">Layanan Kami</h4>
-              <ul className="space-y-3 text-stone-400 text-sm">
-                <li><a href="#pilihan-paket" className="hover:text-[#D4AF37] transition-colors">Paket Umroh Reguler</a></li>
-                <li><a href="#pilihan-paket" className="hover:text-[#D4AF37] transition-colors">Paket Umroh VIP & Plus</a></li>
-                <li><a href="#pilihan-haji" className="hover:text-[#D4AF37] transition-colors">Program Haji Furoda</a></li>
-                <li><a href="#pilihan-haji" className="hover:text-[#D4AF37] transition-colors">Program Haji Khusus (ONH)</a></li>
-                <li><a href="#" className="hover:text-[#D4AF37] transition-colors">Pengurusan Visa Mandiri</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-serif text-[#D4AF37] text-xl mb-6 pb-3 border-b border-[#2F4F4F]/90">Tautan Cepat</h4>
-              <ul className="space-y-3 text-stone-400 text-sm mb-8">
-                <li><a href="#tentang-kami" className="hover:text-[#D4AF37] transition-colors">Tentang Kami</a></li>
-                <li><Link to="/legalitas" className="hover:text-[#D4AF37] transition-colors">Legalitas Resmi</Link></li>
-                <li><a href="#galeri" className="hover:text-[#D4AF37] transition-colors">Galeri Perjalanan</a></li>
-                <li><Link to="/mitra" className="hover:text-[#D4AF37] transition-colors">Menjadi Mitra Penjualan</Link></li>
-              </ul>
-              <h4 className="font-serif text-white text-md mb-4">Portal Sistem</h4>
-              <ul className="space-y-3 text-stone-400 text-sm">
-                <li><Link to="/login" className="hover:text-[#D4AF37] transition-colors flex items-center gap-2">Login Jemaah</Link></li>
-                <li><Link to="/mitra/login" className="hover:text-[#D4AF37] transition-colors flex items-center gap-2">Login Mitra Agent</Link></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-serif text-[#D4AF37] text-xl mb-6 pb-3 border-b border-[#2F4F4F]/90">Hubungi Kami</h4>
-              <div className="space-y-5 text-sm text-stone-400">
-                <div className="flex gap-3">
-                  <MapPin className="w-5 h-5 text-[#D4AF37] shrink-0" />
-                  <p className="leading-relaxed">Gedung Harmoni Lt.3,<br/>Jl. Engku Putri No. 123,<br/>Batam Center, Kepulauan Riau</p>
-                </div>
-                <div className="flex gap-3">
-                  <Phone className="w-5 h-5 text-[#D4AF37] shrink-0" />
+            {/* Column 1: Brand Info & License */}
+            <div className="flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2.5 mb-3">
+                  <div className="w-10 h-10 rounded-full border-2 border-[#D4AF37] overflow-hidden bg-[#064e3b] shrink-0 flex items-center justify-center shadow-sm">
+                    <img src={logoImg} alt="Logo Golden Travel" className="w-full h-full object-contain p-0.5" />
+                  </div>
                   <div>
-                    <p>0822-8320-1103 <span className="text-stone-500 text-xs ml-1">(Hotline 1)</span></p>
-                    <p className="mt-1">0822-8830-8220 <span className="text-stone-500 text-xs ml-1">(Hotline 2)</span></p>
+                    <h3 className="font-serif text-base font-bold text-[#064e3b] m-0 leading-tight">GOLDEN TRAVEL</h3>
+                    <span className="text-[10px] text-[#b45309] font-extrabold tracking-wider uppercase block">PT GOLDEN TOUR HARAMAIN</span>
                   </div>
                 </div>
-                <div className="flex gap-3">
-                  <Mail className="w-5 h-5 text-[#D4AF37] shrink-0" />
-                  <p>info@goldentourharamain.com</p>
+                
+                <p className="text-[#1f3a30] text-xs leading-relaxed mb-3">
+                  Biro perjalanan Haji & Umrah terpercaya, melayani sepenuh hati untuk ibadah mabrur dan amanah.
+                </p>
+              </div>
+              
+              <div className="bg-white/85 border border-[#D4AF37]/40 p-2.5 rounded-lg text-xs text-[#1f3a30] shadow-2xs backdrop-blur-xs">
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <span className="font-bold text-[#064e3b] text-[11px]">PT. GOLDEN TOUR HARAMAIN</span>
+                  <span className="text-[10px] bg-[#fef3c7] text-[#b45309] font-mono font-bold px-1.5 py-0.5 rounded border border-[#f59e0b]/30">PPIU: 08012300040570002</span>
+                </div>
+                <p className="text-[#2b4c3e] text-[10px] m-0">Mitra PT. SEDERHANA ALMAIDANI GROUP</p>
+              </div>
+            </div>
+
+            {/* Column 2: Layanan Utama */}
+            <div>
+              <h4 className="font-serif text-[#064e3b] text-base font-bold mb-3 pb-1.5 border-b border-[#D4AF37]/50 flex items-center gap-1.5">
+                <span className="text-[#b45309] text-xs">✦</span> Layanan Utama
+              </h4>
+              <ul className="space-y-2 text-[#1f3a30] text-xs font-medium">
+                <li><a href="#pilihan-paket" className="hover:text-[#b45309] transition-colors flex items-center gap-1"><span className="text-[#b45309]">›</span> Paket Umroh Reguler</a></li>
+                <li><a href="#pilihan-paket" className="hover:text-[#b45309] transition-colors flex items-center gap-1"><span className="text-[#b45309]">›</span> Paket Umroh VIP & Plus</a></li>
+                <li><a href="#pilihan-haji" className="hover:text-[#b45309] transition-colors flex items-center gap-1"><span className="text-[#b45309]">›</span> Program Haji Furoda VIP</a></li>
+                <li><a href="#pilihan-haji" className="hover:text-[#b45309] transition-colors flex items-center gap-1"><span className="text-[#b45309]">›</span> Program Haji Khusus (ONH)</a></li>
+                <li><a href="#pilihan-paket" className="hover:text-[#b45309] transition-colors flex items-center gap-1"><span className="text-[#b45309]">›</span> Pengurusan Visa & Transportasi</a></li>
+              </ul>
+            </div>
+
+            {/* Column 3: Navigasi Portal */}
+            <div>
+              <h4 className="font-serif text-[#064e3b] text-base font-bold mb-3 pb-1.5 border-b border-[#D4AF37]/50 flex items-center gap-1.5">
+                <span className="text-[#b45309] text-xs">✦</span> Navigasi Portal
+              </h4>
+              <ul className="space-y-2 text-[#1f3a30] text-xs font-medium mb-3">
+                <li><a href="#tentang-kami" className="hover:text-[#b45309] transition-colors flex items-center gap-1"><span className="text-[#b45309]">›</span> Tentang Kami</a></li>
+                <li><Link to="/legalitas" className="hover:text-[#b45309] transition-colors flex items-center gap-1"><span className="text-[#b45309]">›</span> Legalitas Resmi Kemenag</Link></li>
+                <li><a href="#galeri" className="hover:text-[#b45309] transition-colors flex items-center gap-1"><span className="text-[#b45309]">›</span> Galeri Keberangkatan</a></li>
+                <li><Link to="/mitra" className="hover:text-[#b45309] transition-colors flex items-center gap-1"><span className="text-[#b45309]">›</span> Program Kemitraan Travel</Link></li>
+              </ul>
+              
+              <div className="pt-2 border-t border-[#D4AF37]/30 flex flex-col gap-1.5">
+                <Link to="/login" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#064e3b] text-[#F3E5AB] hover:bg-[#033327] text-[11px] font-semibold transition-all shadow-2xs w-fit">
+                  <LogIn className="w-3 h-3" />
+                  <span>Login Jemaah</span>
+                </Link>
+                <Link to="/mitra/login" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-[#D4AF37] text-[#064e3b] hover:bg-[#fef3c7] text-[11px] font-semibold transition-all shadow-2xs w-fit">
+                  <LogIn className="w-3 h-3 text-[#b45309]" />
+                  <span>Login Mitra Agent</span>
+                </Link>
+                <Link to="/admin/login" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#fef3c7] border border-[#f59e0b]/40 text-[#92400e] hover:bg-[#fde68a] text-[11px] font-semibold transition-all shadow-2xs w-fit">
+                  <ShieldCheck className="w-3 h-3 text-[#b45309]" />
+                  <span>Login Admin Sistem</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Column 4: Kantor & Kontak */}
+            <div>
+              <h4 className="font-serif text-[#064e3b] text-base font-bold mb-3 pb-1.5 border-b border-[#D4AF37]/50 flex items-center gap-1.5">
+                <span className="text-[#b45309] text-xs">✦</span> Kantor Resmi
+              </h4>
+              
+              <div className="space-y-2.5 text-xs text-[#1f3a30]">
+                {/* Address */}
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-[#064e3b] shrink-0 mt-0.5" />
+                  <p className="leading-snug font-normal text-[11px]">
+                    Komplek Marbella Residence Blok D7 No. 09, Belian, Kec. Batam Kota, Kota Batam, Kepulauan Riau 29464
+                  </p>
+                </div>
+
+                {/* Hotline Phones */}
+                <div className="flex items-start gap-2">
+                  <Phone className="w-3.5 h-3.5 text-[#064e3b] shrink-0 mt-0.5" />
+                  <div className="font-medium text-[11px]">
+                    <a href="https://wa.me/6282283201103" target="_blank" rel="noopener noreferrer" className="hover:text-[#b45309] transition-colors inline-block mr-2">
+                      0822-8320-1103 <span className="text-[#b45309] font-bold text-[10px]">(Hotline 1)</span>
+                    </a>
+                    <a href="https://wa.me/6282288308220" target="_blank" rel="noopener noreferrer" className="hover:text-[#b45309] transition-colors inline-block">
+                      0822-8830-8220 <span className="text-[#b45309] font-bold text-[10px]">(Hotline 2)</span>
+                    </a>
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div className="flex items-center gap-2">
+                  <Mail className="w-3.5 h-3.5 text-[#064e3b] shrink-0" />
+                  <a href="mailto:travelgolden2026@gmail.com" className="font-medium hover:text-[#b45309] transition-colors text-[11px] break-all">
+                    travelgolden2026@gmail.com
+                  </a>
                 </div>
               </div>
             </div>
 
           </div>
 
-          <div className="pt-8 border-t border-[#2F4F4F]/90 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-stone-500">
+          {/* Copyright & Legal links */}
+          <div className="pt-4 border-t border-[#D4AF37]/40 flex flex-col sm:flex-row justify-between items-center gap-2 text-[11px] text-[#2b4c3e] font-medium">
             <p>&copy; {new Date().getFullYear()} PT Golden Tour Haramain. Hak Cipta Dilindungi.</p>
-            <div className="flex gap-4">
-              <a href="#" className="hover:text-white transition-colors">Kebijakan Privasi</a>
-              <a href="#" className="hover:text-white transition-colors">Syarat & Ketentuan</a>
+            <div className="flex gap-3 text-[11px]">
+              <a href="#" className="hover:text-[#064e3b] transition-colors">Kebijakan Privasi</a>
+              <span>•</span>
+              <a href="#" className="hover:text-[#064e3b] transition-colors">Syarat & Ketentuan</a>
             </div>
           </div>
         </div>
