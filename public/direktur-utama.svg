@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="600" height="750">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#062C22" />
+      <stop offset="50%" stop-color="#0B4234" />
+      <stop offset="100%" stop-color="#031A14" />
+    </linearGradient>
+
+    <!-- Gold Gradients -->
+    <linearGradient id="goldBright" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCE881" />
+      <stop offset="50%" stop-color="#D4AF37" />
+      <stop offset="100%" stop-color="#8C6E12" />
+    </linearGradient>
+    <linearGradient id="goldSoft" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#EEDC9A" />
+      <stop offset="100%" stop-color="#B38F24" />
+    </linearGradient>
+
+    <!-- Skin Tones -->
+    <linearGradient id="skinGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E8B896" />
+      <stop offset="50%" stop-color="#DE9E74" />
+      <stop offset="100%" stop-color="#C5855A" />
+    </linearGradient>
+    <linearGradient id="skinShadow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#B87346" />
+      <stop offset="100%" stop-color="#96572E" />
+    </linearGradient>
+
+    <!-- Koko Fabric -->
+    <linearGradient id="fabricWhite" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="70%" stop-color="#F4F2EB" />
+      <stop offset="100%" stop-color="#E2DDD0" />
+    </linearGradient>
+
+    <!-- Peci White -->
+    <linearGradient id="peciWhite" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#EAE7DE" />
+    </linearGradient>
+
+    <!-- Drop Shadows -->
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.45" />
+    </filter>
+    <filter id="headShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- Canvas Background -->
+  <rect width="600" height="750" fill="url(#bgGrad)" rx="24" />
+
+  <!-- Subtle Islamic Arch Motif in Background -->
+  <g opacity="0.15">
+    <path d="M 100,750 L 100,320 A 200,200 0 0,1 500,320 L 500,750 Z" fill="none" stroke="#D4AF37" stroke-width="3" />
+    <path d="M 120,750 L 120,330 A 180,180 0 0,1 480,330 L 480,750 Z" fill="none" stroke="#D4AF37" stroke-width="1.5" stroke-dasharray="6,6" />
+    <circle cx="300" cy="240" r="120" stroke="#D4AF37" stroke-width="2" fill="none" />
+  </g>
+
+  <!-- Lighting Glow behind head -->
+  <circle cx="300" cy="270" r="160" fill="#D4AF37" opacity="0.12" filter="blur(30px)" />
+
+  <!-- MAIN PORTRAIT FIGURE -->
+  <g filter="url(#softShadow)">
+
+    <!-- Shoulders & Torso / Koko Shirt -->
+    <!-- Base Shirt Structure -->
+    <path d="M 110,750 L 155,510 Q 220,460 300,460 Q 380,460 445,510 L 490,750 Z" fill="url(#fabricWhite)" />
+    
+    <!-- Shirt Folds & Shading -->
+    <path d="M 155,510 Q 220,530 250,750 L 110,750 Z" fill="#EAE6DA" opacity="0.4" />
+    <path d="M 445,510 Q 380,530 350,750 L 490,750 Z" fill="#DCD6C6" opacity="0.5" />
+
+    <!-- Koko Collar (Shangai Collar) -->
+    <path d="M 245,465 Q 300,480 355,465 L 360,435 Q 300,450 240,435 Z" fill="#FFFFFF" stroke="#D4AF37" stroke-width="2" />
+    
+    <!-- Gold Embroidery Line on Placket -->
+    <rect x="292" y="465" width="16" height="280" fill="url(#fabricWhite)" stroke="#D4AF37" stroke-width="1.5" />
+    <path d="M 300,470 L 300,745" stroke="url(#goldBright)" stroke-width="2" stroke-dasharray="3,6" />
+
+    <!-- Premium Buttons -->
+    <circle cx="300" cy="495" r="4" fill="url(#goldBright)" />
+    <circle cx="300" cy="535" r="4" fill="url(#goldBright)" />
+    <circle cx="300" cy="575" r="4" fill="url(#goldBright)" />
+    <circle cx="300" cy="615" r="4" fill="url(#goldBright)" />
+    <circle cx="300" cy="655" r="4" fill="url(#goldBright)" />
+
+    <!-- Draped Golden Batik Sorban/Shawl over Left Shoulder -->
+    <path d="M 145,520 Q 200,490 260,560 Q 290,620 310,750 L 190,750 Q 150,670 145,520 Z" fill="url(#goldSoft)" />
+    <!-- Batik Pattern Detail on Sorban -->
+    <path d="M 170,550 Q 210,580 200,630 Q 180,670 220,720" fill="none" stroke="#684E0B" stroke-width="2.5" opacity="0.6" />
+    <path d="M 200,535 Q 240,565 230,615 Q 210,655 250,710" fill="none" stroke="#8C6E12" stroke-width="2" opacity="0.6" />
+
+    <!-- Neck -->
+    <path d="M 255,445 L 255,365 Q 300,380 345,365 L 345,445 Z" fill="url(#skinShadow)" />
+    <path d="M 260,440 L 260,370 Q 300,382 340,370 L 340,440 Z" fill="url(#skinGrad)" />
+
+    <!-- Ears -->
+    <ellipse cx="212" cy="285" rx="12" ry="22" fill="url(#skinGrad)" />
+    <ellipse cx="212" cy="285" rx="7" ry="14" fill="url(#skinShadow)" opacity="0.5" />
+    <ellipse cx="388" cy="285" rx="12" ry="22" fill="url(#skinGrad)" />
+    <ellipse cx="388" cy="285" rx="7" ry="14" fill="url(#skinShadow)" opacity="0.5" />
+
+    <!-- Head / Face Structure -->
+    <!-- Jaw and Cheeks -->
+    <path d="M 215,260 C 215,160 385,160 385,260 C 385,350 355,405 300,405 C 245,405 215,350 215,260 Z" fill="url(#skinGrad)" filter="url(#headShadow)" />
+    
+    <!-- Cheek/Jaw Shadow Contour -->
+    <path d="M 218,290 Q 235,370 300,398 Q 365,370 382,290 Q 370,390 300,402 Q 230,390 218,290 Z" fill="url(#skinShadow)" opacity="0.4" />
+
+    <!-- Eyes -->
+    <!-- Left Eye -->
+    <ellipse cx="265" cy="268" rx="15" ry="9" fill="#FFFFFF" />
+    <circle cx="266" cy="268" r="7" fill="#2C1B10" />
+    <circle cx="268" cy="266" r="2.5" fill="#FFFFFF" />
+    <path d="M 248,266 Q 265,257 282,266" fill="none" stroke="#221208" stroke-width="2.5" stroke-linecap="round" />
+
+    <!-- Right Eye -->
+    <ellipse cx="335" cy="268" rx="15" ry="9" fill="#FFFFFF" />
+    <circle cx="334" cy="268" r="7" fill="#2C1B10" />
+    <circle cx="332" cy="266" r="2.5" fill="#FFFFFF" />
+    <path d="M 318,266 Q 335,257 352,266" fill="none" stroke="#221208" stroke-width="2.5" stroke-linecap="round" />
+
+    <!-- Eyebrows -->
+    <path d="M 242,250 Q 265,238 288,248" fill="none" stroke="#1A0D06" stroke-width="4.5" stroke-linecap="round" />
+    <path d="M 312,248 Q 335,238 358,250" fill="none" stroke="#1A0D06" stroke-width="4.5" stroke-linecap="round" />
+
+    <!-- Glasses (Modern Frameless/Metallic Executive Eyeglasses) -->
+    <rect x="242" y="250" width="46" height="32" rx="7" fill="none" stroke="#D4AF37" stroke-width="2.5" opacity="0.9" />
+    <rect x="312" y="250" width="46" height="32" rx="7" fill="none" stroke="#D4AF37" stroke-width="2.5" opacity="0.9" />
+    <line x1="288" y1="262" x2="312" y2="262" stroke="#D4AF37" stroke-width="3" />
+    <line x1="242" y1="260" x2="222" y2="256" stroke="#D4AF37" stroke-width="2.5" />
+    <line x1="358" y1="260" x2="378" y2="256" stroke="#D4AF37" stroke-width="2.5" />
+    <!-- Glass Reflection -->
+    <path d="M 246,254 L 265,254 L 250,278 Z" fill="#FFFFFF" opacity="0.25" />
+    <path d="M 316,254 L 335,254 L 320,278 Z" fill="#FFFFFF" opacity="0.25" />
+
+    <!-- Nose -->
+    <path d="M 300,255 L 304,302 Q 296,310 288,305" fill="none" stroke="#A86338" stroke-width="3" stroke-linecap="round" />
+    <ellipse cx="292" cy="305" rx="4" ry="2.5" fill="#A86338" opacity="0.6" />
+    <ellipse cx="308" cy="305" rx="4" ry="2.5" fill="#A86338" opacity="0.6" />
+
+    <!-- Mouth & Warm Professional Smile -->
+    <path d="M 272,342 Q 300,358 328,342" fill="none" stroke="#8C3E2B" stroke-width="3.5" stroke-linecap="round" />
+    <path d="M 276,344 Q 300,362 324,344" fill="#FFFFFF" />
+    <path d="M 278,352 Q 300,362 322,352" fill="none" stroke="#A8523D" stroke-width="2" />
+
+    <!-- Neat Beard & Goatee -->
+    <!-- Moustache -->
+    <path d="M 268,332 Q 300,342 332,332 Q 312,345 300,345 Q 288,345 268,332 Z" fill="#1C120C" opacity="0.9" />
+    <!-- Chin Beard -->
+    <path d="M 262,350 Q 300,365 338,350 Q 328,398 300,402 Q 272,398 262,350 Z" fill="#1C120C" opacity="0.88" />
+
+    <!-- Executive White Islamic Peci (Songkok) Cap -->
+    <!-- Peci Body -->
+    <path d="M 210,215 C 210,120 390,120 390,215 Z" fill="url(#peciWhite)" />
+    <!-- Peci Shadow & Contour -->
+    <path d="M 210,205 C 250,195 350,195 390,205 L 390,218 C 350,210 250,210 210,218 Z" fill="#D8D2C2" />
+    
+    <!-- Gold Rim Pattern on Peci Base -->
+    <path d="M 210,208 L 390,208 L 390,222 L 210,222 Z" fill="#09382C" />
+    <path d="M 210,212 L 390,212" stroke="url(#goldBright)" stroke-width="3" stroke-dasharray="5,4" />
+    <path d="M 210,218 L 390,218" stroke="url(#goldBright)" stroke-width="1.5" />
+
+  </g>
+
+  <!-- Clean Bottom Label Badge Overlay -->
+  <g filter="url(#softShadow)">
+    <rect x="50" y="640" width="500" height="85" rx="18" fill="#041E17" fill-opacity="0.92" stroke="url(#goldBright)" stroke-width="2" />
+    <text x="300" y="675" font-family="serif" font-size="26" font-weight="bold" fill="#FCE881" text-anchor="middle" letter-spacing="0.5">
+      H. Ahmad Daud
+    </text>
+    <text x="300" y="702" font-family="sans-serif" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="middle" letter-spacing="0.5">
+      Direktur Utama PT. Golden Tour Haromain
+    </text>
+  </g>
+</svg>

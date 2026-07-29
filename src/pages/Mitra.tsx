@@ -1,6 +1,7 @@
 import { useLogo } from '../utils/logo';
 import { toast } from 'sonner';
-const direkturImg = 'https://placehold.co/400x500?text=Direktur';
+import { DIREKTUR_PHOTO_DATA } from '../assets/direkturPhotoData';
+const direkturImg = DIREKTUR_PHOTO_DATA;
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Briefcase, Building, FileText, Phone, Mail, CheckCircle2, ArrowRight, TrendingUp, Users, Clock, Compass, Target, Heart, Award, Star, BookOpen, Handshake, Plane, DollarSign, Crown, MessageSquare, Quote } from 'lucide-react';
@@ -1465,7 +1466,7 @@ function MitraInfo({ setActiveTab }: { setActiveTab: (tab: 'register' | 'login')
                       <div className="director-visual">
                           <div className="image-frame">
                               <div className="image-placeholder">
-                                  <img src={direkturImg} alt="Ahmad Daud" />
+                                  <img src={direkturImg} alt="Ustadz Ahmad Daud" />
                               </div>
                           </div>
                       </div>
@@ -1480,7 +1481,7 @@ function MitraInfo({ setActiveTab }: { setActiveTab: (tab: 'register' | 'login')
                           </blockquote>
                           
                           <div className="director-identity">
-                              <h4 className="director-name">Ahmad Daud</h4>
+                              <h4 className="director-name">Ustadz Ahmad Daud</h4>
                               <p className="director-title">Direktur Utama PT. Golden Tour Haramain</p>
                               {/* Lencana Kisah Inspiratif */}
                               <div className="story-badge">

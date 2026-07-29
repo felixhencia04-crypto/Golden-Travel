@@ -6,15 +6,18 @@ import { useLogo } from '../utils/logo';
 import heroBg from '../assets/bg-utama.jpg';
 import { HEADER_BG_DATA } from '../assets/headerBgData';
 import { ABOUT_BG_DATA } from '../assets/aboutBgData';
+import { DIREKTUR_PHOTO_DATA } from '../assets/direkturPhotoData';
 import LegalitasShowcase from '../components/LegalitasShowcase';
 import WhyChooseGoldenTravel from '../components/WhyChooseGoldenTravel';
 import PaketUmrahShowcase from '../components/PaketUmrahShowcase';
+import PaketHajiShowcase from '../components/PaketHajiShowcase';
 
 export default function Home() {
   const logoImg = useLogo();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [packages, setPackages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [direkturImgSrc, setDirekturImgSrc] = useState(DIREKTUR_PHOTO_DATA);
 
   const fetchPackages = async () => {
     try {
@@ -198,25 +201,77 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-b from-[#0C3C30]/95 via-[#0C3C30]/85 to-[#0C3C30]/60 md:bg-gradient-to-r md:from-[#0C3C30]/95 md:via-[#0C3C30]/65 md:to-transparent"></div>
         </div>
         
-        <div className="relative z-10 max-w-3xl">
-          <h1 className="font-serif text-2xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-[1.25] sm:leading-[1.1] mb-4 sm:mb-6 drop-shadow-md text-balance" style={{ background: 'linear-gradient(to right, #D4AF37, #F3E5AB, #D4AF37)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Wujudkan Perjalanan Suci yang Khusyuk dan Penuh Berkah.
-          </h1>
-          <p className="text-[#E6DBC6] text-xs sm:text-base md:text-xl leading-relaxed mb-6 sm:mb-8 max-w-2xl font-light drop-shadow">
-            Golden Travel menghadirkan layanan ibadah Haji dan Umroh eksklusif dengan fasilitas personal, premium, dan kedalaman spiritual. Aman, nyaman, dan profesional.
-          </p>
-          
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6 sm:mb-10 w-full sm:w-auto">
-            <a href="#pilihan-paket" className="w-full sm:w-auto bg-[#D4AF37] text-white text-center px-6 sm:px-8 py-3 rounded-full font-semibold text-sm sm:text-base transition-transform duration-300 hover:scale-105 shadow-lg" onClick={(e) => scrollToSection(e, 'pilihan-paket')}>
-              Lihat Paket Umroh
-            </a>
-            <a href="https://wa.me/628123456789" className="w-full sm:w-auto border-2 border-[#d4af37] text-white text-center px-6 sm:px-8 py-3 rounded-full font-semibold text-sm sm:text-base transition-all hover:bg-[#d4af37]/20" target="_blank" rel="noreferrer">
-              Konsultasi Gratis
-            </a>
+        <div className="relative z-10 max-w-7xl mx-auto space-y-8 sm:space-y-12">
+          {/* Main Hero Split Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            
+            {/* Left Column: Hero Copy & Actions */}
+            <div className="lg:col-span-7 xl:col-span-8 space-y-4 sm:space-y-6">
+              <h1 className="font-serif text-2xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-[1.25] sm:leading-[1.1] drop-shadow-md text-balance" style={{ background: 'linear-gradient(to right, #D4AF37, #F3E5AB, #D4AF37)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                Wujudkan Perjalanan Suci yang Khusyuk dan Penuh Berkah.
+              </h1>
+              <p className="text-[#E6DBC6] text-xs sm:text-base md:text-xl leading-relaxed max-w-2xl font-light drop-shadow">
+                Golden Travel menghadirkan layanan ibadah Haji dan Umroh eksklusif dengan fasilitas personal, premium, dan kedalaman spiritual. Aman, nyaman, dan profesional.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto pt-2">
+                <a href="#pilihan-paket" className="w-full sm:w-auto bg-[#D4AF37] text-white text-center px-6 sm:px-8 py-3 rounded-full font-semibold text-sm sm:text-base transition-transform duration-300 hover:scale-105 shadow-lg" onClick={(e) => scrollToSection(e, 'pilihan-paket')}>
+                  Lihat Paket Umroh
+                </a>
+                <a href="https://wa.me/628123456789" className="w-full sm:w-auto border-2 border-[#d4af37] text-white text-center px-6 sm:px-8 py-3 rounded-full font-semibold text-sm sm:text-base transition-all hover:bg-[#d4af37]/20" target="_blank" rel="noreferrer">
+                  Konsultasi Gratis
+                </a>
+              </div>
+
+              <p className="text-[#d4af37] font-serif italic text-xs sm:text-base md:text-lg drop-shadow-md">
+                "Kenyamanan dan Kepercayaan Anda, Prioritas Kami."
+              </p>
+            </div>
+
+            {/* Right Column: Director Photo Display (Frameless, Seamless Bottom Fade & Transparent Cutout) */}
+            <div className="lg:col-span-5 xl:col-span-4 flex flex-col items-center justify-center text-center">
+              {/* Direct Photo cutout - with gentle bottom fade mask so cut-off edge is completely invisible */}
+              <div 
+                className="relative w-full max-w-[300px] sm:max-w-[340px] group transition-transform duration-300 hover:scale-[1.02]"
+                style={{
+                  maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 68%, rgba(0,0,0,0) 98%)',
+                  WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 68%, rgba(0,0,0,0) 98%)'
+                }}
+              >
+                <img 
+                  src={direkturImgSrc} 
+                  alt="Ustadz Ahmad Daud - Direktur Utama PT. Golden Tour Haromain" 
+                  className="w-full h-auto max-h-[380px] sm:max-h-[440px] object-contain mx-auto drop-shadow-[0_20px_35px_rgba(0,0,0,0.7)]"
+                  onError={() => {
+                    if (direkturImgSrc === '/owner.png') {
+                      setDirekturImgSrc('/direktur.png');
+                    } else if (direkturImgSrc === '/direktur.png') {
+                      setDirekturImgSrc(DIREKTUR_PHOTO_DATA);
+                    }
+                  }}
+                />
+                {/* Soft dark gradient at bottom edge to guarantee zero cut-off line */}
+                <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-[#01251a] via-[#01251a]/60 to-transparent pointer-events-none" />
+              </div>
+
+              {/* Name & Official Title below photo */}
+              <div className="mt-1 space-y-1 relative z-10">
+                <h3 className="font-serif text-2xl sm:text-3xl font-bold text-[#F3E5AB] drop-shadow-md tracking-wide">
+                  Ustadz Ahmad Daud
+                </h3>
+                <p className="text-[#D4AF37] text-sm sm:text-base font-medium">
+                  Direktur Utama PT. Golden Tour Haromain
+                </p>
+                <div className="pt-2 flex items-center justify-center gap-2 text-xs text-[#10B981] font-semibold">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Resmi &amp; Terverifikasi Kemenag RI</span>
+                </div>
+              </div>
+            </div>
+
           </div>
 
-          <p className="text-[#d4af37] font-serif italic text-xs sm:text-base md:text-lg mb-8 sm:mb-12 drop-shadow-md">Kenyamanan dan Kepercayaan Anda, Prioritas Kami.</p>
-
+          {/* Bottom 4 Feature Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4 mt-auto">
             <div className="bg-white/95 backdrop-blur-sm rounded-xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3 shadow-lg border-b-4 border-[#d4af37]">
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-[#d4af37]/30 flex items-center justify-center shrink-0">
@@ -561,105 +616,8 @@ export default function Home() {
       {/* Paket Umrah Section - Executive Showcase Component */}
       <PaketUmrahShowcase />
 
-      {/* Paket Haji Section */}
-      <section className="py-12 sm:py-20 md:py-24 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#2F4F4F] border-t border-[#2F4F4F]/90/50" id="pilihan-haji">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 md:gap-8 mb-10 sm:mb-16">
-            <div className="max-w-2xl">
-              <div className="inline-block bg-[#2F4F4F]/90 text-[#D4AF37] px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase mb-3 border border-[#D4AF37]/30">Haji Khusus & Furoda</div>
-              <h2 className="font-serif text-2xl sm:text-3xl md:text-5xl text-white leading-tight mb-3 sm:mb-4">
-                Program Haji Resmi, Nyaman, <br className="hidden sm:inline"/><span className="text-[#D4AF37]">Sesuai Syariat</span>
-              </h2>
-              <p className="text-stone-300 text-sm sm:text-base md:text-lg leading-relaxed font-light">
-                Tunaikan Rukun Islam kelima dengan tenang melalui program haji khusus yang terjamin legalitasnya, waktu tunggu yang lebih ideal, dan bimbingan ibadah intensif hingga mabrur.
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => scrollTrack(hajiTrackRef, 'left')} className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-stone-600 flex justify-center items-center text-stone-300 hover:bg-[#D4AF37] hover:text-[#2F4F4F] hover:border-[#D4AF37] transition-all"><ChevronLeft className="w-5 h-5" /></button>
-              <button onClick={() => scrollTrack(hajiTrackRef, 'right')} className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-stone-600 flex justify-center items-center text-stone-300 hover:bg-[#D4AF37] hover:text-[#2F4F4F] hover:border-[#D4AF37] transition-all"><ChevronRight className="w-5 h-5" /></button>
-            </div>
-          </div>
-
-          <div ref={hajiTrackRef} className="flex gap-4 sm:gap-8 overflow-x-auto snap-x snap-mandatory pb-8 pt-2 scrollbar-hide" style={{ scrollbarWidth: 'none' }}>
-            
-            {loading ? (
-              <div className="w-full text-center py-20 text-stone-500 text-lg">Memuat paket haji...</div>
-            ) : hajiPackages.length > 0 ? (
-              hajiPackages.map((pkg) => (
-                <div key={pkg.id} className="min-w-[280px] sm:min-w-[340px] max-w-[340px] snap-center bg-[#2F4F4F]/90 rounded-2xl sm:rounded-3xl border border-[#2F4F4F]/80 overflow-hidden shadow-sm hover:shadow-2xl hover:border-[#D4AF37] transition-all duration-500 flex flex-col group">
-                  <div className="relative h-48 sm:h-64 overflow-hidden">
-                    <img src={pkg.imageUrl || "https://images.unsplash.com/photo-1565552403565-5ba2a9539f90?auto=format&fit=crop&w=600&q=80"} alt={pkg.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-[#2F4F4F]/90 backdrop-blur text-[#D4AF37] px-3 py-1 sm:px-4 sm:py-1.5 rounded-full text-xs sm:text-sm font-bold shadow-sm border border-[#D4AF37]/20">{pkg.duration}</div>
-                  </div>
-                  <div className="p-5 sm:p-8 flex-1 flex flex-col">
-                    <h3 className="font-serif text-xl sm:text-2xl text-white mb-2">{pkg.name}</h3>
-                    <div className="text-[#D4AF37] font-serif text-2xl sm:text-3xl font-bold mb-4 sm:mb-6">
-                      <span className="text-base sm:text-lg align-top mr-1">USD</span>{Number(pkg.price).toLocaleString('en-US')}
-                      <span className="font-sans text-xs sm:text-sm text-stone-400 font-normal ml-1">/ pax</span>
-                    </div>
-                    
-                    <div className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8 flex-1">
-                      {Array.isArray(pkg.description) ? (
-                        pkg.description.slice(0, 4).map((line: string, i: number) => (
-                          <div key={i} className="flex items-start gap-2.5 text-stone-300 text-xs sm:text-sm">
-                            <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> <span>{line}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-stone-300 text-xs sm:text-sm line-clamp-4 leading-relaxed">{pkg.description}</p>
-                      )}
-                    </div>
-                    
-                    <Link to="/login" className="block w-full text-center py-3 sm:py-3.5 rounded-xl border border-[#D4AF37] text-[#D4AF37] text-xs sm:text-sm font-semibold hover:bg-[#D4AF37] hover:text-[#2F4F4F] transition-colors">
-                      Lihat Detail Jadwal
-                    </Link>
-                  </div>
-                </div>
-              ))
-            ) : (
-              // Fallback Haji
-              <>
-                <div className="min-w-[280px] sm:min-w-[340px] max-w-[340px] snap-center bg-[#2F4F4F]/90 rounded-2xl sm:rounded-3xl border border-[#2F4F4F]/80 overflow-hidden shadow-sm flex flex-col group hover:shadow-xl hover:border-[#D4AF37] transition-all duration-300">
-                  <div className="relative h-48 sm:h-64 overflow-hidden">
-                    <img src="https://images.unsplash.com/photo-1541432901042-2d8bd64b4a9b?auto=format&fit=crop&w=600&q=80" alt="Haji Khusus" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-[#2F4F4F]/90 text-[#D4AF37] px-3 py-1 sm:px-4 sm:py-1.5 rounded-full text-xs sm:text-sm font-bold shadow-sm border border-[#D4AF37]/20">26 Hari</div>
-                  </div>
-                  <div className="p-5 sm:p-8 flex-1 flex flex-col">
-                    <h3 className="font-serif text-xl sm:text-2xl text-white mb-2">Haji Khusus (ONH Plus)</h3>
-                    <div className="text-[#D4AF37] font-serif text-2xl sm:text-3xl font-bold mb-4 sm:mb-6"><span className="text-base sm:text-lg align-top mr-1">USD</span>14.500<span className="font-sans text-xs sm:text-sm text-stone-400 font-normal ml-1">/ pax</span></div>
-                    <div className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8 flex-1 text-xs sm:text-sm text-stone-300">
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Kuota Resmi Kementerian Agama RI</div>
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Makkah: Fairmont / Pullman (5⭐)</div>
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Madinah: Oberoi / Movenpick (5⭐)</div>
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Tenda Maktab VIP & Kereta Cepat</div>
-                    </div>
-                    <Link to="/login" className="block w-full text-center py-3 sm:py-3.5 rounded-xl border border-[#D4AF37] text-[#D4AF37] text-xs sm:text-sm font-bold hover:bg-[#D4AF37] hover:text-[#2F4F4F] transition-colors">Konsultasi Kuota</Link>
-                  </div>
-                </div>
-
-                <div className="min-w-[280px] sm:min-w-[340px] max-w-[340px] snap-center bg-[#2F4F4F]/90 rounded-2xl sm:rounded-3xl border-2 border-[#D4AF37] overflow-hidden shadow-2xl flex flex-col relative transform lg:-translate-y-2 group">
-                  <div className="absolute top-6 -right-12 bg-[#D4AF37] text-[#2F4F4F] px-12 py-1 rotate-45 text-[10px] font-black tracking-[0.2em] z-20 shadow-md">TANPA ANTRI</div>
-                  <div className="relative h-48 sm:h-64 overflow-hidden">
-                    <img src="https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&w=600&q=80" alt="Haji Furoda" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                    <div className="absolute top-3 right-3 sm:top-4 sm:right-4 bg-[#2F4F4F]/90 text-[#D4AF37] px-3 py-1 sm:px-4 sm:py-1.5 rounded-full text-xs sm:text-sm font-bold shadow-sm border border-[#D4AF37]/20">24 Hari</div>
-                  </div>
-                  <div className="p-5 sm:p-8 flex-1 flex flex-col">
-                    <h3 className="font-serif text-xl sm:text-2xl text-white mb-2">Haji Furoda (Visa Mujamalah)</h3>
-                    <div className="text-[#D4AF37] font-serif text-2xl sm:text-3xl font-bold mb-4 sm:mb-6"><span className="text-base sm:text-lg align-top mr-1">Mulai USD</span>21.000</div>
-                    <div className="space-y-2.5 sm:space-y-3 mb-6 sm:mb-8 flex-1 text-xs sm:text-sm text-stone-300">
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Keberangkatan Tahun Berjalan (Langsung)</div>
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Visa Mujamalah Resmi Kerajaan Saudi</div>
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Hotel Bintang 5 Pelataran Masjidil Haram</div>
-                      <div className="flex items-start gap-2.5"><CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-[#D4AF37] shrink-0" /> Tenda AC Khusus Maktab Furoda VIP</div>
-                    </div>
-                    <Link to="/login" className="block w-full text-center py-3 sm:py-3.5 rounded-xl bg-[#D4AF37] text-[#2F4F4F] text-xs sm:text-sm font-bold hover:bg-amber-300 transition-colors shadow-lg">Amankan Kursi</Link>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </section>
+      {/* Paket Haji Section - Executive Showcase Component */}
+      <PaketHajiShowcase />
 
       {/* Testimonial Section */}
       <section className="py-12 sm:py-20 md:py-24 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#2F4F4F]/90" id="testimoni">
