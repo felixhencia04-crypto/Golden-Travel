@@ -2030,9 +2030,42 @@ export default function DashboardJamaah() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {packages
-                  .filter(pkg => pkg.isAvailable !== false && (pkg.type || 'umroh').toLowerCase() === packageCategory)
-                  .map((pkg) => (
+                {(() => {
+                  const filteredPackages = (packages || []).filter(pkg => {
+                    const isAvail = pkg.isAvailable !== false && pkg.isAvailable !== 'false' && pkg.isAvailable !== 0;
+                    const pkgType = (pkg.type || 'umroh').toString().trim().toLowerCase();
+                    return isAvail && pkgType === packageCategory;
+                  });
+
+                  if (filteredPackages.length === 0 && !loading) {
+                    return (
+                      <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-gray-200 animate-in fade-in duration-500 shadow-sm p-8">
+                        <div className="w-16 h-16 bg-gold-50 text-gold-600 rounded-full flex items-center justify-center mx-auto mb-4 border border-gold-100 shadow-sm">
+                          <InventoryIcon className="w-8 h-8 text-gold-600" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Belum Ada Paket {packageCategory === 'umroh' ? 'Umroh' : 'Haji'} Tersedia</h3>
+                        <p className="text-gray-500 mb-6 max-w-md mx-auto text-sm leading-relaxed">
+                          Saat ini belum ada paket {packageCategory} yang aktif di katalog. Coba beralih ke kategori {packageCategory === 'umroh' ? 'Haji' : 'Umroh'} atau klik tombol di bawah untuk memuat ulang data terbaru dari admin.
+                        </p>
+                        <div className="flex flex-wrap items-center justify-center gap-3">
+                          <button 
+                            onClick={() => setPackageCategory(packageCategory === 'umroh' ? 'haji' : 'umroh')}
+                            className="px-6 py-3 bg-gray-900 text-white rounded-2xl font-bold text-xs uppercase tracking-wider hover:bg-black transition-all shadow-md active:scale-95"
+                          >
+                            Lihat Paket {packageCategory === 'umroh' ? 'Haji' : 'Umroh'}
+                          </button>
+                          <button 
+                            onClick={() => refreshData(true)}
+                            className="inline-flex items-center px-6 py-3 bg-gold-500 text-gray-900 rounded-2xl font-bold text-xs uppercase tracking-wider hover:bg-gold-600 transition-all shadow-md shadow-gold-500/20 active:scale-95"
+                          >
+                            <RefreshCw className="w-4 h-4 mr-2" /> Muat Ulang Katalog
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return filteredPackages.map((pkg) => (
                   <div key={pkg.id} className="bg-white shadow-sm hover:shadow-xl transition-all duration-500 rounded-[2rem] overflow-hidden border border-gray-100 flex flex-col group animate-in slide-in-from-bottom-8">
                     <div className="h-52 w-full relative overflow-hidden">
                       <img 
@@ -2122,24 +2155,8 @@ export default function DashboardJamaah() {
                       </div>
                     </div>
                   </div>
-                ))}
-                {packages.filter(pkg => pkg.isAvailable !== false).length === 0 && !loading && (
-                  <div className="col-span-full py-24 text-center bg-white shadow-md rounded-3xl border border-dashed border-gray-200 animate-in fade-in duration-700">
-                    <div className="w-20 h-20 bg-gray-50 text-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <InventoryIcon className="w-10 h-10" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">Belum Ada Paket Tersedia</h3>
-                    <p className="text-gray-500 mb-8 max-w-xs mx-auto">
-                      Saat ini belum ada paket travel yang aktif. Silakan hubungi admin atau klik tombol di bawah untuk memuat ulang.
-                    </p>
-                    <button 
-                      onClick={() => refreshData(true)}
-                      className="inline-flex items-center px-6 py-3 bg-gold-500 text-gray-900 rounded-2xl font-bold text-sm hover:bg-gold-600 transition-all shadow-lg shadow-gold-500/20 active:scale-95"
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" /> Muat Ulang Katalog
-                    </button>
-                  </div>
-                )}
+                ));
+                })()}
                 {loading && (
                    <div className="col-span-full py-24 text-center">
                      <RefreshCw className="w-10 h-10 text-gold-600 animate-spin mx-auto mb-4" />
