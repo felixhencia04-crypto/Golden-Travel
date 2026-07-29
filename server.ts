@@ -1742,23 +1742,41 @@ async function startServer() {
     if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
     try {
       const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl } = req.body;
-      const data: any = { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl };
       
-      // Remove undefined values
-      Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
-
-      if (data.price !== undefined) data.price = Number(data.price);
-      if (data.quota !== undefined) data.quota = Number(data.quota);
-
-      if (Array.isArray(data.description)) {
-        data.description = JSON.stringify(data.description);
+      const cleanPrice = Number(String(price ?? 0).replace(/[^0-9]/g, '')) || 0;
+      const cleanQuota = Number(String(quota ?? 45).replace(/[^0-9]/g, '')) || 45;
+      
+      let cleanDesc = description;
+      if (Array.isArray(cleanDesc)) {
+        const filtered = cleanDesc.filter((d: any) => typeof d === 'string' && d.trim() !== '');
+        cleanDesc = JSON.stringify(filtered.length > 0 ? filtered : [name || "Fasilitas Bintang 5"]);
+      } else if (typeof cleanDesc !== 'string' || !cleanDesc.trim()) {
+        cleanDesc = JSON.stringify([name || "Fasilitas Bintang 5"]);
       }
+
+      const data: any = {
+        name: (name || "Paket Baru").trim(),
+        description: cleanDesc,
+        price: cleanPrice,
+        duration: (duration || "9 Hari").trim(),
+        imageUrl: imageUrl || "https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80",
+        type: type === 'haji' ? 'haji' : 'umroh',
+        isAvailable: isAvailable !== false,
+        quota: cleanQuota,
+        manasikPdfUrl: manasikPdfUrl || null
+      };
+
       const [newPackage] = await withRetry(() => db.insert(schema.packages).values(data).returning());
-      res.json(newPackage);
+      
+      // Parse description for client response consistency
+      let parsedDesc = newPackage.description;
+      try { parsedDesc = JSON.parse(newPackage.description); } catch(e) {}
+
+      res.json({ ...newPackage, description: parsedDesc, remainingSeats: newPackage.quota, takenSeats: 0 });
       notifyUpdate();
     } catch (error: any) {
       console.error("Error creating package:", error);
-      res.status(500).json({ error: error.message || "Failed to create package" });
+      res.status(500).json({ error: error.message || "Gagal membuat paket baru." });
     }
   });
 
@@ -1767,26 +1785,49 @@ async function startServer() {
     if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
     try {
       const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl } = req.body;
-      const data: any = { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl };
       
-      // Remove undefined values
-      Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
-
-      if (data.price !== undefined) data.price = Number(data.price);
-      if (data.quota !== undefined) data.quota = Number(data.quota);
-
-      if (Array.isArray(data.description)) {
-        data.description = JSON.stringify(data.description);
+      const cleanPrice = Number(String(price ?? 0).replace(/[^0-9]/g, '')) || 0;
+      const cleanQuota = Number(String(quota ?? 45).replace(/[^0-9]/g, '')) || 45;
+      
+      let cleanDesc = description;
+      if (Array.isArray(cleanDesc)) {
+        const filtered = cleanDesc.filter((d: any) => typeof d === 'string' && d.trim() !== '');
+        cleanDesc = JSON.stringify(filtered.length > 0 ? filtered : [name || "Fasilitas Bintang 5"]);
+      } else if (typeof cleanDesc !== 'string' || !cleanDesc.trim()) {
+        cleanDesc = JSON.stringify([name || "Fasilitas Bintang 5"]);
       }
+
+      const data: any = {
+        name: (name || "Paket Baru").trim(),
+        description: cleanDesc,
+        price: cleanPrice,
+        duration: (duration || "9 Hari").trim(),
+        type: type === 'haji' ? 'haji' : 'umroh',
+        isAvailable: isAvailable !== false,
+        quota: cleanQuota,
+      };
+
+      if (imageUrl !== undefined) data.imageUrl = imageUrl;
+      if (manasikPdfUrl !== undefined) data.manasikPdfUrl = manasikPdfUrl;
+
       const [updatedPackage] = await withRetry(() => db.update(schema.packages)
               .set(data)
               .where(eq(schema.packages.id, req.params.id))
               .returning());
-      res.json(updatedPackage);
+
+      if (!updatedPackage) {
+        return res.status(404).json({ error: "Paket tidak ditemukan." });
+      }
+
+      // Parse description for client response consistency
+      let parsedDesc = updatedPackage.description;
+      try { parsedDesc = JSON.parse(updatedPackage.description); } catch(e) {}
+
+      res.json({ ...updatedPackage, description: parsedDesc });
       notifyUpdate();
     } catch (error: any) {
       console.error("Error updating package:", error);
-      res.status(500).json({ error: error.message || "Failed to update package" });
+      res.status(500).json({ error: error.message || "Gagal memperbarui paket." });
     }
   });
 

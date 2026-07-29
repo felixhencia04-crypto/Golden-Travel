@@ -34,7 +34,7 @@ import { updatePassword } from 'firebase/auth';
 
 export default function Admin() {
   const logoImg = useLogo();
-  const { users, registrations, packages, schedules, dashboardStats, actionCenter, equipment: inventory, broadcast: announcements, manifest, loading, currentUser, refreshData } = useAdminData();
+  const { users, registrations, packages, setPackages, schedules, dashboardStats, actionCenter, equipment: inventory, broadcast: announcements, manifest, loading, currentUser, refreshData } = useAdminData();
   useSocket(() => refreshData(true));
   const navigate = useNavigate();
 
@@ -212,13 +212,36 @@ export default function Admin() {
         dataToSend.imageUrl = dataToSend.image;
         delete dataToSend.image;
       }
-      await api.put(`/admin/packages/${data.id}`, dataToSend);
+
+      // Ensure description is clean array
+      const descList = Array.isArray(dataToSend.description) 
+        ? dataToSend.description.filter((d: string) => d && d.trim() !== '')
+        : [dataToSend.description || 'Fasilitas Bintang 5'];
+      dataToSend.description = descList.length > 0 ? descList : ['Fasilitas Bintang 5'];
+
+      // Optimistic update
+      setPackages((prev: any[]) => prev.map(p => p.id === data.id ? { 
+        ...p, 
+        ...dataToSend, 
+        description: dataToSend.description,
+        price: Number(dataToSend.price || 0),
+        quota: Number(dataToSend.quota || 45),
+        imageUrl: dataToSend.imageUrl || p.imageUrl 
+      } : p));
+
+      const updated = await api.put(`/admin/packages/${data.id}`, dataToSend);
+      if (updated && updated.id) {
+        setPackages((prev: any[]) => prev.map(p => p.id === data.id ? updated : p));
+      }
       toast.success('Paket berhasil diperbarui.');
       refreshData(true);
     } catch (error: any) {
+      console.error('Error updating package:', error);
       toast.error(error.message || 'Gagal memperbarui paket.');
+      refreshData(true);
     }
   };
+
   const addPackage = async (data: any) => {
     try {
       const { id, ...dataToSend } = data; // omit id to let db generate it
@@ -226,11 +249,41 @@ export default function Admin() {
         dataToSend.imageUrl = dataToSend.image;
         delete dataToSend.image;
       }
-      await api.post('/admin/packages', dataToSend);
+
+      const descList = Array.isArray(dataToSend.description) 
+        ? dataToSend.description.filter((d: string) => d && d.trim() !== '')
+        : [dataToSend.description || 'Fasilitas Bintang 5'];
+      dataToSend.description = descList.length > 0 ? descList : ['Fasilitas Bintang 5'];
+
+      // Optimistic temp item
+      const tempId = `temp-pkg-${Date.now()}`;
+      const tempItem = {
+        id: tempId,
+        name: dataToSend.name || 'Paket Baru',
+        description: dataToSend.description,
+        price: Number(dataToSend.price || 0),
+        duration: dataToSend.duration || '9 Hari',
+        type: dataToSend.type || activePackageTab || 'umroh',
+        imageUrl: dataToSend.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80',
+        isAvailable: dataToSend.isAvailable !== false,
+        quota: Number(dataToSend.quota || 45),
+        remainingSeats: Number(dataToSend.quota || 45),
+        takenSeats: 0,
+        createdAt: new Date().toISOString()
+      };
+
+      setPackages((prev: any[]) => [tempItem, ...prev]);
+
+      const created = await api.post('/admin/packages', dataToSend);
       toast.success('Paket berhasil ditambahkan.');
+      if (created && created.id) {
+        setPackages((prev: any[]) => prev.map(p => p.id === tempId ? created : p));
+      }
       refreshData(true);
     } catch (error: any) {
+      console.error('Error adding package:', error);
       toast.error(error.message || 'Gagal menambahkan paket.');
+      refreshData(true);
     }
   };
   const deletePackage = async (id: string) => {
@@ -5423,14 +5476,15 @@ export default function Admin() {
                                 type="file" 
                                 className="hidden" 
                                 accept="image/*"
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   const file = e.target.files?.[0];
                                   if (file) {
-                                    const reader = new FileReader();
-                                    reader.onloadend = () => {
-                                      setEditingPackage({...editingPackage, image: reader.result as string});
-                                    };
-                                    reader.readAsDataURL(file);
+                                    try {
+                                      const compressed = await toBase64(file);
+                                      setEditingPackage((prev: any) => ({ ...prev, image: compressed }));
+                                    } catch (err) {
+                                      toast.error("Gagal memproses file gambar");
+                                    }
                                   }
                                 }}
                               />
@@ -5445,14 +5499,15 @@ export default function Admin() {
                             type="file" 
                             className="hidden" 
                             accept="image/*"
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const file = e.target.files?.[0];
                               if (file) {
-                                const reader = new FileReader();
-                                reader.onloadend = () => {
-                                  setEditingPackage({...editingPackage, image: reader.result as string});
-                                };
-                                reader.readAsDataURL(file);
+                                try {
+                                  const compressed = await toBase64(file);
+                                  setEditingPackage((prev: any) => ({ ...prev, image: compressed }));
+                                } catch (err) {
+                                  toast.error("Gagal memproses file gambar");
+                                }
                               }
                             }}
                           />
