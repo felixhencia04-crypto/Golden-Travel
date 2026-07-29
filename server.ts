@@ -35,6 +35,14 @@ interface AuthRequest extends Request {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'golden-travel-super-secret-key-2026';
 
+// Admin and User Cache to speed up middleware authentication and reduce DB/Firebase network overhead
+const adminUserCache = new Map<string, { user: any; timestamp: number }>();
+const userAuthCache = new Map<string, { user: any; timestamp: number }>();
+
+export function invalidateUserCache(token?: string) {
+  if (token) userAuthCache.delete(token);
+}
+
 // Auth Middleware
 async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
@@ -54,8 +62,15 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as any;
       const ADMIN_ID = '00000000-0000-0000-0000-000000000000';
-      // Look up admin by ID if present, otherwise use hardcoded ADMIN_ID
       const targetId = decoded.id || ADMIN_ID;
+
+      // Check fast in-memory cache (valid for 60 seconds)
+      const cached = adminUserCache.get(targetId);
+      if (cached && Date.now() - cached.timestamp < 60000) {
+        req.user = cached.user;
+        return next();
+      }
+
       let adminUser = await withRetry(() => db.query.users.findFirst({
         where: eq(schema.users.id, targetId)
       }));
@@ -77,6 +92,7 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
         req.user = decoded as any;
       } else {
         req.user = adminUser;
+        adminUserCache.set(targetId, { user: adminUser, timestamp: Date.now() });
       }
       return next();
     } catch (e: any) {
@@ -87,6 +103,12 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
 
   // 2. Try Firebase Auth
   try {
+    const cachedUser = userAuthCache.get(token);
+    if (cachedUser && Date.now() - cachedUser.timestamp < 120000) {
+      req.user = cachedUser.user;
+      return next();
+    }
+
     let decodedToken;
     try {
       decodedToken = await adminAuth.verifyIdToken(token);
@@ -118,6 +140,15 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
     }
 
     req.user = user;
+    userAuthCache.set(token, { user, timestamp: Date.now() });
+
+    if (userAuthCache.size > 500) {
+      const now = Date.now();
+      for (const [k, v] of userAuthCache.entries()) {
+        if (now - v.timestamp > 120000) userAuthCache.delete(k);
+      }
+    }
+
     next();
   } catch (error) {
     console.error('Auth error:', error);
@@ -2212,6 +2243,11 @@ async function startServer() {
       // Update the user object in the session/request for subsequent middleware
       req.user = { ...req.user, ...updatedUser };
       
+      const authHeader = req.headers.authorization;
+      if (authHeader?.startsWith('Bearer ')) {
+        invalidateUserCache(authHeader.split('Bearer ')[1]?.trim());
+      }
+
       res.json(updatedUser);
       notifyUpdate();
     } catch (error: any) {

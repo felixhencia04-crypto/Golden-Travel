@@ -2,12 +2,16 @@ import { getAuth } from 'firebase/auth';
 
 const API_BASE_URL = '/api';
 
+export function getAdminToken(): string | null {
+  return localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token');
+}
+
 async function getHeaders(endpoint: string) {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
 
-  const adminToken = localStorage.getItem('admin_token');
+  const adminToken = getAdminToken();
   if (endpoint.startsWith('/admin') && adminToken) {
     headers['Authorization'] = `Bearer ${adminToken}`;
     return headers;

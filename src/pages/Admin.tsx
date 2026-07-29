@@ -15,7 +15,7 @@ import { generateRegistrationFormPdf } from '../utils/generateRegistrationFormPd
 import { generateJamaahRecapPdf, generateDepartureManifestPdf } from '../utils/generateJamaahRecapPdf';
 import { useAdminData } from '../hooks/useAdminData';
 import { useSocket } from '../hooks/useSocket';
-import { api } from '../lib/api';
+import { api, getAdminToken } from '../lib/api';
 import { auth } from '../lib/firebase';
 import { openDataUrlInNewTab, downloadFile } from '../utils/file';
 import JSZip from 'jszip';
@@ -39,7 +39,7 @@ export default function Admin() {
   const navigate = useNavigate();
 
   React.useEffect(() => {
-    if (!localStorage.getItem('admin_token')) {
+    if (!getAdminToken()) {
       navigate('/admin/login');
     }
   }, [navigate]);
@@ -68,7 +68,9 @@ export default function Admin() {
   });
   
   const handleLogout = async () => {
-    localStorage.removeItem("admin_token"); await auth.signOut();
+    localStorage.removeItem("admin_token");
+    sessionStorage.removeItem("admin_token");
+    await auth.signOut();
     navigate('/admin/login');
   };
 
@@ -1380,18 +1382,13 @@ export default function Admin() {
   };
 
   
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="flex flex-col items-center">
-          <RefreshCw className="w-10 h-10 text-matcha-600 animate-spin mb-4" />
-          <p className="text-gray-500 font-medium">Memuat Portal Admin...</p>
-        </div>
-      </div>
-    );
-  }
   return (
-    <div className="min-h-screen bg-gray-100 flex font-sans">
+    <div className="min-h-screen bg-gray-100 flex font-sans relative">
+      {loading && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-amber-500/20 overflow-hidden">
+          <div className="h-full bg-amber-500 animate-pulse w-full"></div>
+        </div>
+      )}
       {/* Sidebar */}
       <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-[#132019] text-white flex flex-col shadow-2xl transition-all duration-300 z-20 shrink-0 h-screen sticky top-0 overflow-y-auto`}>
         <div className="p-4 flex items-center justify-between border-b border-white/10 sticky top-0 bg-[#132019] z-10">

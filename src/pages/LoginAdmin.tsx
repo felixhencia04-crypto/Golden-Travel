@@ -19,12 +19,8 @@ export default function LoginAdmin() {
       const res = await api.post('/admin/login', { password });
       
       if (res.token) {
-        if (rememberMe) {
-          localStorage.setItem('admin_token', res.token);
-        } else {
-          sessionStorage.setItem('admin_token', res.token);
-          localStorage.removeItem('admin_token');
-        }
+        localStorage.setItem('admin_token', res.token);
+        sessionStorage.setItem('admin_token', res.token);
         toast.success('Selamat datang, Admin!');
         navigate('/admin');
       } else {

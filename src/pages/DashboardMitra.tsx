@@ -33,17 +33,6 @@ export default function DashboardMitra() {
   const [showUpload, setShowUpload] = useState<number | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="flex flex-col items-center">
-          <RefreshCw className="w-10 h-10 text-matcha-600 animate-spin mb-4" />
-          <p className="text-gray-500 font-medium">Memuat data Mitra...</p>
-        </div>
-      </div>
-    );
-  }
-
   const komisiList = [
     { id: 1, name: 'Bonus Sponsor - Budi Santoso', amount: 'Rp 2.000.000', date: '01 Okt 2026', status: 'Cair' },
     { id: 2, name: 'Bonus Sponsor - Siti Aminah', amount: 'Rp 1.500.000', date: '10 Nov 2026', status: 'Pending' },

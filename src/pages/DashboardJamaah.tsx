@@ -28,7 +28,7 @@ import UmrahCertificate from '../components/jamaah/UmrahCertificate';
 
 export default function DashboardJamaah() {
   const logoImg = useLogo();
-  const { registration, packages, schedules, notifications: announcements, manifest, equipment: inventoryState, loading, user, dbUser, refreshData } = useRegistration();
+  const { registration, setRegistration, packages, schedules, notifications: announcements, manifest, equipment: inventoryState, loading, user, dbUser, refreshData } = useRegistration();
   useSocket(() => refreshData(true));
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -732,28 +732,37 @@ export default function DashboardJamaah() {
         return;
       }
 
-      setUploadingDoc(docKey);
-      toast.info(`Sedang memproses file ${file.name}...`, { id: 'upload-progress' });
-
       const reader = new FileReader();
-      reader.onloadend = async () => {
-        try {
-          const docType = docKey;
-          await api.post('/documents', {
-             registrationId: userConsultation.id,
-             docType,
-             fileUrl: reader.result as string
-          });
-          toast.success(`Dokumen ${docName} untuk Jamaah ${paxIdx + 1} berhasil diunggah.`, { id: 'upload-progress' });
-          await refreshData(true);
-        } catch (error: any) {
-          toast.error(error.message || "Gagal mengunggah dokumen", { id: 'upload-progress' });
-        } finally {
-          setUploadingDoc(null);
+      reader.onloadend = () => {
+        const fileUrl = reader.result as string;
+        
+        // Optimistic UI update: instantly reflect document in registration state
+        const newDoc = { id: `doc-${Date.now()}`, docType: docKey, fileUrl, status: 'approved', createdAt: new Date().toISOString() };
+        if (registration) {
+          const existingDocs = Array.isArray(registration.documents) ? registration.documents : [];
+          const updatedDocs = [...existingDocs.filter((d: any) => d.docType !== docKey), newDoc];
+          if (setRegistration) {
+            setRegistration({ ...registration, documents: updatedDocs });
+          }
         }
+
+        toast.success(`Dokumen ${docName} untuk Jamaah ${paxIdx + 1} berhasil diunggah secara real-time!`);
+        setUploadingDoc(null);
+
+        // Background API sync
+        api.post('/documents', {
+           registrationId: userConsultation.id,
+           docType: docKey,
+           fileUrl
+        }).then(() => {
+          refreshData(true);
+        }).catch((error: any) => {
+          console.error("Background document save error:", error);
+          toast.error(error.message || "Gagal menyimpan dokumen ke server");
+        });
       };
       reader.onerror = () => {
-        toast.error("Gagal membaca file. Pastikan file tidak rusak.", { id: 'upload-progress' });
+        toast.error("Gagal membaca file. Pastikan file tidak rusak.");
         setUploadingDoc(null);
       };
       reader.readAsDataURL(file);
@@ -847,19 +856,13 @@ export default function DashboardJamaah() {
     navigate('/login');
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="flex flex-col items-center">
-          <RefreshCw className="w-10 h-10 text-gold-600 animate-spin mb-4" />
-          <p className="text-gray-500 font-medium">Memuat data Jemaah...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen flex font-sans bg-[#F8F9FA] relative">
+      {loading && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-gold-500/20 overflow-hidden">
+          <div className="h-full bg-gold-500 animate-pulse w-full"></div>
+        </div>
+      )}
       
       {/* Floating AI Assistant (Gemini Integration Simulation) */}
       <div className="fixed bottom-6 right-6 z-50">

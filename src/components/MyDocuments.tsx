@@ -46,7 +46,7 @@ export default function MyDocuments() {
     }
   };
 
-  const handleUpload = async (docType: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = (docType: string, e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.[0]) return;
     const file = e.target.files[0];
     
@@ -56,39 +56,38 @@ export default function MyDocuments() {
       return;
     }
 
-    try {
-      setUploading(docType);
-      // Simulate file upload to cloud storage
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const fileUrl = reader.result as string;
-        await api.uploadDocument({ docType, fileUrl });
-        toast.success('Dokumen berhasil diunggah');
-        await loadDocuments(true);
-        setUploading(null);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Upload failed:', error);
-      toast.error('Gagal mengupload dokumen');
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const fileUrl = reader.result as string;
+      
+      // Optimistic state update
+      const newDoc = { id: `doc-${Date.now()}`, docType, fileUrl, status: 'approved', createdAt: new Date().toISOString() };
+      setDocuments(prev => [...prev.filter(d => d.docType !== docType), newDoc]);
+      toast.success('Dokumen berhasil diunggah secara real-time!');
       setUploading(null);
-    }
+
+      // Non-blocking background upload
+      api.uploadDocument({ docType, fileUrl }).then(() => {
+        loadDocuments(true);
+      }).catch((error) => {
+        console.error('Upload failed:', error);
+        toast.error('Gagal mengupload dokumen ke server');
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   const getDocStatus = (docType: string) => {
     return documents.find(d => d.docType === docType);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-gold-500" />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {loading && (
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gold-500/20 overflow-hidden rounded-full z-10">
+          <div className="h-full bg-gold-500 animate-pulse w-full"></div>
+        </div>
+      )}
       <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
         <h3 className="text-xl font-bold text-gray-900 mb-2">Dokumen Saya</h3>
         <p className="text-gray-500 text-sm mb-6">Lengkapi dokumen persyaratan keberangkatan Anda. Pastikan foto jelas dan terbaca.</p>
