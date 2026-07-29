@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sparkles, 
@@ -9,6 +9,9 @@ import {
   Plane, 
   MessageCircle, 
   ChevronRight, 
+  ChevronLeft,
+  Pause,
+  Play,
   Info, 
   X, 
   Clock, 
@@ -238,20 +241,79 @@ const DEFAULT_HAJI_PACKAGES: HajiPackage[] = [
 ];
 
 export default function PaketHajiShowcase() {
-  const [activeTab, setActiveTab] = useState<'semua' | 'furoda' | 'khusus' | 'plus_turki'>('semua');
+  const [activeTab, setActiveTab] = useState<string>('semua');
   const [selectedPackage, setSelectedPackage] = useState<HajiPackage | null>(null);
   const [detailModalTab, setDetailModalTab] = useState<'fasilitas' | 'itinerary' | 'persyaratan'>('fasilitas');
+
+  // Carousel Slider States
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const [isAutoplay, setIsAutoplay] = useState<boolean>(true);
+  const [isHovered, setIsHovered] = useState<boolean>(false);
+  const [activeIndex, setActiveIndex] = useState<number>(0);
 
   const filteredPackages = DEFAULT_HAJI_PACKAGES.filter((pkg) => {
     if (activeTab === 'semua') return true;
     return pkg.category === activeTab;
   });
 
+  // Handle Tab Switch & Reset Slider Position
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    setActiveIndex(0);
+    if (sliderRef.current) {
+      sliderRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Scroll Prev / Next Handlers
+  const scrollPrev = () => {
+    if (!sliderRef.current) return;
+    const cardWidth = sliderRef.current.firstElementChild?.clientWidth || 380;
+    sliderRef.current.scrollBy({ left: -(cardWidth + 24), behavior: 'smooth' });
+  };
+
+  const scrollNext = () => {
+    if (!sliderRef.current) return;
+    const cardWidth = sliderRef.current.firstElementChild?.clientWidth || 380;
+    const maxScroll = sliderRef.current.scrollWidth - sliderRef.current.clientWidth;
+    if (sliderRef.current.scrollLeft >= maxScroll - 15) {
+      sliderRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    } else {
+      sliderRef.current.scrollBy({ left: cardWidth + 24, behavior: 'smooth' });
+    }
+  };
+
+  const scrollToCard = (index: number) => {
+    if (!sliderRef.current) return;
+    const cardWidth = sliderRef.current.firstElementChild?.clientWidth || 380;
+    sliderRef.current.scrollTo({ left: index * (cardWidth + 24), behavior: 'smooth' });
+    setActiveIndex(index);
+  };
+
+  const handleScroll = () => {
+    if (!sliderRef.current) return;
+    const cardWidth = (sliderRef.current.firstElementChild?.clientWidth || 380) + 24;
+    const scrollPos = sliderRef.current.scrollLeft;
+    const idx = Math.round(scrollPos / cardWidth);
+    if (idx >= 0 && idx < filteredPackages.length) {
+      setActiveIndex(idx);
+    }
+  };
+
+  // Auto-slide effect every 4.5s
+  useEffect(() => {
+    if (!isAutoplay || isHovered || filteredPackages.length <= 1) return;
+    const timer = setInterval(() => {
+      scrollNext();
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [isAutoplay, isHovered, filteredPackages.length]);
+
   const handleConsultation = (pkgName: string) => {
     const text = encodeURIComponent(
       `Assalamu'alaikum Admin Golden Travel. Saya berminat dengan informasi pendaftaran ${pkgName}. Mohon info kuota, jadwal manasik, dan rincian pendaftarannya.`
     );
-    window.open(`https://wa.me/6281234567890?text=${text}`, '_blank');
+    window.open(`https://wa.me/6282283201103?text=${text}`, '_blank');
   };
 
   return (
@@ -278,7 +340,7 @@ export default function PaketHajiShowcase() {
         <div className="absolute inset-0 bg-gradient-to-b from-[#011E15]/15 via-transparent to-[#011E15]/35"></div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto space-y-12 sm:space-y-16">
+      <div className="relative z-10 max-w-7xl mx-auto space-y-10 sm:space-y-12">
         
         {/* Section Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 sm:gap-8 border-b border-[#D4AF37]/20 pb-8 sm:pb-12">
@@ -295,7 +357,7 @@ export default function PaketHajiShowcase() {
           </div>
 
           {/* Guarantee Badge */}
-          <div className="flex items-center gap-3 bg-[#012B1E]/90 border border-[#D4AF37]/30 p-4 rounded-2xl backdrop-blur-md">
+          <div className="flex items-center gap-3 bg-[#012B1E]/90 border border-[#D4AF37]/30 p-4 rounded-2xl backdrop-blur-md shrink-0">
             <div className="w-12 h-12 rounded-xl bg-[#D4AF37]/20 flex items-center justify-center text-[#D4AF37] shrink-0">
               <Shield className="w-6 h-6" />
             </div>
@@ -307,164 +369,221 @@ export default function PaketHajiShowcase() {
         </div>
 
         {/* Filter Navigation Tabs */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 bg-[#01251A]/80 p-1.5 sm:p-2 rounded-2xl border border-[#D4AF37]/20 backdrop-blur-md w-fit">
-          <button
-            onClick={() => setActiveTab('semua')}
-            className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 ${
-              activeTab === 'semua'
-                ? 'bg-[#D4AF37] text-[#011E15] shadow-lg shadow-[#D4AF37]/20'
-                : 'text-stone-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            Semua Program Haji
-          </button>
-          <button
-            onClick={() => setActiveTab('furoda')}
-            className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 ${
-              activeTab === 'furoda'
-                ? 'bg-[#D4AF37] text-[#011E15] shadow-lg shadow-[#D4AF37]/20'
-                : 'text-stone-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            Haji Furoda (Tanpa Antre)
-          </button>
-          <button
-            onClick={() => setActiveTab('khusus')}
-            className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 ${
-              activeTab === 'khusus'
-                ? 'bg-[#D4AF37] text-[#011E15] shadow-lg shadow-[#D4AF37]/20'
-                : 'text-stone-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            Haji Khusus / ONH Plus
-          </button>
-          <button
-            onClick={() => setActiveTab('plus_turki')}
-            className={`px-4 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300 ${
-              activeTab === 'plus_turki'
-                ? 'bg-[#D4AF37] text-[#011E15] shadow-lg shadow-[#D4AF37]/20'
-                : 'text-stone-300 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            Furoda + Transit Turki
-          </button>
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          {[
+            { id: 'semua', label: 'Semua Program Haji' },
+            { id: 'furoda', label: 'Haji Furoda (Tanpa Antre)' },
+            { id: 'khusus', label: 'Haji Khusus / ONH Plus' },
+            { id: 'plus_turki', label: 'Furoda + Transit Turki' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => handleTabChange(tab.id)}
+              className={`px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 shadow-md ${
+                activeTab === tab.id
+                  ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-[#011E15] shadow-[#D4AF37]/30 scale-105 border border-[#F3E5AB]'
+                  : 'bg-[#022A1F]/80 text-stone-300 hover:text-white hover:bg-[#023829] border border-[#D4AF37]/30 backdrop-blur-md'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Haji Packages Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-          <AnimatePresence mode="popLayout">
+        {/* Carousel Control Bar */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 pt-2 pb-1 border-b border-[#D4AF37]/20">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-[#022A1F]/90 border border-[#D4AF37]/40 px-3.5 py-1.5 rounded-full text-xs font-bold text-[#F3E5AB]">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>Paket Haji {activeIndex + 1} dari {filteredPackages.length}</span>
+            </div>
+
+            <button
+              onClick={() => setIsAutoplay(!isAutoplay)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                isAutoplay 
+                  ? 'bg-[#D4AF37]/20 border-[#D4AF37] text-[#F3E5AB]' 
+                  : 'bg-[#011E15] border-stone-600 text-stone-400 hover:text-stone-200'
+              }`}
+            >
+              {isAutoplay ? <Pause className="w-3.5 h-3.5 text-[#D4AF37]" /> : <Play className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{isAutoplay ? 'Auto-Slide Aktif' : 'Auto-Slide Jeda'}</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={scrollPrev}
+              className="w-11 h-11 rounded-2xl bg-[#022A1F]/90 border border-[#D4AF37]/50 text-[#F3E5AB] hover:bg-[#D4AF37] hover:text-[#011E15] hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg group"
+              aria-label="Paket Sebelumnya"
+            >
+              <ChevronLeft className="w-6 h-6 transition-transform group-hover:-translate-x-0.5" />
+            </button>
+
+            <div className="flex items-center gap-1.5 px-2">
+              {filteredPackages.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => scrollToCard(idx)}
+                  className={`h-2.5 rounded-full transition-all duration-300 ${
+                    activeIndex === idx
+                      ? 'w-7 bg-gradient-to-r from-[#F3E5AB] to-[#D4AF37] shadow-[0_0_10px_rgba(212,175,55,0.8)]'
+                      : 'w-2.5 bg-[#023829] hover:bg-[#D4AF37]/50'
+                  }`}
+                  aria-label={`Ke paket haji ${idx + 1}`}
+                />
+              ))}
+            </div>
+
+            <button
+              onClick={scrollNext}
+              className="w-11 h-11 rounded-2xl bg-[#022A1F]/90 border border-[#D4AF37]/50 text-[#F3E5AB] hover:bg-[#D4AF37] hover:text-[#011E15] hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg group"
+              aria-label="Paket Selanjutnya"
+            >
+              <ChevronRight className="w-6 h-6 transition-transform group-hover:translate-x-0.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Horizontal Slider Track Container */}
+        <div className="relative group/carousel">
+          {/* Side Floating Controls for Desktop */}
+          <button
+            onClick={scrollPrev}
+            className="hidden xl:flex absolute left-[-24px] top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-[#011E15]/95 border-2 border-[#D4AF37] text-[#F3E5AB] hover:bg-[#D4AF37] hover:text-[#011E15] transition-all items-center justify-center shadow-2xl backdrop-blur-md opacity-0 group-hover/carousel:opacity-100 hover:scale-110"
+            aria-label="Previous"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+
+          <button
+            onClick={scrollNext}
+            className="hidden xl:flex absolute right-[-24px] top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-[#011E15]/95 border-2 border-[#D4AF37] text-[#F3E5AB] hover:bg-[#D4AF37] hover:text-[#011E15] transition-all items-center justify-center shadow-2xl backdrop-blur-md opacity-0 group-hover/carousel:opacity-100 hover:scale-110"
+            aria-label="Next"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
+
+          {/* Horizontal Track */}
+          <div
+            ref={sliderRef}
+            onScroll={handleScroll}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            className="flex gap-6 overflow-x-auto snap-x snap-mandatory scrollbar-none scroll-smooth py-4 px-1"
+          >
             {filteredPackages.map((pkg) => (
-              <motion.div
+              <div
                 key={pkg.id}
-                layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.4 }}
-                className={`relative group bg-[#012B1E]/90 rounded-3xl border ${
-                  pkg.isBestSeller 
-                    ? 'border-[#D4AF37] ring-1 ring-[#D4AF37]/40 shadow-2xl shadow-[#D4AF37]/10' 
-                    : 'border-[#D4AF37]/25 hover:border-[#D4AF37]'
-                } overflow-hidden flex flex-col justify-between transition-all duration-500 hover:-translate-y-1.5`}
+                className="w-[88vw] sm:w-[420px] lg:w-[460px] xl:w-[480px] shrink-0 snap-start bg-[#022A1F]/85 border-2 border-[#D4AF37]/50 hover:border-[#D4AF37] rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_25px_60px_rgba(212,175,55,0.25)] transition-all duration-500 flex flex-col justify-between relative group backdrop-blur-md"
               >
-                {/* Popular / Best Seller Badge */}
-                {pkg.isBestSeller && (
-                  <div className="absolute top-4 left-4 z-20 bg-gradient-to-r from-[#D4AF37] to-amber-300 text-[#011E15] px-3.5 py-1 rounded-full text-xs font-black tracking-wider uppercase shadow-md flex items-center gap-1.5">
-                    <Award className="w-3.5 h-3.5" /> Terfavorit Jamaah
-                  </div>
-                )}
+                {/* Metallic Gold Header Accent */}
+                <div className="h-1.5 bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#B8860B] w-full"></div>
 
                 <div>
-                  {/* Card Banner Image */}
-                  <div className="relative h-56 sm:h-64 overflow-hidden">
-                    <img 
-                      src={pkg.imageUrl} 
-                      alt={pkg.name} 
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                  {/* Image & Top Badges */}
+                  <div className="relative h-60 sm:h-64 overflow-hidden">
+                    <img
+                      src={pkg.imageUrl}
+                      alt={pkg.name}
+                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#012B1E] via-[#012B1E]/30 to-transparent"></div>
-                    
-                    {/* Duration Badge */}
-                    <div className="absolute bottom-4 left-4 bg-[#011E15]/90 backdrop-blur-md text-[#D4AF37] px-3.5 py-1.5 rounded-full text-xs font-bold border border-[#D4AF37]/30 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5" /> {pkg.duration}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#022A1F] via-[#022A1F]/20 to-transparent"></div>
+
+                    {/* Category Label */}
+                    <div className="absolute top-4 left-4 bg-gradient-to-r from-[#B8860B] via-[#D4AF37] to-[#F3E5AB] text-[#011E15] px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider shadow-xl flex items-center gap-1.5">
+                      <Award className="w-4 h-4 text-[#011E15]" />
+                      <span>{pkg.categoryLabel}</span>
                     </div>
 
-                    {/* Visa / Waiting Badge */}
-                    <div className="absolute top-4 right-4 bg-[#012B1E]/90 backdrop-blur-md text-emerald-300 px-3 py-1 rounded-full text-xs font-medium border border-emerald-500/30">
-                      {pkg.categoryLabel}
+                    {/* Waiting Time Badge */}
+                    <div className="absolute top-4 right-4 bg-[#011E15]/90 border border-[#D4AF37] text-[#F3E5AB] px-3.5 py-1.5 rounded-full text-xs font-bold shadow-lg backdrop-blur-md">
+                      {pkg.waitingTime}
+                    </div>
+
+                    {/* Airline Banner */}
+                    <div className="absolute bottom-3 left-4 right-4 flex items-center gap-2 bg-[#011E15]/80 backdrop-blur-md p-2 rounded-xl border border-[#D4AF37]/30 text-stone-200 text-xs font-medium">
+                      <Plane className="w-4 h-4 text-[#D4AF37] shrink-0" />
+                      <span className="truncate">{pkg.airline}</span>
                     </div>
                   </div>
 
-                  {/* Card Content Body */}
+                  {/* Body Content */}
                   <div className="p-6 sm:p-7 space-y-5">
                     
-                    {/* Title & Waiting info */}
+                    {/* Title & Price */}
                     <div>
-                      <h3 className="font-serif text-xl sm:text-2xl text-white font-bold group-hover:text-[#D4AF37] transition-colors leading-snug">
+                      <h3 className="font-serif font-bold text-xl sm:text-2xl text-white mb-2 leading-snug group-hover:text-[#F3E5AB] transition-colors line-clamp-2">
                         {pkg.name}
                       </h3>
-                      <div className="mt-1.5 flex items-center gap-2 text-xs text-amber-300 font-medium">
-                        <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
-                        <span>{pkg.waitingTime}</span>
-                      </div>
-                    </div>
 
-                    {/* Pricing Block */}
-                    <div className="bg-[#011E15]/80 p-4 rounded-2xl border border-[#D4AF37]/20">
-                      <div className="text-xs text-stone-400 font-medium uppercase tracking-wider">Biaya Paket Haji</div>
-                      <div className="flex items-baseline gap-2 mt-0.5">
-                        <span className="font-serif text-2xl sm:text-3xl font-bold text-[#D4AF37]">
-                          USD {pkg.priceUsd.toLocaleString('en-US')}
-                        </span>
-                        <span className="text-xs text-stone-300 font-sans">/ pax</span>
-                      </div>
-                      <div className="text-xs text-stone-300 mt-1 flex justify-between items-center pt-2 border-t border-[#D4AF37]/15">
-                        <span>Estimasi Rupiah:</span>
-                        <span className="font-semibold text-white">± Rp {pkg.priceIdrApprox}</span>
-                      </div>
-                      <div className="text-xs text-[#D4AF37] mt-1 flex justify-between items-center">
-                        <span>DP Pendaftaran:</span>
-                        <span className="font-bold">{pkg.dpAmount}</span>
-                      </div>
-                    </div>
-
-                    {/* Quick Specs List */}
-                    <div className="space-y-2.5 text-xs sm:text-sm text-stone-200">
-                      <div className="flex items-start gap-2.5">
-                        <Hotel className="w-4 h-4 text-[#D4AF37] shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-stone-400">Makkah:</span> <span className="font-semibold text-white">{pkg.hotelMakkah}</span> ({pkg.hotelMakkahStars}⭐)
+                      <div className="space-y-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="font-serif text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-[#F3E5AB] via-[#D4AF37] to-[#B8860B] bg-clip-text text-transparent">
+                            USD {pkg.priceUsd.toLocaleString('en-US')}
+                          </span>
+                          <span className="text-stone-300 text-xs">/ pax</span>
                         </div>
-                      </div>
-
-                      <div className="flex items-start gap-2.5">
-                        <Hotel className="w-4 h-4 text-[#D4AF37] shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-stone-400">Madinah:</span> <span className="font-semibold text-white">{pkg.hotelMadinah}</span> ({pkg.hotelMadinahStars}⭐)
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-2.5">
-                        <Tent className="w-4 h-4 text-[#D4AF37] shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-stone-400">Arafah & Mina:</span> <span className="font-semibold text-white">{pkg.tentMinaArafah}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-2.5">
-                        <Plane className="w-4 h-4 text-[#D4AF37] shrink-0 mt-0.5" />
-                        <div>
-                          <span className="text-stone-400">Penerbangan:</span> <span className="font-semibold text-white">{pkg.airline}</span>
+                        <div className="text-xs text-stone-300 font-medium">
+                          Est. Rp {pkg.priceIdrApprox} <span className="text-[10px] text-stone-400">(Kurs 15.800)</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Top Highlights Bullet Checkpoints */}
-                    <div className="space-y-2 pt-2 border-t border-[#D4AF37]/15">
-                      {pkg.highlights.slice(0, 3).map((hl, i) => (
-                        <div key={i} className="flex items-start gap-2 text-xs text-stone-300">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-[#D4AF37] shrink-0 mt-0.5" />
-                          <span className="line-clamp-1">{hl}</span>
+                    {/* Visa & Tent Badges */}
+                    <div className="space-y-2 text-xs">
+                      <div className="bg-[#011E15]/80 p-2.5 rounded-xl border border-[#D4AF37]/30 flex items-center gap-2 text-stone-200">
+                        <ShieldCheck className="w-4 h-4 text-[#D4AF37] shrink-0" />
+                        <span className="truncate font-semibold">{pkg.visaType}</span>
+                      </div>
+
+                      <div className="bg-[#011E15]/80 p-2.5 rounded-xl border border-[#D4AF37]/30 flex items-center gap-2 text-stone-200">
+                        <Tent className="w-4 h-4 text-[#D4AF37] shrink-0" />
+                        <span className="truncate font-semibold">{pkg.tentMinaArafah}</span>
+                      </div>
+                    </div>
+
+                    {/* Hotel Specs */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div className="bg-[#021811]/70 p-3 rounded-xl border border-[#D4AF37]/25 space-y-1">
+                        <div className="flex items-center justify-between text-[#D4AF37] font-semibold">
+                          <span className="flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> Makkah</span>
+                          <span className="flex items-center gap-0.5 text-[10px]">
+                            {Array.from({ length: pkg.hotelMakkahStars }).map((_, i) => (
+                              <Star key={i} className="w-3 h-3 fill-[#D4AF37] text-[#D4AF37]" />
+                            ))}
+                          </span>
+                        </div>
+                        <div className="font-bold text-white truncate">{pkg.hotelMakkah}</div>
+                        <div className="text-[11px] text-stone-300 font-light truncate">{pkg.hotelMakkahDistance}</div>
+                      </div>
+
+                      <div className="bg-[#021811]/70 p-3 rounded-xl border border-[#D4AF37]/25 space-y-1">
+                        <div className="flex items-center justify-between text-[#D4AF37] font-semibold">
+                          <span className="flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> Madinah</span>
+                          <span className="flex items-center gap-0.5 text-[10px]">
+                            {Array.from({ length: pkg.hotelMadinahStars }).map((_, i) => (
+                              <Star key={i} className="w-3 h-3 fill-[#D4AF37] text-[#D4AF37]" />
+                            ))}
+                          </span>
+                        </div>
+                        <div className="font-bold text-white truncate">{pkg.hotelMadinah}</div>
+                        <div className="text-[11px] text-stone-300 font-light truncate">{pkg.hotelMadinahDistance}</div>
+                      </div>
+                    </div>
+
+                    {/* Highlights Bullet List */}
+                    <div className="space-y-2 pt-2 border-t border-[#D4AF37]/20">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#D4AF37] mb-2 flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+                        <span>Fasilitas Keunggulan Haji:</span>
+                      </div>
+                      {pkg.highlights.slice(0, 3).map((item, idx) => (
+                        <div key={idx} className="flex items-start gap-2 text-xs text-stone-100 font-medium">
+                          <div className="w-4 h-4 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37] flex items-center justify-center flex-shrink-0 mt-0.5 text-[#F3E5AB]">
+                            <CheckCircle2 className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                          <span className="leading-tight line-clamp-1">{item}</span>
                         </div>
                       ))}
                     </div>
@@ -472,190 +591,214 @@ export default function PaketHajiShowcase() {
                   </div>
                 </div>
 
-                {/* Card Action Buttons */}
-                <div className="p-6 pt-0 space-y-2.5">
-                  <button
-                    onClick={() => {
-                      setSelectedPackage(pkg);
-                      setDetailModalTab('fasilitas');
-                    }}
-                    className="w-full py-3 rounded-xl border border-[#D4AF37] text-[#D4AF37] text-xs sm:text-sm font-semibold hover:bg-[#D4AF37] hover:text-[#011E15] transition-all flex items-center justify-center gap-2"
-                  >
-                    <Info className="w-4 h-4" /> Detail Fasilitas & Itinerary
-                  </button>
+                {/* Footer Buttons */}
+                <div className="p-6 pt-0 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      onClick={() => {
+                        setSelectedPackage(pkg);
+                        setDetailModalTab('fasilitas');
+                      }}
+                      className="w-full py-3 px-3 rounded-xl border border-[#D4AF37] bg-[#011E15]/90 hover:bg-[#D4AF37]/15 text-[#F3E5AB] text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-md"
+                    >
+                      <Info className="w-4 h-4 text-[#D4AF37]" />
+                      <span>Detail Program</span>
+                    </button>
 
-                  <button
-                    onClick={() => handleConsultation(pkg.name)}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-[#D4AF37] to-amber-300 text-[#011E15] text-xs sm:text-sm font-bold hover:brightness-110 transition-all shadow-md flex items-center justify-center gap-2"
-                  >
-                    <MessageCircle className="w-4 h-4" /> Konsultasi & Booking Kuota
-                  </button>
+                    <button
+                      onClick={() => handleConsultation(pkg.name)}
+                      className="w-full py-3 px-3 rounded-xl bg-gradient-to-r from-[#D4AF37] via-[#EEDCA2] to-[#B8860B] hover:brightness-110 text-[#011E15] text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 shadow-lg"
+                    >
+                      <MessageCircle className="w-4 h-4 fill-[#011E15]" />
+                      <span>Konsultasi WA</span>
+                    </button>
+                  </div>
                 </div>
 
-              </motion.div>
+              </div>
             ))}
-          </AnimatePresence>
+          </div>
         </div>
 
-        {/* Consultation Callout Banner */}
-        <div className="bg-gradient-to-r from-[#012B1E] via-[#013827] to-[#012B1E] border border-[#D4AF37]/30 rounded-3xl p-6 sm:p-10 flex flex-col md:flex-row justify-between items-center gap-6 shadow-2xl">
-          <div className="space-y-2 text-center md:text-left max-w-2xl">
-            <h3 className="font-serif text-2xl sm:text-3xl text-white font-bold">
-              Ingin Berkonsultasi Mengenai Program Haji 2026?
-            </h3>
-            <p className="text-stone-300 text-sm sm:text-base font-light">
-              Tim konsultan haji profesional Golden Travel siap membimbing Anda dari pengecekan nomor porsi SISKOHAT, persyaratan visa Mujamalah/Furoda, hingga kesiapan fisik & ibadah.
-            </p>
+        {/* Guarantee Banner */}
+        <div className="bg-gradient-to-r from-[#022A1F] via-[#043d2d] to-[#022A1F] rounded-3xl p-6 sm:p-8 border border-[#D4AF37]/50 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 backdrop-blur-md">
+          <div className="flex items-center gap-4 text-left">
+            <div className="w-14 h-14 rounded-2xl bg-[#011E15] border border-[#D4AF37] flex items-center justify-center shrink-0 shadow-lg text-[#D4AF37]">
+              <ShieldCheck className="w-8 h-8" />
+            </div>
+            <div>
+              <h4 className="font-serif font-bold text-lg text-white">Ingin Konsultasi Kuota Haji Porsi Resmi Kemenag atau Haji Furoda?</h4>
+              <p className="text-xs sm:text-sm text-stone-200 font-light">Pembimbing manasik & konsultan haji Golden Travel siap memberikan penjelasan transparan mengenai prosedur pendaftaran dan keberangkatan.</p>
+            </div>
           </div>
+
           <button
-            onClick={() => handleConsultation("Konsultasi Program Haji 2026")}
-            className="px-8 py-4 rounded-2xl bg-[#D4AF37] text-[#011E15] font-bold text-sm sm:text-base hover:bg-amber-300 transition-all shadow-xl hover:scale-105 shrink-0 flex items-center gap-2"
+            onClick={() => handleConsultation('Program Haji Golden Travel')}
+            className="px-6 py-3.5 rounded-xl bg-[#D4AF37] text-[#011E15] text-xs sm:text-sm font-extrabold hover:bg-[#F3E5AB] transition-all shrink-0 shadow-lg flex items-center gap-2"
           >
-            <MessageCircle className="w-5 h-5" /> Hubungi Pembimbing Haji
+            <span>Hubungi Konsultan Haji</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </div>
 
       </div>
 
-      {/* Package Detail Modal */}
+      {/* Detail Modal */}
       <AnimatePresence>
         {selectedPackage && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-            {/* Modal Backdrop */}
-            <motion.div 
+            {/* Backdrop */}
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedPackage(null)}
               className="fixed inset-0 bg-black/80 backdrop-blur-sm"
-            ></motion.div>
+            />
 
-            {/* Modal Content Box */}
-            <motion.div 
+            {/* Modal Dialog */}
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-4xl bg-[#012B1E] border border-[#D4AF37] rounded-3xl overflow-hidden shadow-2xl z-10 my-8 text-white max-h-[90vh] flex flex-col"
+              className="relative w-full max-w-4xl bg-[#012519] border-2 border-[#D4AF37] rounded-3xl shadow-2xl overflow-hidden z-10 my-8 text-white max-h-[90vh] flex flex-col"
             >
-              {/* Modal Header */}
-              <div className="relative p-6 sm:p-8 bg-gradient-to-r from-[#011E15] via-[#01251A] to-[#011E15] border-b border-[#D4AF37]/30 flex justify-between items-start gap-4 shrink-0">
-                <div className="space-y-1">
-                  <div className="inline-block bg-[#D4AF37]/20 text-[#D4AF37] px-3 py-1 rounded-full text-xs font-bold border border-[#D4AF37]/30">
-                    {selectedPackage.categoryLabel}
+              {/* Header */}
+              <div className="p-6 sm:p-8 bg-gradient-to-r from-[#022A1F] via-[#043a2b] to-[#022A1F] border-b border-[#D4AF37]/30 flex items-start justify-between gap-4">
+                <div>
+                  <div className="inline-block bg-[#D4AF37]/20 border border-[#D4AF37]/50 text-[#F3E5AB] px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2">
+                    {selectedPackage.categoryLabel} • {selectedPackage.duration}
                   </div>
-                  <h3 className="font-serif text-2xl sm:text-3xl text-white font-bold">{selectedPackage.name}</h3>
-                  <p className="text-xs sm:text-sm text-stone-300 flex items-center gap-3">
-                    <span>Durasi: <strong className="text-[#D4AF37]">{selectedPackage.duration}</strong></span>
-                    <span>•</span>
-                    <span>Visa: <strong className="text-emerald-300">{selectedPackage.visaType}</strong></span>
-                  </p>
+                  <h3 className="font-serif font-bold text-2xl sm:text-3xl text-white">
+                    {selectedPackage.name}
+                  </h3>
+                  <div className="text-xl sm:text-2xl font-bold text-[#F3E5AB] mt-1 font-serif">
+                    USD {selectedPackage.priceUsd.toLocaleString('en-US')} <span className="text-xs font-sans text-stone-300 font-normal">(Est. Rp {selectedPackage.priceIdrApprox})</span>
+                  </div>
                 </div>
 
-                <button 
+                <button
                   onClick={() => setSelectedPackage(null)}
-                  className="p-2 rounded-full bg-white/10 text-stone-300 hover:text-white hover:bg-white/20 transition-all shrink-0"
+                  className="w-10 h-10 rounded-full bg-[#011E15] border border-[#D4AF37]/50 text-stone-300 hover:text-white hover:bg-[#D4AF37] hover:text-[#011E15] transition-all flex items-center justify-center shrink-0"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Modal Tabs Header */}
-              <div className="flex border-b border-[#D4AF37]/20 bg-[#011E15] px-6 shrink-0 overflow-x-auto">
+              {/* Tabs */}
+              <div className="flex border-b border-[#D4AF37]/25 bg-[#011E15]">
                 <button
                   onClick={() => setDetailModalTab('fasilitas')}
-                  className={`py-3.5 px-5 text-xs sm:text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${
+                  className={`flex-1 py-3 px-4 text-xs sm:text-sm font-bold text-center border-b-2 transition-all flex items-center justify-center gap-2 ${
                     detailModalTab === 'fasilitas'
-                      ? 'border-[#D4AF37] text-[#D4AF37]'
+                      ? 'border-[#D4AF37] text-[#F3E5AB] bg-[#022A1F]'
                       : 'border-transparent text-stone-400 hover:text-stone-200'
                   }`}
                 >
-                  Fasilitas & Akomodasi
+                  <Hotel className="w-4 h-4" />
+                  <span>Fasilitas & Hotel</span>
                 </button>
+
                 <button
                   onClick={() => setDetailModalTab('itinerary')}
-                  className={`py-3.5 px-5 text-xs sm:text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${
+                  className={`flex-1 py-3 px-4 text-xs sm:text-sm font-bold text-center border-b-2 transition-all flex items-center justify-center gap-2 ${
                     detailModalTab === 'itinerary'
-                      ? 'border-[#D4AF37] text-[#D4AF37]'
+                      ? 'border-[#D4AF37] text-[#F3E5AB] bg-[#022A1F]'
                       : 'border-transparent text-stone-400 hover:text-stone-200'
                   }`}
                 >
-                  Jadwal & Itinerary
+                  <Calendar className="w-4 h-4" />
+                  <span>Itinerary Haji</span>
                 </button>
+
                 <button
                   onClick={() => setDetailModalTab('persyaratan')}
-                  className={`py-3.5 px-5 text-xs sm:text-sm font-semibold border-b-2 transition-all whitespace-nowrap ${
+                  className={`flex-1 py-3 px-4 text-xs sm:text-sm font-bold text-center border-b-2 transition-all flex items-center justify-center gap-2 ${
                     detailModalTab === 'persyaratan'
-                      ? 'border-[#D4AF37] text-[#D4AF37]'
+                      ? 'border-[#D4AF37] text-[#F3E5AB] bg-[#022A1F]'
                       : 'border-transparent text-stone-400 hover:text-stone-200'
                   }`}
                 >
-                  Persyaratan & Ketentuan
+                  <FileText className="w-4 h-4" />
+                  <span>Syarat & Prosedur</span>
                 </button>
               </div>
 
-              {/* Modal Body Scrollable */}
-              <div className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-1">
+              {/* Body */}
+              <div className="p-6 sm:p-8 overflow-y-auto flex-1 space-y-6">
                 
                 {detailModalTab === 'fasilitas' && (
                   <div className="space-y-6">
-                    {/* Hotel & Tent Specs */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="bg-[#011E15] p-5 rounded-2xl border border-[#D4AF37]/20 space-y-2">
-                        <div className="flex items-center gap-2 text-[#D4AF37] font-semibold text-sm">
-                          <Hotel className="w-5 h-5" /> Hotel Makkah
+                    {/* Hotel Specs */}
+                    <div>
+                      <h4 className="text-sm font-bold uppercase tracking-wider text-[#D4AF37] mb-3 flex items-center gap-2">
+                        <Hotel className="w-4 h-4" />
+                        <span>Akomodasi Hotel Bintang 5 & Tenda Armuzna</span>
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-[#022A1F] p-4 rounded-2xl border border-[#D4AF37]/30 space-y-2">
+                          <div className="flex items-center justify-between text-[#F3E5AB]">
+                            <span className="font-bold text-sm">Hotel Makkah Al-Mukarramah</span>
+                            <div className="flex text-[#D4AF37]">
+                              {Array.from({ length: selectedPackage.hotelMakkahStars }).map((_, i) => (
+                                <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-white font-bold text-base">{selectedPackage.hotelMakkah}</div>
+                          <p className="text-xs text-stone-300 font-light">{selectedPackage.hotelMakkahDistance}</p>
                         </div>
-                        <div className="text-lg font-bold text-white font-serif">{selectedPackage.hotelMakkah}</div>
-                        <div className="text-xs text-stone-300 flex items-center gap-2">
-                          <span className="flex text-amber-400">{'★'.repeat(selectedPackage.hotelMakkahStars)}</span>
-                          <span>({selectedPackage.hotelMakkahDistance})</span>
-                        </div>
-                      </div>
 
-                      <div className="bg-[#011E15] p-5 rounded-2xl border border-[#D4AF37]/20 space-y-2">
-                        <div className="flex items-center gap-2 text-[#D4AF37] font-semibold text-sm">
-                          <Hotel className="w-5 h-5" /> Hotel Madinah
-                        </div>
-                        <div className="text-lg font-bold text-white font-serif">{selectedPackage.hotelMadinah}</div>
-                        <div className="text-xs text-stone-300 flex items-center gap-2">
-                          <span className="flex text-amber-400">{'★'.repeat(selectedPackage.hotelMadinahStars)}</span>
-                          <span>({selectedPackage.hotelMadinahDistance})</span>
-                        </div>
-                      </div>
-
-                      <div className="bg-[#011E15] p-5 rounded-2xl border border-[#D4AF37]/20 space-y-2 md:col-span-2">
-                        <div className="flex items-center gap-2 text-[#D4AF37] font-semibold text-sm">
-                          <Tent className="w-5 h-5" /> Fasilitas Tenda Arafah & Mina (Armuzna)
-                        </div>
-                        <div className="text-base font-bold text-white font-serif">{selectedPackage.tentMinaArafah}</div>
-                        <div className="text-xs text-stone-300">
-                          Dilengkapi dengan pendingin udara (AC), karpet tebal, sofa bed lipat, katering menu Indonesia 3x sehari, dan toilet khusus maktab.
+                        <div className="bg-[#022A1F] p-4 rounded-2xl border border-[#D4AF37]/30 space-y-2">
+                          <div className="flex items-center justify-between text-[#F3E5AB]">
+                            <span className="font-bold text-sm">Hotel Madinah Al-Munawwarah</span>
+                            <div className="flex text-[#D4AF37]">
+                              {Array.from({ length: selectedPackage.hotelMadinahStars }).map((_, i) => (
+                                <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-white font-bold text-base">{selectedPackage.hotelMadinah}</div>
+                          <p className="text-xs text-stone-300 font-light">{selectedPackage.hotelMadinahDistance}</p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Includes & Excludes List */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-                      <div className="space-y-3">
-                        <h4 className="font-serif text-base text-[#D4AF37] font-bold flex items-center gap-2">
-                          <CheckCircle2 className="w-5 h-5 text-emerald-400" /> Fasilitas Termasuk (Include)
-                        </h4>
-                        <ul className="space-y-2 text-xs sm:text-sm text-stone-200">
+                    <div className="bg-[#022A1F] p-4 rounded-2xl border border-[#D4AF37]/30 space-y-2">
+                      <div className="text-[#F3E5AB] font-bold text-sm flex items-center gap-2">
+                        <Tent className="w-4 h-4 text-[#D4AF37]" />
+                        <span>Tenda Maktab Arafah & Mina</span>
+                      </div>
+                      <div className="text-white font-bold text-base">{selectedPackage.tentMinaArafah}</div>
+                    </div>
+
+                    {/* Includes & Excludes */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                      <div className="bg-[#022A1F]/70 p-5 rounded-2xl border border-[#D4AF37]/30 space-y-3">
+                        <h5 className="text-xs font-bold uppercase tracking-wider text-[#F3E5AB] flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-[#D4AF37]" />
+                          <span>Fasilitas Termasuk (Included):</span>
+                        </h5>
+                        <ul className="space-y-2 text-xs text-stone-200">
                           {selectedPackage.includes.map((inc, i) => (
                             <li key={i} className="flex items-start gap-2">
-                              <span className="text-[#D4AF37]">•</span> {inc}
+                              <span className="text-[#D4AF37] font-bold">•</span>
+                              <span>{inc}</span>
                             </li>
                           ))}
                         </ul>
                       </div>
 
-                      <div className="space-y-3">
-                        <h4 className="font-serif text-base text-amber-400 font-bold flex items-center gap-2">
-                          <Info className="w-5 h-5 text-amber-400" /> Belum Termasuk (Exclude)
-                        </h4>
-                        <ul className="space-y-2 text-xs sm:text-sm text-stone-300">
+                      <div className="bg-[#022A1F]/70 p-5 rounded-2xl border border-stone-700/50 space-y-3">
+                        <h5 className="text-xs font-bold uppercase tracking-wider text-stone-400 flex items-center gap-1.5">
+                          <X className="w-4 h-4 text-red-400" />
+                          <span>Belum Termasuk (Excluded):</span>
+                        </h5>
+                        <ul className="space-y-2 text-xs text-stone-300">
                           {selectedPackage.excludes.map((exc, i) => (
                             <li key={i} className="flex items-start gap-2">
-                              <span className="text-amber-400">•</span> {exc}
+                              <span className="text-red-400 font-bold">•</span>
+                              <span>{exc}</span>
                             </li>
                           ))}
                         </ul>
@@ -664,21 +807,27 @@ export default function PaketHajiShowcase() {
                   </div>
                 )}
 
+                {/* Itinerary */}
                 {detailModalTab === 'itinerary' && (
                   <div className="space-y-4">
-                    <div className="text-xs text-stone-300 mb-2">
-                      *Jadwal dan susunan acara bersifat fleksibel menyesuaikan dengan regulasi penerbangan dan kondisi lapangan di Arab Saudi.
-                    </div>
+                    <h4 className="text-sm font-bold uppercase tracking-wider text-[#D4AF37] mb-2 flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      <span>Rangkaian Perjalanan Haji ({selectedPackage.duration})</span>
+                    </h4>
 
-                    <div className="space-y-3">
+                    <div className="space-y-3 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-[#D4AF37]/30">
                       {selectedPackage.itinerary.map((item, idx) => (
-                        <div key={idx} className="bg-[#011E15] p-4 rounded-2xl border border-[#D4AF37]/20 flex gap-4">
-                          <div className="px-3 py-1.5 rounded-xl bg-[#D4AF37]/20 text-[#D4AF37] text-xs font-bold shrink-0 h-fit">
-                            {item.day}
+                        <div key={idx} className="relative pl-10">
+                          <div className="absolute left-1.5 top-1.5 w-5 h-5 rounded-full bg-[#D4AF37] text-[#011E15] font-black text-[9px] flex items-center justify-center ring-4 ring-[#012519]">
+                            {idx + 1}
                           </div>
-                          <div className="space-y-1">
-                            <h5 className="font-serif text-sm font-bold text-white">{item.title}</h5>
-                            <p className="text-xs text-stone-300 font-light leading-relaxed">{item.description}</p>
+                          <div className="bg-[#022A1F] p-4 rounded-2xl border border-[#D4AF37]/25 space-y-1">
+                            <div className="font-serif font-bold text-sm text-[#F3E5AB]">
+                              Hari {item.day}: {item.title}
+                            </div>
+                            <p className="text-xs text-stone-200 font-light leading-relaxed">
+                              {item.description}
+                            </p>
                           </div>
                         </div>
                       ))}
@@ -686,34 +835,55 @@ export default function PaketHajiShowcase() {
                   </div>
                 )}
 
+                {/* Requirements */}
                 {detailModalTab === 'persyaratan' && (
-                  <div className="space-y-4">
-                    <h4 className="font-serif text-lg text-[#D4AF37] font-bold">Dokumen & Ketentuan Pendaftaran Haji</h4>
-                    <div className="grid grid-cols-1 gap-3">
-                      {selectedPackage.requirements.map((req, i) => (
-                        <div key={i} className="bg-[#011E15] p-4 rounded-2xl border border-[#D4AF37]/20 flex items-center gap-3 text-xs sm:text-sm text-stone-200">
-                          <FileText className="w-5 h-5 text-[#D4AF37] shrink-0" />
-                          <span>{req}</span>
-                        </div>
-                      ))}
+                  <div className="space-y-6">
+                    <div className="bg-[#022A1F] p-5 rounded-2xl border border-[#D4AF37]/30 space-y-3">
+                      <h4 className="text-sm font-bold text-[#F3E5AB] flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-[#D4AF37]" />
+                        <span>Dokumen & Syarat Pendaftaran Haji</span>
+                      </h4>
+                      <ul className="space-y-2 text-xs text-stone-200">
+                        {selectedPackage.requirements.map((req, i) => (
+                          <li key={i} className="flex items-start gap-2">
+                            <span className="text-[#D4AF37] font-bold">•</span>
+                            <span>{req}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="bg-[#022A1F] p-5 rounded-2xl border border-[#D4AF37]/30 space-y-3">
+                      <h4 className="text-sm font-bold text-[#F3E5AB] flex items-center gap-2">
+                        <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
+                        <span>Sistem Pembayaran & Ketentuan Setoran DP</span>
+                      </h4>
+                      <div className="space-y-2 text-xs text-stone-200">
+                        <p>• <strong>Setoran DP Booking Seat:</strong> {selectedPackage.dpAmount} saat pendaftaran.</p>
+                        <p>• <strong>Pelunasan Haji Furoda:</strong> Dilakukan saat penerbitan Visa Haji Furoda resmi oleh Kerajaan Arab Saudi.</p>
+                        <p>• <strong>Legalitas Resmi:</strong> Dikelola langsung oleh PT Golden Tour Haramain (PIHK Kemenag RI No. 912/2021).</p>
+                      </div>
                     </div>
                   </div>
                 )}
 
               </div>
 
-              {/* Modal Footer Action */}
-              <div className="p-6 bg-[#011E15] border-t border-[#D4AF37]/30 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
+              {/* Modal Footer */}
+              <div className="p-6 bg-[#022A1F] border-t border-[#D4AF37]/30 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
-                  <div className="text-xs text-stone-400">DP Pendaftaran</div>
-                  <div className="font-serif text-xl font-bold text-[#D4AF37]">{selectedPackage.dpAmount}</div>
+                  <div className="text-xs text-stone-300">Biaya Investasi Haji:</div>
+                  <div className="font-serif font-bold text-2xl text-[#F3E5AB]">
+                    USD {selectedPackage.priceUsd.toLocaleString('en-US')} <span className="text-xs font-sans text-stone-300 font-normal">(Est. Rp {selectedPackage.priceIdrApprox})</span>
+                  </div>
                 </div>
 
                 <button
                   onClick={() => handleConsultation(selectedPackage.name)}
-                  className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-[#D4AF37] text-[#011E15] font-bold text-sm hover:bg-amber-300 transition-all shadow-lg flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-[#D4AF37] via-[#EEDCA2] to-[#B8860B] text-[#011E15] text-xs sm:text-sm font-extrabold hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-xl"
                 >
-                  <MessageCircle className="w-5 h-5" /> Minta Kuota & Pendaftaran VIA WA
+                  <MessageCircle className="w-4 h-4 fill-[#011E15]" />
+                  <span>Konsultasi & Pendaftaran WA</span>
                 </button>
               </div>
 

@@ -24,7 +24,7 @@ export default function Footer() {
                     <div className="footer-legal-box">
                         <strong>PT. GOLDEN TOUR HARAMAIN</strong>
                         <span>Mitra PT. SEDERHANA ALMAIDANI GROUP</span>
-                        <span className="licence">Izin PPIU: 08012300040570002</span>
+                        <span className="licence">Izin PPIU Kemenag RI Terdaftar Resmi</span>
                     </div>
 
                     <div className="footer-socials">

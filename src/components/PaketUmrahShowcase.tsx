@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sparkles, 
@@ -9,6 +9,9 @@ import {
   Plane, 
   MessageCircle, 
   ChevronRight, 
+  ChevronLeft,
+  Pause,
+  Play,
   Info, 
   X, 
   Clock, 
@@ -279,11 +282,72 @@ export default function PaketUmrahShowcase() {
   const [selectedPkg, setSelectedPkg] = useState<UmrahPackage | null>(null);
   const [modalTab, setModalTab] = useState<'facilities' | 'itinerary' | 'terms'>('facilities');
 
+  // Horizontal Carousel Slider States
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const [isAutoplay, setIsAutoplay] = useState<boolean>(true);
+  const [isHovered, setIsHovered] = useState<boolean>(false);
+  const [activeIndex, setActiveIndex] = useState<number>(0);
+
   // Filtered packages
   const filteredPackages = DEFAULT_UMRAH_PACKAGES.filter(pkg => {
     if (activeCategory === 'all') return true;
     return pkg.category === activeCategory;
   });
+
+  // Handle category switch & reset slider position
+  const handleCategoryChange = (catId: string) => {
+    setActiveCategory(catId);
+    setActiveIndex(0);
+    if (sliderRef.current) {
+      sliderRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Scroll prev/next handlers
+  const scrollPrev = () => {
+    if (!sliderRef.current) return;
+    const cardWidth = sliderRef.current.firstElementChild?.clientWidth || 380;
+    sliderRef.current.scrollBy({ left: -(cardWidth + 24), behavior: 'smooth' });
+  };
+
+  const scrollNext = () => {
+    if (!sliderRef.current) return;
+    const cardWidth = sliderRef.current.firstElementChild?.clientWidth || 380;
+    const maxScroll = sliderRef.current.scrollWidth - sliderRef.current.clientWidth;
+    if (sliderRef.current.scrollLeft >= maxScroll - 15) {
+      // Loop back to beginning
+      sliderRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    } else {
+      sliderRef.current.scrollBy({ left: cardWidth + 24, behavior: 'smooth' });
+    }
+  };
+
+  const scrollToCard = (index: number) => {
+    if (!sliderRef.current) return;
+    const cardWidth = sliderRef.current.firstElementChild?.clientWidth || 380;
+    sliderRef.current.scrollTo({ left: index * (cardWidth + 24), behavior: 'smooth' });
+    setActiveIndex(index);
+  };
+
+  // Track active index on manual touch / scroll
+  const handleScroll = () => {
+    if (!sliderRef.current) return;
+    const cardWidth = (sliderRef.current.firstElementChild?.clientWidth || 380) + 24;
+    const scrollPos = sliderRef.current.scrollLeft;
+    const idx = Math.round(scrollPos / cardWidth);
+    if (idx >= 0 && idx < filteredPackages.length) {
+      setActiveIndex(idx);
+    }
+  };
+
+  // Auto-slide effect every 4.5s
+  useEffect(() => {
+    if (!isAutoplay || isHovered || filteredPackages.length <= 1) return;
+    const timer = setInterval(() => {
+      scrollNext();
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [isAutoplay, isHovered, filteredPackages.length]);
 
   const getWhatsAppUrl = (pkgName: string, price: number) => {
     const formattedPrice = `Rp ${price.toLocaleString('id-ID')}`;
@@ -296,28 +360,21 @@ export default function PaketUmrahShowcase() {
   return (
     <section className="relative py-20 sm:py-28 px-4 sm:px-8 md:px-12 lg:px-24 bg-[#011E15] text-white overflow-hidden border-t border-[#D4AF37]/30" id="pilihan-paket">
       
-      {/* Background Texture & Gold Accents - Clean Elegant Single-Layer Background */}
+      {/* Background Texture & Gold Accents */}
       <div className="absolute inset-0 pointer-events-none select-none z-0 overflow-hidden">
-        {/* Deep Emerald Background Base */}
         <div className="absolute inset-0 bg-[#011E15]"></div>
         
-        {/* Single Full Artwork Background Image - 100% Opacity for Crisp Lanterns & Mandalas */}
         <div 
           className="absolute inset-0 bg-no-repeat bg-center bg-cover opacity-100"
           style={{ backgroundImage: `url(${PAKET_UMRAH_BG_DATA})` }}
         ></div>
 
-        {/* Natural Subtle Golden Lamp Glow behind the Top-Right Hanging Lanterns */}
         <div className="absolute top-0 right-4 sm:right-12 md:right-20 w-48 h-48 sm:w-64 sm:h-64 bg-[#D4AF37]/25 rounded-full blur-3xl"></div>
-
-        {/* Center Soft Radial Glow */}
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[#D4AF37]/10 rounded-full blur-[160px]"></div>
-
-        {/* Minimal Vignette Overlay to maintain contrast while preserving image details */}
         <div className="absolute inset-0 bg-gradient-to-b from-[#011E15]/15 via-transparent to-[#011E15]/35"></div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto space-y-12 sm:space-y-16">
+      <div className="relative z-10 max-w-7xl mx-auto space-y-10 sm:space-y-12">
         
         {/* Section Header */}
         <div className="text-center max-w-4xl mx-auto space-y-4">
@@ -339,7 +396,7 @@ export default function PaketUmrahShowcase() {
         </div>
 
         {/* Filter Category Pills */}
-        <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 pt-2 pb-4">
+        <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 pt-2 pb-2">
           {[
             { id: 'all', label: 'Semua Paket' },
             { id: 'reguler', label: 'Umrah Reguler (4⭐)' },
@@ -349,7 +406,7 @@ export default function PaketUmrahShowcase() {
           ].map((cat) => (
             <button
               key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
+              onClick={() => handleCategoryChange(cat.id)}
               className={`px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold tracking-wide transition-all duration-300 shadow-md ${
                 activeCategory === cat.id
                   ? 'bg-gradient-to-r from-[#D4AF37] to-[#B8860B] text-[#011E15] shadow-[#D4AF37]/30 scale-105 border border-[#F3E5AB]'
@@ -361,170 +418,242 @@ export default function PaketUmrahShowcase() {
           ))}
         </div>
 
-        {/* Package Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-8 items-stretch">
-          {filteredPackages.map((pkg) => (
-            <motion.div
-              key={pkg.id}
-              layout
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.4 }}
-              className={`bg-[#022A1F]/85 border-2 ${
-                pkg.isBestSeller ? 'border-[#D4AF37]' : 'border-[#D4AF37]/50'
-              } rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:border-[#D4AF37] hover:shadow-[0_25px_60px_rgba(212,175,55,0.25)] transition-all duration-500 flex flex-col justify-between relative group backdrop-blur-md`}
+        {/* Carousel Control Bar */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2 pt-2 pb-1 border-b border-[#D4AF37]/20">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-[#022A1F]/90 border border-[#D4AF37]/40 px-3.5 py-1.5 rounded-full text-xs font-bold text-[#F3E5AB]">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>Paket {activeIndex + 1} dari {filteredPackages.length}</span>
+            </div>
+
+            <button
+              onClick={() => setIsAutoplay(!isAutoplay)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                isAutoplay 
+                  ? 'bg-[#D4AF37]/20 border-[#D4AF37] text-[#F3E5AB]' 
+                  : 'bg-[#011E15] border-stone-600 text-stone-400 hover:text-stone-200'
+              }`}
             >
-              {/* Top Metallic Gold Accent Bar */}
-              <div className="h-1.5 bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#B8860B] w-full"></div>
+              {isAutoplay ? <Pause className="w-3.5 h-3.5 text-[#D4AF37]" /> : <Play className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{isAutoplay ? 'Auto-Slide Aktif' : 'Auto-Slide Jeda'}</span>
+            </button>
+          </div>
 
-              {/* Card Header Media */}
-              <div>
-                <div className="relative h-60 sm:h-72 overflow-hidden">
-                  <img 
-                    src={pkg.imageUrl} 
-                    alt={pkg.name} 
-                    className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700" 
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#022A1F] via-[#022A1F]/20 to-transparent"></div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={scrollPrev}
+              className="w-11 h-11 rounded-2xl bg-[#022A1F]/90 border border-[#D4AF37]/50 text-[#F3E5AB] hover:bg-[#D4AF37] hover:text-[#011E15] hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg group"
+              aria-label="Paket Sebelumnya"
+            >
+              <ChevronLeft className="w-6 h-6 transition-transform group-hover:-translate-x-0.5" />
+            </button>
 
-                  {/* Top Right Badges */}
-                  <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-10">
-                    <span className="bg-[#011E15]/90 border border-[#D4AF37] text-[#F3E5AB] px-3.5 py-1.5 rounded-full text-xs font-bold shadow-lg backdrop-blur-md flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-[#D4AF37]" />
-                      {pkg.duration}
-                    </span>
-                    <span className="bg-[#D4AF37] text-[#011E15] px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider shadow-md">
-                      {pkg.categoryLabel}
-                    </span>
-                  </div>
+            <div className="flex items-center gap-1.5 px-2">
+              {filteredPackages.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => scrollToCard(idx)}
+                  className={`h-2.5 rounded-full transition-all duration-300 ${
+                    activeIndex === idx
+                      ? 'w-7 bg-gradient-to-r from-[#F3E5AB] to-[#D4AF37] shadow-[0_0_10px_rgba(212,175,55,0.8)]'
+                      : 'w-2.5 bg-[#023829] hover:bg-[#D4AF37]/50'
+                  }`}
+                  aria-label={`Ke paket ${idx + 1}`}
+                />
+              ))}
+            </div>
 
-                  {/* Featured Tag Badge */}
-                  {pkg.isBestSeller && (
-                    <div className="absolute top-4 left-4 bg-gradient-to-r from-[#B8860B] via-[#D4AF37] to-[#F3E5AB] text-[#011E15] px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider shadow-xl flex items-center gap-1.5 z-10">
-                      <Award className="w-4 h-4 fill-current text-[#011E15]" />
-                      <span>BEST SELLER</span>
-                    </div>
-                  )}
+            <button
+              onClick={scrollNext}
+              className="w-11 h-11 rounded-2xl bg-[#022A1F]/90 border border-[#D4AF37]/50 text-[#F3E5AB] hover:bg-[#D4AF37] hover:text-[#011E15] hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-lg group"
+              aria-label="Paket Selanjutnya"
+            >
+              <ChevronRight className="w-6 h-6 transition-transform group-hover:translate-x-0.5" />
+            </button>
+          </div>
+        </div>
 
-                  {/* Airline Badge at Bottom of Image */}
-                  <div className="absolute bottom-3 left-4 right-4 flex items-center gap-2 bg-[#011E15]/80 backdrop-blur-md p-2 rounded-xl border border-[#D4AF37]/30 text-stone-200 text-xs font-medium">
-                    <Plane className="w-4 h-4 text-[#D4AF37] shrink-0" />
-                    <span className="truncate">{pkg.airline}</span>
-                  </div>
-                </div>
+        {/* Horizontal Slider Track Container */}
+        <div className="relative group/carousel">
+          {/* Side Floating Next/Prev Buttons for Desktop */}
+          <button
+            onClick={scrollPrev}
+            className="hidden xl:flex absolute left-[-24px] top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-[#011E15]/95 border-2 border-[#D4AF37] text-[#F3E5AB] hover:bg-[#D4AF37] hover:text-[#011E15] transition-all items-center justify-center shadow-2xl backdrop-blur-md opacity-0 group-hover/carousel:opacity-100 hover:scale-110"
+            aria-label="Previous"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
 
-                {/* Card Content Body */}
-                <div className="p-6 sm:p-8 space-y-6">
-                  
-                  {/* Title & Price Header */}
-                  <div>
-                    <h3 className="font-serif font-bold text-2xl sm:text-3xl text-white mb-2 leading-snug group-hover:text-[#F3E5AB] transition-colors">
-                      {pkg.name}
-                    </h3>
+          <button
+            onClick={scrollNext}
+            className="hidden xl:flex absolute right-[-24px] top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-[#011E15]/95 border-2 border-[#D4AF37] text-[#F3E5AB] hover:bg-[#D4AF37] hover:text-[#011E15] transition-all items-center justify-center shadow-2xl backdrop-blur-md opacity-0 group-hover/carousel:opacity-100 hover:scale-110"
+            aria-label="Next"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
 
-                    <div className="flex flex-wrap items-baseline gap-2 pt-1">
-                      <span className="font-serif text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-[#F3E5AB] via-[#D4AF37] to-[#B8860B] bg-clip-text text-transparent">
-                        Rp {pkg.price.toLocaleString('id-ID')}
+          {/* Horizontal Track */}
+          <div
+            ref={sliderRef}
+            onScroll={handleScroll}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            className="flex gap-6 overflow-x-auto snap-x snap-mandatory scrollbar-none scroll-smooth py-4 px-1"
+          >
+            {filteredPackages.map((pkg) => (
+              <div
+                key={pkg.id}
+                className="w-[88vw] sm:w-[420px] lg:w-[460px] xl:w-[480px] shrink-0 snap-start bg-[#022A1F]/85 border-2 border-[#D4AF37]/50 hover:border-[#D4AF37] rounded-3xl overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] hover:shadow-[0_25px_60px_rgba(212,175,55,0.25)] transition-all duration-500 flex flex-col justify-between relative group backdrop-blur-md"
+              >
+                {/* Top Metallic Gold Accent Bar */}
+                <div className="h-1.5 bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#B8860B] w-full"></div>
+
+                {/* Card Header Media */}
+                <div>
+                  <div className="relative h-60 sm:h-64 overflow-hidden">
+                    <img 
+                      src={pkg.imageUrl} 
+                      alt={pkg.name} 
+                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700" 
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#022A1F] via-[#022A1F]/20 to-transparent"></div>
+
+                    {/* Top Right Badges */}
+                    <div className="absolute top-4 right-4 flex flex-col items-end gap-2 z-10">
+                      <span className="bg-[#011E15]/90 border border-[#D4AF37] text-[#F3E5AB] px-3.5 py-1.5 rounded-full text-xs font-bold shadow-lg backdrop-blur-md flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-[#D4AF37]" />
+                        {pkg.duration}
                       </span>
-                      <span className="text-stone-300 text-xs sm:text-sm font-light">/ pax</span>
-                      
-                      {/* DP Badge */}
-                      <span className="ml-auto bg-[#D4AF37]/15 border border-[#D4AF37]/50 text-[#F3E5AB] text-[11px] font-bold px-2.5 py-1 rounded-md">
-                        DP {pkg.dpAmount}
+                      <span className="bg-[#D4AF37] text-[#011E15] px-3 py-1 rounded-full text-[11px] font-extrabold uppercase tracking-wider shadow-md">
+                        {pkg.categoryLabel}
                       </span>
                     </div>
+
+                    {/* Featured Tag Badge */}
+                    {pkg.isBestSeller && (
+                      <div className="absolute top-4 left-4 bg-gradient-to-r from-[#B8860B] via-[#D4AF37] to-[#F3E5AB] text-[#011E15] px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider shadow-xl flex items-center gap-1.5 z-10">
+                        <Award className="w-4 h-4 fill-current text-[#011E15]" />
+                        <span>BEST SELLER</span>
+                      </div>
+                    )}
+
+                    {/* Airline Badge at Bottom of Image */}
+                    <div className="absolute bottom-3 left-4 right-4 flex items-center gap-2 bg-[#011E15]/80 backdrop-blur-md p-2 rounded-xl border border-[#D4AF37]/30 text-stone-200 text-xs font-medium">
+                      <Plane className="w-4 h-4 text-[#D4AF37] shrink-0" />
+                      <span className="truncate">{pkg.airline}</span>
+                    </div>
                   </div>
 
-                  {/* Schedule & Seats Badge */}
-                  <div className="bg-[#011E15]/80 rounded-2xl p-3.5 border border-[#D4AF37]/30 flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-2 text-stone-200">
-                      <Calendar className="w-4 h-4 text-[#D4AF37]" />
-                      <span>{pkg.departureSchedule}</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-[#F3E5AB] font-bold bg-[#D4AF37]/20 px-2.5 py-0.5 rounded-full border border-[#D4AF37]/40">
-                      <span>Sisa {pkg.seatsLeft} Seat</span>
-                    </div>
-                  </div>
+                  {/* Card Content Body */}
+                  <div className="p-6 sm:p-7 space-y-5">
+                    
+                    {/* Title & Price Header */}
+                    <div>
+                      <h3 className="font-serif font-bold text-xl sm:text-2xl text-white mb-2 leading-snug group-hover:text-[#F3E5AB] transition-colors line-clamp-2">
+                        {pkg.name}
+                      </h3>
 
-                  {/* Hotel Specs */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    <div className="bg-[#021811]/70 p-3 rounded-xl border border-[#D4AF37]/25 space-y-1">
-                      <div className="flex items-center justify-between text-[#D4AF37] font-semibold">
-                        <span className="flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> Makkah</span>
-                        <span className="flex items-center gap-0.5 text-[10px]">
-                          {Array.from({ length: pkg.hotelMakkahStars }).map((_, i) => (
-                            <Star key={i} className="w-3 h-3 fill-[#D4AF37] text-[#D4AF37]" />
-                          ))}
+                      <div className="flex flex-wrap items-baseline gap-2 pt-1">
+                        <span className="font-serif text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-[#F3E5AB] via-[#D4AF37] to-[#B8860B] bg-clip-text text-transparent">
+                          Rp {pkg.price.toLocaleString('id-ID')}
+                        </span>
+                        <span className="text-stone-300 text-xs font-light">/ pax</span>
+                        
+                        {/* DP Badge */}
+                        <span className="ml-auto bg-[#D4AF37]/15 border border-[#D4AF37]/50 text-[#F3E5AB] text-[11px] font-bold px-2.5 py-1 rounded-md">
+                          DP {pkg.dpAmount}
                         </span>
                       </div>
-                      <div className="font-bold text-white truncate">{pkg.hotelMakkah}</div>
-                      <div className="text-[11px] text-stone-300 font-light">{pkg.hotelMakkahDistance}</div>
                     </div>
 
-                    <div className="bg-[#021811]/70 p-3 rounded-xl border border-[#D4AF37]/25 space-y-1">
-                      <div className="flex items-center justify-between text-[#D4AF37] font-semibold">
-                        <span className="flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> Madinah</span>
-                        <span className="flex items-center gap-0.5 text-[10px]">
-                          {Array.from({ length: pkg.hotelMadinahStars }).map((_, i) => (
-                            <Star key={i} className="w-3 h-3 fill-[#D4AF37] text-[#D4AF37]" />
-                          ))}
-                        </span>
+                    {/* Schedule & Seats Badge */}
+                    <div className="bg-[#011E15]/80 rounded-2xl p-3 border border-[#D4AF37]/30 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2 text-stone-200">
+                        <Calendar className="w-4 h-4 text-[#D4AF37]" />
+                        <span className="truncate max-w-[200px]">{pkg.departureSchedule}</span>
                       </div>
-                      <div className="font-bold text-white truncate">{pkg.hotelMadinah}</div>
-                      <div className="text-[11px] text-stone-300 font-light">{pkg.hotelMadinahDistance}</div>
+                      <div className="flex items-center gap-1 text-[#F3E5AB] font-bold bg-[#D4AF37]/20 px-2.5 py-0.5 rounded-full border border-[#D4AF37]/40">
+                        <span>Sisa {pkg.seatsLeft} Seat</span>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Highlights Bullet List */}
-                  <div className="space-y-2 pt-2 border-t border-[#D4AF37]/20">
-                    <div className="text-xs font-bold uppercase tracking-wider text-[#D4AF37] mb-2 flex items-center gap-1.5">
-                      <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
-                      <span>Keunggulan Fasilitas Paket:</span>
-                    </div>
-                    {pkg.highlights.map((item, idx) => (
-                      <div key={idx} className="flex items-start gap-2.5 text-xs text-stone-100 font-medium">
-                        <div className="w-4 h-4 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37] flex items-center justify-center flex-shrink-0 mt-0.5 text-[#F3E5AB]">
-                          <CheckCircle2 className="w-2.5 h-2.5 stroke-[3]" />
+                    {/* Hotel Specs */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <div className="bg-[#021811]/70 p-3 rounded-xl border border-[#D4AF37]/25 space-y-1">
+                        <div className="flex items-center justify-between text-[#D4AF37] font-semibold">
+                          <span className="flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> Makkah</span>
+                          <span className="flex items-center gap-0.5 text-[10px]">
+                            {Array.from({ length: pkg.hotelMakkahStars }).map((_, i) => (
+                              <Star key={i} className="w-3 h-3 fill-[#D4AF37] text-[#D4AF37]" />
+                            ))}
+                          </span>
                         </div>
-                        <span className="leading-tight">{item}</span>
+                        <div className="font-bold text-white truncate">{pkg.hotelMakkah}</div>
+                        <div className="text-[11px] text-stone-300 font-light truncate">{pkg.hotelMakkahDistance}</div>
                       </div>
-                    ))}
+
+                      <div className="bg-[#021811]/70 p-3 rounded-xl border border-[#D4AF37]/25 space-y-1">
+                        <div className="flex items-center justify-between text-[#D4AF37] font-semibold">
+                          <span className="flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> Madinah</span>
+                          <span className="flex items-center gap-0.5 text-[10px]">
+                            {Array.from({ length: pkg.hotelMadinahStars }).map((_, i) => (
+                              <Star key={i} className="w-3 h-3 fill-[#D4AF37] text-[#D4AF37]" />
+                            ))}
+                          </span>
+                        </div>
+                        <div className="font-bold text-white truncate">{pkg.hotelMadinah}</div>
+                        <div className="text-[11px] text-stone-300 font-light truncate">{pkg.hotelMadinahDistance}</div>
+                      </div>
+                    </div>
+
+                    {/* Highlights Bullet List */}
+                    <div className="space-y-2 pt-2 border-t border-[#D4AF37]/20">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#D4AF37] mb-2 flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
+                        <span>Keunggulan Fasilitas Paket:</span>
+                      </div>
+                      {pkg.highlights.map((item, idx) => (
+                        <div key={idx} className="flex items-start gap-2 text-xs text-stone-100 font-medium">
+                          <div className="w-4 h-4 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37] flex items-center justify-center flex-shrink-0 mt-0.5 text-[#F3E5AB]">
+                            <CheckCircle2 className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                          <span className="leading-tight line-clamp-1">{item}</span>
+                        </div>
+                      ))}
+                    </div>
+
                   </div>
-
                 </div>
-              </div>
 
-              {/* Card Footer Actions */}
-              <div className="p-6 sm:p-8 pt-0 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Detail Modal Trigger */}
-                  <button
-                    onClick={() => {
-                      setSelectedPkg(pkg);
-                      setModalTab('facilities');
-                    }}
-                    className="w-full py-3 px-4 rounded-xl border border-[#D4AF37] bg-[#011E15]/90 hover:bg-[#D4AF37]/15 text-[#F3E5AB] text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-md group/btn"
-                  >
-                    <Info className="w-4 h-4 text-[#D4AF37]" />
-                    <span>Detail & Itinerary</span>
-                  </button>
+                {/* Card Footer Actions */}
+                <div className="p-6 pt-0 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      onClick={() => {
+                        setSelectedPkg(pkg);
+                        setModalTab('facilities');
+                      }}
+                      className="w-full py-3 px-3 rounded-xl border border-[#D4AF37] bg-[#011E15]/90 hover:bg-[#D4AF37]/15 text-[#F3E5AB] text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-md"
+                    >
+                      <Info className="w-4 h-4 text-[#D4AF37]" />
+                      <span>Detail & Itinerary</span>
+                    </button>
 
-                  {/* WhatsApp Direct Consult Button */}
-                  <a
-                    href={getWhatsAppUrl(pkg.name, pkg.price)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#D4AF37] via-[#EEDCA2] to-[#B8860B] hover:brightness-110 text-[#011E15] text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 shadow-lg group/wa"
-                  >
-                    <MessageCircle className="w-4 h-4 fill-[#011E15]" />
-                    <span>Booking / Tanya WA</span>
-                  </a>
+                    <a
+                      href={getWhatsAppUrl(pkg.name, pkg.price)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-3 px-3 rounded-xl bg-gradient-to-r from-[#D4AF37] via-[#EEDCA2] to-[#B8860B] hover:brightness-110 text-[#011E15] text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 shadow-lg"
+                    >
+                      <MessageCircle className="w-4 h-4 fill-[#011E15]" />
+                      <span>Booking / Tanya WA</span>
+                    </a>
+                  </div>
                 </div>
-              </div>
 
-            </motion.div>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Bottom Guarantee Banner */}
@@ -556,7 +685,6 @@ export default function PaketUmrahShowcase() {
       <AnimatePresence>
         {selectedPkg && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -565,7 +693,6 @@ export default function PaketUmrahShowcase() {
               className="fixed inset-0 bg-black/80 backdrop-blur-sm"
             />
 
-            {/* Modal Dialog */}
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -639,7 +766,6 @@ export default function PaketUmrahShowcase() {
                 {/* Tab 1: Fasilitas & Hotel */}
                 {modalTab === 'facilities' && (
                   <div className="space-y-6">
-                    {/* Hotel Specs */}
                     <div>
                       <h4 className="text-sm font-bold uppercase tracking-wider text-[#D4AF37] mb-3 flex items-center gap-2">
                         <Hotel className="w-4 h-4" />
@@ -674,7 +800,6 @@ export default function PaketUmrahShowcase() {
                       </div>
                     </div>
 
-                    {/* Includes & Excludes */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                       <div className="bg-[#022A1F]/70 p-5 rounded-2xl border border-[#D4AF37]/30 space-y-3">
                         <h5 className="text-xs font-bold uppercase tracking-wider text-[#F3E5AB] flex items-center gap-1.5">
@@ -809,3 +934,4 @@ export default function PaketUmrahShowcase() {
     </section>
   );
 }
+
