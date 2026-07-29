@@ -726,9 +726,9 @@ export default function DashboardJamaah() {
       const file = e.target.files[0];
       const docKey = `${docName}_${paxIdx}`;
       
-      // Safety limit 50MB (as per server limit)
-      if (file.size > 50 * 1024 * 1024) {
-        toast.error('File terlalu besar! Maksimal 50MB.');
+      // High capacity limit up to 100MB
+      if (file.size > 100 * 1024 * 1024) {
+        toast.error('File terlalu besar! Maksimal 100MB.');
         return;
       }
 

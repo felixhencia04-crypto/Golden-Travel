@@ -39,8 +39,8 @@ export default function InvoiceDetails() {
     if (!e.target.files?.[0]) return;
     const file = e.target.files[0];
     
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('File terlalu besar! Maksimal 5MB.');
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error('File terlalu besar! Maksimal 50MB.');
       return;
     }
 

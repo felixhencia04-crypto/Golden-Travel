@@ -50,9 +50,9 @@ export default function MyDocuments() {
     if (!e.target.files?.[0]) return;
     const file = e.target.files[0];
     
-    // Increased limit to 20MB as requested "no limit" (but we need some safety)
-    if (file.size > 20 * 1024 * 1024) {
-      toast.error('File terlalu besar! Maksimal 20MB.');
+    // High capacity upload up to 100MB
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error('File terlalu besar! Maksimal 100MB.');
       return;
     }
 

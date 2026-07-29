@@ -72,6 +72,8 @@ export default function FinalDocumentUploadModal({
   const [urlInput, setUrlInput] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [fileProcessingProgress, setFileProcessingProgress] = useState<number | null>(null);
+  const [processingFileName, setProcessingFileName] = useState<string>('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
   const [targetToDelete, setTargetToDelete] = useState<string | null>(null);
 
@@ -151,8 +153,8 @@ export default function FinalDocumentUploadModal({
   const totalStagedCount = (Object.values(stagedDocs) as StagedDoc[]).filter(d => d.fileUrl).length;
 
   const handleFileForTarget = (target: 'group' | number, file: File) => {
-    if (file.size > 20 * 1024 * 1024) {
-      toast.error('Ukuran file terlalu besar. Maksimal 20MB.');
+    if (file.size > 150 * 1024 * 1024) {
+      toast.error('Ukuran file terlalu besar. Maksimal 150MB.');
       return;
     }
 
@@ -164,21 +166,38 @@ export default function FinalDocumentUploadModal({
 
     const key = getTargetKey(target);
     const targetName = target === 'group' ? 'Kolektif Group' : `Pax ${target + 1} (${passengers[target]?.name})`;
+    const sizeInMb = (file.size / (1024 * 1024)).toFixed(1);
+
+    setProcessingFileName(`${file.name} (${sizeInMb} MB)`);
+    setFileProcessingProgress(0);
 
     const reader = new FileReader();
+    reader.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        setFileProcessingProgress(percent);
+      }
+    };
     reader.onload = (e) => {
       const dataUrl = e.target?.result as string;
       setStagedDocs(prev => ({
         ...prev,
         [key]: {
           fileUrl: dataUrl,
-          fileName: file.name,
+          fileName: `${file.name} (${sizeInMb} MB)`,
           isModified: true
         }
       }));
-      toast.info(`File ${file.name} disiapkan untuk ${targetName}. Klik "Simpan Semua" di bawah jika sudah selesai.`, {
-        duration: 3500
+      setFileProcessingProgress(null);
+      setProcessingFileName('');
+      toast.success(`File ${file.name} (${sizeInMb} MB) berhasil disiapkan untuk ${targetName}. Klik "Simpan Semua" jika sudah selesai.`, {
+        duration: 4000
       });
+    };
+    reader.onerror = () => {
+      setFileProcessingProgress(null);
+      setProcessingFileName('');
+      toast.error('Gagal membaca file. Silakan coba lagi.');
     };
     reader.readAsDataURL(file);
   };

@@ -480,6 +480,12 @@ export default function Admin() {
   const [activeMasterDataTab, setActiveMasterDataTab] = useState<'paket' | 'jadwal'>('paket');
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<any>(null);
+  
+  // High-Capacity PDF Upload Progress States (Supports Large Files up to 150MB)
+  const [manasikProgress, setManasikProgress] = useState<number | null>(null);
+  const [manasikFileName, setManasikFileName] = useState<string>('');
+  const [itineraryProgress, setItineraryProgress] = useState<number | null>(null);
+  const [itineraryFileName, setItineraryFileName] = useState<string>('');
 
   // Operasional Keberangkatan States
   const [activeOpsTab, setActiveOpsTab] = useState<'inventory' | 'broadcast' | 'manifest' | 'dokumen_final'>('inventory');
@@ -5615,44 +5621,126 @@ export default function Admin() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Upload Buku Manasik (PDF)</label>
-                  <div className="relative">
-                    <input 
-                      type="file" 
-                      accept=".pdf"
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          if (file.type !== 'application/pdf') {
-                            toast.error('Hanya file PDF yang diperbolehkan!');
-                            e.target.value = '';
-                            return;
-                          }
-                          
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            const base64 = event.target?.result as string;
-                            setEditingPackage({...editingPackage, manasikPdfUrl: base64});
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      className="w-full border-gray-200 rounded-2xl bg-white shadow-md border py-3 px-4 focus:ring-4 focus:ring-gray-100 focus:border-gray-500 outline-none transition-all text-sm"
-                    />
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-bold text-gray-800">
+                      Upload Buku Panduan Manasik (PDF)
+                    </label>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md border border-emerald-200">
+                      Mendukung File Besar s/d 150MB
+                    </span>
                   </div>
-                  {editingPackage.manasikPdfUrl && (
-                    <div className="mt-2 flex items-center justify-between bg-emerald-50 p-2 rounded-xl border border-emerald-100">
-                      <p className="text-[10px] text-emerald-600 font-bold flex items-center">
-                        <CheckCircle className="w-3 h-3 mr-1" /> Buku Manasik Siap
+
+                  {manasikProgress !== null ? (
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
+                        <span className="flex items-center gap-1.5 truncate">
+                          <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="truncate">Memproses: {manasikFileName}</span>
+                        </span>
+                        <span>{manasikProgress}%</span>
+                      </div>
+                      <div className="w-full bg-emerald-200/60 rounded-full h-2.5 overflow-hidden">
+                        <div 
+                          className="bg-emerald-600 h-2.5 rounded-full transition-all duration-150"
+                          style={{ width: `${manasikProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-emerald-700 italic text-right">
+                        Mohon tunggu, file besar sedang dimuat...
                       </p>
-                      <button 
-                        type="button"
-                        onClick={() => setEditingPackage({...editingPackage, manasikPdfUrl: null})}
-                        className="text-[10px] text-red-500 font-bold hover:underline"
-                      >
-                        Hapus
-                      </button>
                     </div>
+                  ) : editingPackage.manasikPdfUrl ? (
+                    <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-center justify-between shadow-sm">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div className="overflow-hidden">
+                          <p className="text-xs font-extrabold text-emerald-950 truncate">
+                            {manasikFileName || 'Buku Panduan Manasik Digital.pdf'}
+                          </p>
+                          <p className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 mt-0.5">
+                            <CheckCircle className="w-3 h-3 text-emerald-600" /> Dokumen Berhasil Terlampir & Siap Disimpan
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <button
+                          type="button"
+                          onClick={() => openDataUrlInNewTab(editingPackage.manasikPdfUrl)}
+                          className="p-2 text-emerald-800 hover:bg-emerald-100 rounded-xl transition-all"
+                          title="Pratinjau PDF Buku Manasik"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPackage({...editingPackage, manasikPdfUrl: null});
+                            setManasikFileName('');
+                          }}
+                          className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-all"
+                          title="Hapus / Ganti Buku"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="group relative border-2 border-dashed border-gray-200 hover:border-emerald-500 bg-gray-50/60 hover:bg-emerald-50/20 rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 text-center">
+                      <input 
+                        type="file" 
+                        accept=".pdf,application/pdf"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 150 * 1024 * 1024) {
+                              toast.error('Ukuran file PDF terlalu besar. Maksimal 150MB.');
+                              e.target.value = '';
+                              return;
+                            }
+                            if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+                              toast.error('Hanya file PDF yang diperbolehkan!');
+                              e.target.value = '';
+                              return;
+                            }
+
+                            const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+                            setManasikFileName(`${file.name} (${sizeMB} MB)`);
+                            setManasikProgress(0);
+
+                            const reader = new FileReader();
+                            reader.onprogress = (evt) => {
+                              if (evt.lengthComputable) {
+                                const percent = Math.round((evt.loaded / evt.total) * 100);
+                                setManasikProgress(percent);
+                              }
+                            };
+                            reader.onload = (event) => {
+                              const base64 = event.target?.result as string;
+                              setEditingPackage({...editingPackage, manasikPdfUrl: base64});
+                              setManasikProgress(null);
+                              toast.success(`Buku Manasik (${sizeMB} MB) berhasil dimuat. Klik "Simpan Paket" jika sudah selesai.`);
+                            };
+                            reader.onerror = () => {
+                              setManasikProgress(null);
+                              toast.error('Gagal membaca file PDF. Silakan coba lagi.');
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:scale-105 group-hover:border-emerald-200 transition-all mb-2 text-emerald-600">
+                        <UploadCloud className="w-6 h-6" />
+                      </div>
+                      <p className="text-xs font-bold text-gray-800 group-hover:text-emerald-700 transition-colors">
+                        Klik atau Tarik File Buku Manasik (PDF) ke Sini
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        Format PDF &bull; Kapasitas Fleksibel hingga <span className="font-bold text-gray-600">150 MB</span>
+                      </p>
+                    </label>
                   )}
                 </div>
               </form>
@@ -5763,48 +5851,127 @@ export default function Admin() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Upload Itinerary (WAJIB PDF) *</label>
-                  <div className="relative">
-                    <input 
-                      type="file" 
-                      accept=".pdf"
-                      required={!editingSchedule.itineraryPdfUrl}
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          if (file.type !== 'application/pdf') {
-                            toast.error('Hanya file PDF yang diperbolehkan!');
-                            e.target.value = '';
-                            return;
-                          }
-                          
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            const base64 = event.target?.result as string;
-                            setEditingSchedule({...editingSchedule, itineraryPdfUrl: base64});
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      className="w-full border-gray-200 rounded-2xl bg-white shadow-md border py-3 px-4 focus:ring-4 focus:ring-gray-100 focus:border-gray-500 outline-none transition-all text-sm"
-                    />
-                    <div className="mt-2 flex items-center text-[10px] text-gray-400 italic">
-                      <AlertCircle className="w-3 h-3 mr-1" /> File harus dalam format .pdf
-                    </div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-bold text-gray-800">
+                      Upload Itinerary (WAJIB PDF) *
+                    </label>
+                    <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md border border-emerald-200">
+                      Mendukung File Besar s/d 150MB
+                    </span>
                   </div>
-                  {editingSchedule.itineraryPdfUrl && (
-                    <div className="mt-2 flex items-center justify-between bg-emerald-50 p-2 rounded-xl border border-emerald-100">
-                      <p className="text-[10px] text-emerald-600 font-bold flex items-center">
-                        <CheckCircle className="w-3 h-3 mr-1" /> Itinerary Siap
+
+                  {itineraryProgress !== null ? (
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
+                        <span className="flex items-center gap-1.5 truncate">
+                          <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="truncate">Memproses: {itineraryFileName}</span>
+                        </span>
+                        <span>{itineraryProgress}%</span>
+                      </div>
+                      <div className="w-full bg-emerald-200/60 rounded-full h-2.5 overflow-hidden">
+                        <div 
+                          className="bg-emerald-600 h-2.5 rounded-full transition-all duration-150"
+                          style={{ width: `${itineraryProgress}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-emerald-700 italic text-right">
+                        Mohon tunggu, file itinerary sedang dimuat...
                       </p>
-                      <button 
-                        type="button"
-                        onClick={() => setEditingSchedule({...editingSchedule, itineraryPdfUrl: ''})}
-                        className="text-[10px] text-red-500 font-bold hover:underline"
-                      >
-                        Hapus
-                      </button>
                     </div>
+                  ) : editingSchedule.itineraryPdfUrl ? (
+                    <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-center justify-between shadow-sm">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div className="overflow-hidden">
+                          <p className="text-xs font-extrabold text-emerald-950 truncate">
+                            {itineraryFileName || 'Itinerary Perjalanan.pdf'}
+                          </p>
+                          <p className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 mt-0.5">
+                            <CheckCircle className="w-3 h-3 text-emerald-600" /> Dokumen Itinerary Siap
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <button
+                          type="button"
+                          onClick={() => openDataUrlInNewTab(editingSchedule.itineraryPdfUrl)}
+                          className="p-2 text-emerald-800 hover:bg-emerald-100 rounded-xl transition-all"
+                          title="Pratinjau PDF Itinerary"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingSchedule({...editingSchedule, itineraryPdfUrl: ''});
+                            setItineraryFileName('');
+                          }}
+                          className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-all"
+                          title="Hapus / Ganti Itinerary"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="group relative border-2 border-dashed border-gray-200 hover:border-emerald-500 bg-gray-50/60 hover:bg-emerald-50/20 rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 text-center">
+                      <input 
+                        type="file" 
+                        accept=".pdf,application/pdf"
+                        required={!editingSchedule.itineraryPdfUrl}
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            if (file.size > 150 * 1024 * 1024) {
+                              toast.error('Ukuran file PDF terlalu besar. Maksimal 150MB.');
+                              e.target.value = '';
+                              return;
+                            }
+                            if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+                              toast.error('Hanya file PDF yang diperbolehkan!');
+                              e.target.value = '';
+                              return;
+                            }
+
+                            const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+                            setItineraryFileName(`${file.name} (${sizeMB} MB)`);
+                            setItineraryProgress(0);
+
+                            const reader = new FileReader();
+                            reader.onprogress = (evt) => {
+                              if (evt.lengthComputable) {
+                                const percent = Math.round((evt.loaded / evt.total) * 100);
+                                setItineraryProgress(percent);
+                              }
+                            };
+                            reader.onload = (event) => {
+                              const base64 = event.target?.result as string;
+                              setEditingSchedule({...editingSchedule, itineraryPdfUrl: base64});
+                              setItineraryProgress(null);
+                              toast.success(`Itinerary (${sizeMB} MB) berhasil dimuat. Klik "Simpan Jadwal" jika sudah selesai.`);
+                            };
+                            reader.onerror = () => {
+                              setItineraryProgress(null);
+                              toast.error('Gagal membaca file PDF. Silakan coba lagi.');
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                      />
+                      <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:scale-105 group-hover:border-emerald-200 transition-all mb-2 text-emerald-600">
+                        <UploadCloud className="w-6 h-6" />
+                      </div>
+                      <p className="text-xs font-bold text-gray-800 group-hover:text-emerald-700 transition-colors">
+                        Klik atau Tarik File Itinerary (PDF) ke Sini *
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        Format PDF &bull; Kapasitas Fleksibel hingga <span className="font-bold text-gray-600">150 MB</span>
+                      </p>
+                    </label>
                   )}
                 </div>
               </form>
@@ -5959,8 +6126,8 @@ export default function Admin() {
                       e.stopPropagation();
                       const file = e.dataTransfer.files?.[0];
                       if (file) {
-                        if (file.size > 5 * 1024 * 1024) {
-                          toast.error("Ukuran file terlalu besar. Maksimal 5 MB (Mohon kompres PDF Anda terlebih dahulu).");
+                        if (file.size > 100 * 1024 * 1024) {
+                          toast.error("Ukuran file terlalu besar. Maksimal 100 MB.");
                           return;
                         }
                         setSelectedCertFile(file);
@@ -5974,8 +6141,8 @@ export default function Admin() {
                       onChange={e => {
                         const file = e.target.files?.[0];
                         if (file) {
-                      if (file.size > 5 * 1024 * 1024) {
-                        toast.error("Ukuran file terlalu besar. Maksimal 5 MB (Mohon kompres PDF Anda terlebih dahulu).");
+                      if (file.size > 100 * 1024 * 1024) {
+                        toast.error("Ukuran file terlalu besar. Maksimal 100 MB.");
                         return;
                       }
                           setSelectedCertFile(file);
@@ -5991,7 +6158,7 @@ export default function Admin() {
                       Klik atau Tarik File Sertifikat ke Sini
                     </p>
                     <p className="text-xs text-gray-400 mt-1 font-medium">
-                      Mendukung format PDF, PNG, JPG, WEBP (Maks. 2 MB)
+                      Mendukung format PDF, PNG, JPG, WEBP (Maks. 100 MB)
                     </p>
                   </label>
                 ) : (
