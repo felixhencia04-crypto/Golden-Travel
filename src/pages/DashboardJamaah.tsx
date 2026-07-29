@@ -29,7 +29,30 @@ import UmrahCertificate from '../components/jamaah/UmrahCertificate';
 export default function DashboardJamaah() {
   const logoImg = useLogo();
   const { registration, setRegistration, packages, schedules, notifications: announcements, manifest, equipment: inventoryState, loading, user, dbUser, refreshData } = useRegistration();
-  useSocket(() => refreshData(true));
+  
+  const [directPackages, setDirectPackages] = useState<any[]>([]);
+
+  const fetchDirectPackages = React.useCallback(async () => {
+    try {
+      const data = await api.get('/packages');
+      if (Array.isArray(data) && data.length > 0) {
+        setDirectPackages(data);
+      }
+    } catch (err) {
+      console.error("DashboardJamaah: Direct package fetch failed", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDirectPackages();
+  }, [fetchDirectPackages]);
+
+  useSocket(() => {
+    fetchDirectPackages();
+    refreshData(true);
+  });
+
+  const effectivePackages = (packages && packages.length > 0) ? packages : directPackages;
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   
@@ -2031,8 +2054,9 @@ export default function DashboardJamaah() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {(() => {
-                  const filteredPackages = (packages || []).filter(pkg => {
-                    const isAvail = pkg.isAvailable !== false && pkg.isAvailable !== 'false' && pkg.isAvailable !== 0;
+                  const filteredPackages = (effectivePackages || []).filter(pkg => {
+                    if (!pkg) return false;
+                    const isAvail = pkg.isAvailable !== false && pkg.isAvailable !== 'false' && pkg.isAvailable !== 0 && pkg.isAvailable !== '0';
                     const pkgType = (pkg.type || 'umroh').toString().trim().toLowerCase();
                     return isAvail && pkgType === packageCategory;
                   });
@@ -2055,7 +2079,10 @@ export default function DashboardJamaah() {
                             Lihat Paket {packageCategory === 'umroh' ? 'Haji' : 'Umroh'}
                           </button>
                           <button 
-                            onClick={() => refreshData(true)}
+                            onClick={() => {
+                              fetchDirectPackages();
+                              refreshData(true);
+                            }}
                             className="inline-flex items-center px-6 py-3 bg-gold-500 text-gray-900 rounded-2xl font-bold text-xs uppercase tracking-wider hover:bg-gold-600 transition-all shadow-md shadow-gold-500/20 active:scale-95"
                           >
                             <RefreshCw className="w-4 h-4 mr-2" /> Muat Ulang Katalog

@@ -47,7 +47,8 @@ export default function KatalogPaket() {
   };
 
   const filteredPackages = packages.filter(pkg => {
-    const isAvail = pkg.isAvailable !== false && pkg.isAvailable !== 'false' && pkg.isAvailable !== 0;
+    if (!pkg) return false;
+    const isAvail = pkg.isAvailable !== false && pkg.isAvailable !== 'false' && pkg.isAvailable !== 0 && pkg.isAvailable !== '0';
     if (!isAvail) return false;
     if (activeCategory === 'semua') return true;
     const pkgType = (pkg.type || 'umroh').toString().trim().toLowerCase();

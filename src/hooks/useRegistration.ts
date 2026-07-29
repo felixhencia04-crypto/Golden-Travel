@@ -55,12 +55,19 @@ export function useRegistration() {
         api.get('/users/me').catch(() => null)
       ]);
 
-      const freshPkgs = Array.isArray(pkgs) ? pkgs : [];
+      let freshPkgs = Array.isArray(pkgs) && pkgs.length > 0 ? pkgs : packages;
+      if ((!freshPkgs || freshPkgs.length === 0) && Array.isArray(pkgs)) {
+        freshPkgs = pkgs;
+      }
       const freshSchs = Array.isArray(schs) ? schs : [];
       const freshNotifs = Array.isArray(notifData) ? notifData : [];
 
       setRegistration(reg);
-      setPackages(freshPkgs);
+      if (freshPkgs && freshPkgs.length > 0) {
+        setPackages(freshPkgs);
+      } else if (Array.isArray(pkgs)) {
+        setPackages(pkgs);
+      }
       setSchedules(freshSchs);
       setNotifications(freshNotifs);
       setManifest(manifestData);

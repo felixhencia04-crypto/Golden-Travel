@@ -348,40 +348,53 @@ async function startServer() {
   app.get("/api/packages", async (req, res) => {
     try {
       console.log("GET /api/packages: Fetching all packages...");
-      const allPackages = await withRetry(() => db.select().from(schema.packages));
+      const allPackages = await withRetry(() => 
+        db.select().from(schema.packages).orderBy(desc(schema.packages.createdAt))
+      );
       
-      // Fetch all registration counts in one go
-      const regCounts = await withRetry(() => db.select({
-        packageId: schema.registrations.packageId,
-        adultCount: schema.registrations.adultCount,
-        childCount: schema.registrations.childCount,
-        infantCount: schema.registrations.infantCount,
-      }).from(schema.registrations));
+      let regCounts: any[] = [];
+      try {
+        regCounts = await withRetry(() => db.select({
+          packageId: schema.registrations.packageId,
+          adultCount: schema.registrations.adultCount,
+          childCount: schema.registrations.childCount,
+          infantCount: schema.registrations.infantCount,
+        }).from(schema.registrations));
+      } catch (regErr) {
+        console.warn("Failed to fetch registration counts for packages:", regErr);
+      }
 
-      const packagesWithCounts = allPackages.map((pkg) => {
-        const pkgRegs = regCounts.filter(r => r.packageId === pkg.id);
+      const packagesWithCounts = (allPackages || []).map((pkg) => {
+        const pkgRegs = (regCounts || []).filter(r => r && r.packageId === pkg.id);
         const takenSeats = pkgRegs.reduce((acc, r) => 
-          acc + (parseInt(r.adultCount) || 0) + (parseInt(r.childCount) || 0) + (parseInt(r.infantCount) || 0), 0);
+          acc + (parseInt(r?.adultCount) || 0) + (parseInt(r?.childCount) || 0) + (parseInt(r?.infantCount) || 0), 0);
         
-        const remainingSeats = Math.max(0, pkg.quota - takenSeats);
+        const quotaNum = Number(pkg.quota) || 45;
+        const remainingSeats = Math.max(0, quotaNum - takenSeats);
 
-        let desc = pkg.description;
-        try {
-          desc = JSON.parse(pkg.description);
-        } catch (e) {
-          // ignore if it's not JSON
+        let desc: any = pkg.description;
+        if (typeof desc === 'string') {
+          try {
+            desc = JSON.parse(desc);
+          } catch (e) {
+            desc = desc ? desc.split('\n') : ["Fasilitas Bintang 5"];
+          }
         }
+
         return { 
           ...pkg, 
-          description: desc,
+          description: desc || ["Fasilitas Bintang 5"],
+          quota: quotaNum,
           takenSeats,
-          remainingSeats
-        };
+          remainingSeats,
+          type: (pkg.type || 'umroh').toString().trim().toLowerCase(),
+          isAvailable: pkg.isAvailable !== false
+        } as any;
       });
 
       res.json(packagesWithCounts);
     } catch (error: any) {
-      console.error("Database query failed:", error);
+      console.error("Database query failed in GET /api/packages:", error);
       res.status(500).json({ error: "Failed to fetch packages" });
     }
   });
