@@ -8,7 +8,7 @@ import Mitra from '../pages/Mitra';
 import LoginMitra from '../pages/LoginMitra';
 import Admin from '../pages/Admin';
 import PackageDetail from '../pages/PackageDetail';
-import DashboardJamaah from '../pages/jamaah/PortalJamaah';
+import DashboardJamaah from '../pages/DashboardJamaah';
 import DashboardMitra from '../pages/DashboardMitra';
 import Legalitas from '../pages/Legalitas';
 import Blog from '../pages/Blog';

@@ -116,6 +116,7 @@ export default function Login() {
     localStorage.removeItem('admin_token');
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       const googleResult = await signInWithPopup(auth, provider);
       const response = await api.post('/auth/sync', {
         name: googleResult.user.displayName,

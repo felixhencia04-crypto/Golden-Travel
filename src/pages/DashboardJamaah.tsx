@@ -1130,7 +1130,7 @@ export default function DashboardJamaah() {
             
             <div className="topbar-right">
                 <div className="user-greeting-box">
-                    <span className="user-greeting">Selamat Datang, {userConsultation?.user?.name?.split(' ')[0] || 'Jamaah'}</span>
+                    <span className="user-greeting">Selamat Datang, {userConsultation?.user?.name?.split(' ')[0] || dbUser?.name?.split(' ')[0] || user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'Jamaah'}</span>
                 </div>
                 {/* Tombol Notifikasi */}
                 <button className="notification-btn" aria-label="Notifikasi">
