@@ -1767,14 +1767,17 @@ async function startServer() {
         cleanDesc = JSON.stringify([name || "Fasilitas Bintang 5"]);
       }
 
+      const normalizedType = String(type || 'umroh').trim().toLowerCase() === 'haji' ? 'haji' : 'umroh';
+      const normalizedIsAvailable = isAvailable !== false && isAvailable !== 'false' && isAvailable !== 0 && isAvailable !== '0';
+
       const data: any = {
         name: (name || "Paket Baru").trim(),
         description: cleanDesc,
         price: cleanPrice,
         duration: (duration || "9 Hari").trim(),
         imageUrl: imageUrl || "https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80",
-        type: type === 'haji' ? 'haji' : 'umroh',
-        isAvailable: isAvailable !== false,
+        type: normalizedType,
+        isAvailable: normalizedIsAvailable,
         quota: cleanQuota,
         manasikPdfUrl: manasikPdfUrl || null
       };
@@ -1810,13 +1813,16 @@ async function startServer() {
         cleanDesc = JSON.stringify([name || "Fasilitas Bintang 5"]);
       }
 
+      const normalizedType = String(type || 'umroh').trim().toLowerCase() === 'haji' ? 'haji' : 'umroh';
+      const normalizedIsAvailable = isAvailable !== false && isAvailable !== 'false' && isAvailable !== 0 && isAvailable !== '0';
+
       const data: any = {
         name: (name || "Paket Baru").trim(),
         description: cleanDesc,
         price: cleanPrice,
         duration: (duration || "9 Hari").trim(),
-        type: type === 'haji' ? 'haji' : 'umroh',
-        isAvailable: isAvailable !== false,
+        type: normalizedType,
+        isAvailable: normalizedIsAvailable,
         quota: cleanQuota,
       };
 

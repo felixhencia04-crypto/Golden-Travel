@@ -5,17 +5,20 @@ const socket = io();
 
 export function useSocket(onDataUpdated?: (data: any) => void) {
   useEffect(() => {
-    socket.on('data_updated', (data) => {
+    if (!onDataUpdated) return;
+
+    const handleDataUpdated = (data: any) => {
       console.log('Real-time update received:', data);
-      if (onDataUpdated) {
-        onDataUpdated(data);
-      }
-    });
+      onDataUpdated(data);
+    };
+
+    socket.on('data_updated', handleDataUpdated);
 
     return () => {
-      socket.off('data_updated');
+      socket.off('data_updated', handleDataUpdated);
     };
   }, [onDataUpdated]);
 
   return socket;
 }
+
