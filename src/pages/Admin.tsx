@@ -35,7 +35,12 @@ import { updatePassword } from 'firebase/auth';
 export default function Admin() {
   const logoImg = useLogo();
   const { users, registrations, packages, setPackages, schedules, dashboardStats, actionCenter, equipment: inventory, broadcast: announcements, manifest, loading, currentUser, refreshData } = useAdminData();
-  useSocket(() => refreshData(true));
+  const onDataUpdated = React.useCallback(() => {
+    console.log("Admin: Received real-time update signal.");
+    refreshData(true);
+  }, [refreshData]);
+
+  useSocket(onDataUpdated);
   const navigate = useNavigate();
 
   React.useEffect(() => {

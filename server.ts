@@ -7,7 +7,7 @@ import cors from "cors";
 import jwt from "jsonwebtoken";
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { eq, and, desc, asc, sql, gte, inArray, ne, or } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, gte, inArray, ne, or, isNull, lt } from 'drizzle-orm';
 import firebaseConfig from './firebase-applet-config.json' with { type: 'json' };
 import * as dotenv from 'dotenv';
 dotenv.config();
@@ -182,26 +182,45 @@ async function startServer() {
   // Run lightweight schema auto-migrations in background (non-blocking for fast HTTP listen)
   (async () => {
     try {
-      const healthCheck = await withRetry(() => db.execute(sql`SELECT 1`), 3, 1000);
+      await withRetry(() => db.execute(sql`SELECT 1`), 3, 1000);
       console.log('[DB Status] Database connected successfully at startup.');
       
-      const adminUser = process.env.SQL_ADMIN_USER || process.env.SQL_USER;
-      const adminPass = process.env.SQL_ADMIN_PASSWORD || process.env.SQL_PASSWORD;
-      if (adminUser && adminPass && process.env.SQL_HOST) {
-        const adminPool = new pg.Pool({
-          host: process.env.SQL_HOST,
-          user: adminUser,
-          password: adminPass,
-          database: process.env.SQL_DB_NAME
-        });
-        await withRetry(() => adminPool.query('ALTER TABLE manifest_keberangkatan ADD COLUMN IF NOT EXISTS pax_manifest jsonb;'));
-        await adminPool.end();
-        console.log('[DB Auto-Migration] Column pax_manifest checked/added successfully.');
-      } else {
-        await withRetry(() => db.execute(sql`ALTER TABLE manifest_keberangkatan ADD COLUMN IF NOT EXISTS pax_manifest jsonb;`));
+      // Auto-Migration for missing columns
+      try {
+        await db.execute(sql`ALTER TABLE manifest_keberangkatan ADD COLUMN IF NOT EXISTS pax_manifest jsonb;`);
+      } catch (e) {}
+
+      // Ensure Default Workspace exists
+      let defaultWorkspace: any = await db.query.workspaces.findFirst();
+      if (!defaultWorkspace) {
+        console.log('[DB Setup] Creating default workspace...');
+        const [newWorkspace] = await db.insert(schema.workspaces).values({
+          name: 'Golden Tour Haramain',
+          slug: 'golden-tour',
+        }).returning();
+        defaultWorkspace = newWorkspace;
+      }
+
+      // Auto-Migration for missing workspaceId in ALL tables
+      if (defaultWorkspace) {
+        const tablesToUpdate = [
+          schema.users, schema.registrations, schema.packages, schema.schedules,
+          schema.payments, schema.documents, schema.notifications, 
+          schema.helpdesk_tickets, schema.equipment, schema.manifests, 
+          schema.memories, schema.certificates
+        ];
+        
+        for (const table of tablesToUpdate) {
+          try {
+            await db.update(table as any)
+              .set({ workspaceId: defaultWorkspace.id })
+              .where(isNull((table as any).workspaceId));
+          } catch (e) {}
+        }
+        console.log('[DB Auto-Migration] Missing workspaceId populated successfully.');
       }
     } catch (err: any) {
-      console.warn('[DB Auto-Migration Warning]:', err.message);
+      console.warn('[DB Init Warning]:', err.message);
     }
   })();
 
@@ -280,15 +299,20 @@ async function startServer() {
         const userEmail = decodedToken.email || `${decodedToken.uid}@goldentravel.local`;
         const userName = requestedName || decodedToken.name || userEmail.split('@')[0];
 
-        console.log('Creating new user:', { email: userEmail, role });
+        const defaultWorkspace = await db.query.workspaces.findFirst();
+
+        console.log('Creating new user:', { email: userEmail, role, workspaceId: defaultWorkspace?.id });
 
         try {
-          const [newUser] = await withRetry(() => db.insert(schema.users).values({
+          const insertData: any = {
             uid: decodedToken.uid,
             email: userEmail,
             name: userName,
             role: role as any,
-          }).returning());
+            workspaceId: defaultWorkspace?.id,
+          };
+          
+          const [newUser] = await withRetry(() => db.insert(schema.users).values(insertData).returning());
           
           user = newUser;
           console.log('New user created successfully:', user?.id);
@@ -327,8 +351,13 @@ async function startServer() {
       } else if (decodedToken.email === 'felix.hencia04@gmail.com' && user.role !== 'admin') {
         // Upgrade to admin if email matches
         try {
+          const defaultWorkspace = await db.query.workspaces.findFirst();
+          const updateData: any = { 
+            role: 'admin',
+            workspaceId: user.workspaceId || defaultWorkspace?.id
+          };
           const [updatedUser] = await withRetry(() => db.update(schema.users)
-            .set({ role: 'admin' })
+            .set(updateData)
             .where(eq(schema.users.id, user.id))
             .returning());
           user = updatedUser;
@@ -346,11 +375,13 @@ async function startServer() {
   });
 
   // Get Packages
-  app.get("/api/packages", async (req, res) => {
+  app.get("/api/packages", authenticate, async (req: AuthRequest, res) => {
     try {
-      console.log("GET /api/packages: Fetching all packages...");
+      console.log(`GET /api/packages: Fetching packages for workspace ${req.user!.workspaceId}...`);
       const allPackages = await withRetry(() => 
-        db.select().from(schema.packages).orderBy(desc(schema.packages.createdAt))
+        db.select().from(schema.packages)
+          .where(eq(schema.packages.workspaceId, req.user!.workspaceId!))
+          .orderBy(desc(schema.packages.createdAt))
       );
       
       let regCounts: any[] = [];
@@ -419,9 +450,10 @@ async function startServer() {
   });
 
   // Get Schedules
-  app.get("/api/schedules", async (req, res) => {
+  app.get("/api/schedules", authenticate, async (req: AuthRequest, res) => {
     try {
       const allSchedules = await withRetry(() => db.select().from(schema.schedules)
+        .where(eq(schema.schedules.workspaceId, req.user!.workspaceId!))
         .orderBy(asc(schema.schedules.departureDate)));
       res.json(allSchedules);
     } catch (error) {
@@ -529,12 +561,13 @@ async function startServer() {
       }
 
       const [newPayment] = await withRetry(() => db.insert(schema.payments).values({
+              workspaceId: req.user!.workspaceId!,
               registrationId,
               paymentType,
               amount,
               proofUrl,
               status: 'pending',
-            }).returning());
+            } as any).returning());
 
       res.status(201).json(newPayment);
       notifyUpdate();
@@ -563,10 +596,12 @@ async function startServer() {
         return res.json(updated);
       } else {
         const [newDoc] = await withRetry(() => db.insert(schema.documents).values({
+                  workspaceId: req.user!.workspaceId!,
                   registrationId,
                   docType,
                   fileUrl,
-                }).returning());
+                  status: 'pending'
+                } as any).returning());
         notifyUpdate();
         return res.status(201).json(newDoc);
       }
@@ -1058,7 +1093,14 @@ async function startServer() {
       if (existing) {
         await withRetry(() => db.update(schema.equipment).set({ koper, ihram, mukena, assignee, updatedAt: new Date() }).where(eq(schema.equipment.registrationId, registrationId)));
       } else {
-        await withRetry(() => db.insert(schema.equipment).values({ registrationId, koper, ihram, mukena, assignee }));
+        await withRetry(() => db.insert(schema.equipment).values({ 
+          workspaceId: req.user!.workspaceId!,
+          registrationId, 
+          koper, 
+          ihram, 
+          mukena, 
+          assignee 
+        }));
       }
       res.json({ success: true });
       notifyUpdate();
@@ -1082,6 +1124,7 @@ async function startServer() {
     const { title, content, message, type } = req.body;
     try {
       await withRetry(() => db.insert(schema.notifications).values({
+              workspaceId: req.user!.workspaceId!,
               title: title || 'Pengumuman Baru',
               message: content || message || '',
               type: type || 'info',
@@ -1143,6 +1186,7 @@ async function startServer() {
         }
 
         await withRetry(() => db.insert(schema.manifests).values({
+          workspaceId: req.user!.workspaceId!,
           registrationId,
           packageId: resolvedPackageId,
           busNumber: busNumber || '',
@@ -1227,6 +1271,7 @@ async function startServer() {
           await withRetry(() => db.update(schema.documents).set({ fileUrl: item.fileUrl, status: 'approved', updatedAt: new Date() }).where(eq(schema.documents.id, existing.id)));
         } else {
           await withRetry(() => db.insert(schema.documents).values({
+                      workspaceId: req.user!.workspaceId!,
                       registrationId,
                       docType: item.docType,
                       fileUrl: item.fileUrl,
@@ -1235,21 +1280,22 @@ async function startServer() {
         }
 
         // Send notification to jamaah if registration exists and fileUrl provided
-        if (reg && reg.userId && item.fileUrl) {
-          const baseDocType = item.docType.split('_pax_')[0];
-          const docNameMap: Record<string, string> = {
-            eticket: 'E-Ticket Keberangkatan',
-            visa: 'Visa',
-            asuransi: 'Asuransi Perjalanan'
-          };
-          const docLabel = docNameMap[baseDocType] || baseDocType;
-          await withRetry(() => db.insert(schema.notifications).values({
-                      userId: reg.userId,
-                      title: `Dokumen Ready: ${docLabel}`,
-                      message: `Dokumen ${docLabel} Anda telah diterbitkan oleh pihak Travel dan siap diunduh di Portal Jamaah.`,
-                      type: 'info'
-                    }).catch((err) => console.error("Notif insert error:", err)));
-        }
+      if (reg && reg.userId && item.fileUrl) {
+        const baseDocType = item.docType.split('_pax_')[0];
+        const docNameMap: Record<string, string> = {
+          eticket: 'E-Ticket Keberangkatan',
+          visa: 'Visa',
+          asuransi: 'Asuransi Perjalanan'
+        };
+        const docLabel = docNameMap[baseDocType] || baseDocType;
+        await withRetry(() => db.insert(schema.notifications).values({
+                    workspaceId: req.user!.workspaceId!,
+                    userId: reg.userId,
+                    title: `Dokumen Ready: ${docLabel}`,
+                    message: `Dokumen ${docLabel} Anda telah diterbitkan oleh pihak Travel dan siap diunduh di Portal Jamaah.`,
+                    type: 'info'
+                  }).catch((err) => console.error("Notif insert error:", err)));
+      }
       }
 
       res.json({ success: true });
@@ -1497,7 +1543,7 @@ async function startServer() {
       const now = new Date();
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      // 1. Jamaah Aktif (Total pax across all registrations from real jamaah users)
+      // 1. Jamaah Aktif
       const allActiveRegs = await withRetry(() => db.select({
         adultCount: schema.registrations.adultCount,
         childCount: schema.registrations.childCount,
@@ -1506,6 +1552,7 @@ async function startServer() {
       .from(schema.registrations)
       .innerJoin(schema.users, eq(schema.registrations.userId, schema.users.id))
       .where(and(
+        eq(schema.registrations.workspaceId, req.user!.workspaceId!),
         eq(schema.users.role, 'jamaah'),
         ne(schema.registrations.status, 'package_selected'),
         ne(schema.registrations.status, 'cancelled')
@@ -1513,47 +1560,57 @@ async function startServer() {
       
       const totalJamaah = allActiveRegs.reduce((acc, r) => 
         acc + (parseInt(r.adultCount) || 0) + (parseInt(r.childCount) || 0) + (parseInt(r.infantCount) || 0), 0);
-
-      // 2. Arus Kas (Bulan Ini) - Approved payments this month
+ 
+      // 2. Arus Kas (Bulan Ini)
       const cashFlow = await withRetry(() => db.select({
         total: sql<number>`sum(${schema.payments.amount})`
       })
       .from(schema.payments)
       .where(and(
+        eq(schema.payments.workspaceId, req.user!.workspaceId!),
         eq(schema.payments.status, 'approved'),
         gte(schema.payments.createdAt, firstDayOfMonth)
       )));
       const monthlyCashFlow = Number(cashFlow[0]?.total || 0);
-
-      // 3. Persiapan Dokumen (Approved docs / total uploaded docs)
-      const allDocs = await withRetry(() => db.select({ status: schema.documents.status }).from(schema.documents));
+ 
+      // 3. Persiapan Dokumen
+      const allDocs = await withRetry(() => db.select({ status: schema.documents.status })
+        .from(schema.documents)
+        .where(eq(schema.documents.workspaceId, req.user!.workspaceId!)));
       const totalDocs = allDocs.length;
       const approvedDocsCount = allDocs.filter(d => d.status === 'approved').length;
       
       const docProgress = totalDocs > 0 
         ? Math.round((approvedDocsCount / totalDocs) * 100) 
         : 0;
-
+ 
       // 4. Batch Terdekat
       let nextBatch = await withRetry(() => db.query.packages.findFirst({
-        where: gte(schema.packages.departureDate, now),
+        where: and(
+          eq(schema.packages.workspaceId, req.user!.workspaceId!),
+          gte(schema.packages.departureDate, now)
+        ),
         orderBy: (p, { asc }) => [asc(p.departureDate)]
       }));
-
-      // Fallback: If no future departure, pick the package with the most registrations
+ 
+      // Fallback
       if (!nextBatch) {
         const pkgCounts = await withRetry(() => db.select({
           packageId: schema.registrations.packageId,
           count: sql<number>`count(*)`
         })
         .from(schema.registrations)
+        .where(eq(schema.registrations.workspaceId, req.user!.workspaceId!))
         .groupBy(schema.registrations.packageId)
         .orderBy(sql`count(*) desc`)
         .limit(1));
         
         if (pkgCounts.length > 0) {
           nextBatch = await withRetry(() => db.query.packages.findFirst({
-            where: eq(schema.packages.id, pkgCounts[0].packageId)
+            where: and(
+              eq(schema.packages.workspaceId, req.user!.workspaceId!),
+              eq(schema.packages.id, pkgCounts[0].packageId)
+            )
           }));
         }
       }
@@ -1679,18 +1736,25 @@ async function startServer() {
       // 1. Pending Payments
       const pendingPayments = await withRetry(() => db.select({ count: sql<number>`count(*)` })
         .from(schema.payments)
-        .where(eq(schema.payments.status, 'pending')));
+        .where(and(
+          eq(schema.payments.workspaceId, req.user!.workspaceId!),
+          eq(schema.payments.status, 'pending')
+        )));
 
       // 2. Pending Documents
       const pendingDocs = await withRetry(() => db.select({ count: sql<number>`count(*)` })
         .from(schema.documents)
-        .where(eq(schema.documents.status, 'pending')));
+        .where(and(
+          eq(schema.documents.workspaceId, req.user!.workspaceId!),
+          eq(schema.documents.status, 'pending')
+        )));
 
       // 3. Unpaid registrations near departure
       const nearDepartureUnpaid = await withRetry(() => db.select({ count: sql<number>`count(*)` })
         .from(schema.registrations)
         .innerJoin(schema.packages, eq(schema.registrations.packageId, schema.packages.id))
         .where(and(
+          eq(schema.registrations.workspaceId, req.user!.workspaceId!),
           sql`${schema.registrations.status} != 'fully_paid'`,
           gte(schema.packages.departureDate, now),
           sql`${schema.packages.departureDate} <= ${hMinus15}`
@@ -1764,6 +1828,7 @@ async function startServer() {
       const normalizedIsAvailable = isAvailable !== false && isAvailable !== 'false' && isAvailable !== 0 && isAvailable !== '0';
 
       const data: any = {
+        workspaceId: req.user!.workspaceId!,
         name: (name || "Paket Baru").trim(),
         description: cleanDesc,
         price: cleanPrice,
@@ -1863,6 +1928,7 @@ async function startServer() {
     if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
     try {
       const allUsers = await withRetry(() => db.query.users.findMany({
+        where: eq(schema.users.workspaceId, req.user!.workspaceId!),
         with: { registrations: { with: { package: true } } }
       }));
       res.json(allUsers);
@@ -1876,6 +1942,7 @@ async function startServer() {
     if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
     try {
       const allRegs = await withRetry(() => db.query.registrations.findMany({
+        where: eq(schema.registrations.workspaceId, req.user!.workspaceId!),
         with: { user: true, package: true, payments: true, documents: true }
       }));
       res.json(allRegs);

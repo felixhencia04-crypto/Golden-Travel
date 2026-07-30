@@ -47,10 +47,13 @@ export default function DashboardJamaah() {
     fetchDirectPackages();
   }, [fetchDirectPackages]);
 
-  useSocket(() => {
+  const onDataUpdated = React.useCallback(() => {
+    console.log("DashboardJamaah: Received real-time update signal.");
     fetchDirectPackages();
     refreshData(true);
-  });
+  }, [fetchDirectPackages, refreshData]);
+
+  useSocket(onDataUpdated);
 
   const effectivePackages = (packages && packages.length > 0) ? packages : directPackages;
   const [searchParams, setSearchParams] = useSearchParams();
