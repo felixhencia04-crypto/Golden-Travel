@@ -48,7 +48,7 @@ export const users = pgTable('users', {
   phone: text('phone'),
   avatarUrl: text('avatar_url'),
   role: userRoleEnum('role').default('jamaah').notNull(),
-  status: userStatusEnum('status').default('active').notNull(),
+  status: text('status').default('active').notNull(),
   mitraId: uuid('mitra_id'), // The Mitra who referred this user
   referralCode: text('referral_code').unique(), // For users with role 'mitra'
   createdAt: timestamp('created_at').defaultNow().notNull(),

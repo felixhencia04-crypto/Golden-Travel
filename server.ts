@@ -401,24 +401,34 @@ async function startServer() {
           updateData.role = 'admin';
         }
 
-        const [updated] = await withRetry(() => db.update(schema.users)
-          .set(updateData)
-          .where(eq(schema.users.id, user!.id))
-          .returning());
-        user = updated;
+        try {
+          const [updated] = await withRetry(() => db.update(schema.users)
+            .set(updateData)
+            .where(eq(schema.users.id, user!.id))
+            .returning());
+          user = updated;
+        } catch (err: any) {
+          console.error("Gagal memperbarui profil pengguna saat sinkronisasi Google OAuth:", err);
+          throw new Error("Gagal memperbarui profil pengguna: " + (err.message || err));
+        }
       } else {
         // Create new user
         const role = (userEmail === 'felix.hencia04@gmail.com') ? 'admin' : (requestedRole === 'mitra' ? 'mitra' : 'jamaah');
-        const [newUser] = await withRetry(() => db.insert(schema.users).values({
-          uid: decodedToken.uid,
-          email: userEmail,
-          name: userName,
-          avatarUrl: userAvatar,
-          role: role as any,
-          workspaceId: defaultWorkspace.id,
-          status: 'active'
-        } as any).returning());
-        user = newUser;
+        try {
+          const [newUser] = await withRetry(() => db.insert(schema.users).values({
+            uid: decodedToken.uid,
+            email: userEmail,
+            name: userName,
+            avatarUrl: userAvatar,
+            role: role as any,
+            workspaceId: defaultWorkspace.id,
+            status: 'active'
+          } as any).returning());
+          user = newUser;
+        } catch (err: any) {
+          console.error("Gagal membuat pengguna baru saat sinkronisasi Google OAuth:", err);
+          throw new Error("Gagal mendaftarkan akun baru: " + (err.message || err));
+        }
       }
 
       const registration = await withRetry(() => db.query.registrations.findFirst({
