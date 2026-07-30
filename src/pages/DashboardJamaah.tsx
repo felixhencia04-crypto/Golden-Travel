@@ -68,16 +68,17 @@ export default function DashboardJamaah() {
   });
   
   const userConsultation = registration;
-  const paymentsList = (userConsultation as any)?.payments || [];
-  const approvedDp1 = paymentsList.some((p: any) => p.paymentType === 'dp1' && p.status === 'approved');
-  const approvedDp2 = paymentsList.some((p: any) => p.paymentType === 'dp2' && p.status === 'approved');
-  const approvedFull = paymentsList.some((p: any) => p.paymentType === 'full' && p.status === 'approved');
-  let computedPaymentStep = 'none';
-  if (approvedFull) computedPaymentStep = 'lunas';
-  else if (approvedDp2) computedPaymentStep = 'dp2';
-  else if (approvedDp1) computedPaymentStep = 'dp1';
-  const pendingPaymentStep = ((userConsultation as any)?.payments || []).find((p: any) => p.status === 'pending')?.paymentType;
   const paxCount = parseInt(registration?.adultCount || '0') + parseInt(registration?.childCount || '0') + parseInt(registration?.infantCount || '0') || 1;
+  const paymentsList = (userConsultation as any)?.payments || [];
+  const packagePriceTotal = Number(registration?.package?.price || 0) * paxCount;
+  const approvedTotal = paymentsList.filter((p: any) => p.status === 'approved').reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+  const paymentPercent = packagePriceTotal > 0 ? approvedTotal / packagePriceTotal : 0;
+
+  let computedPaymentStep = 'none';
+  if (paymentPercent >= 1.0) computedPaymentStep = 'lunas';
+  else if (paymentPercent >= 0.6) computedPaymentStep = 'dp2';
+  else if (paymentPercent > 0) computedPaymentStep = 'dp1';
+  const pendingPaymentStep = ((userConsultation as any)?.payments || []).find((p: any) => p.status === 'pending')?.paymentType;
   
   
   const [helpTickets, setHelpTickets] = useState<any[]>([]);
@@ -837,32 +838,28 @@ export default function DashboardJamaah() {
     return false;
   };
 
-  const currentRegStatus = registration?.status || 'none';
+  const lifecycleStatus = dbUser?.status || 'DRAFT';
 
   const isTabDisabled = (tabId: string) => {
+    // Always active
     if (tabId === 'dashboard' || tabId === 'akun' || tabId === 'bantuan') return false;
     
-    if (!registration) {
-      return tabId !== 'pilih_paket' && tabId !== 'katalog_paket' && tabId !== 'informasi_jadwal';
-    }
-
     switch (tabId) {
       case 'pilih_paket':
       case 'katalog_paket':
       case 'informasi_jadwal':
-        return currentRegStatus !== 'package_selected'; // Locked after choosing unless reset
+        return lifecycleStatus !== 'DRAFT';
       case 'biodata':
-        return false; // Always allow editing bio if registered
+        return !['ISI_BIODATA', 'UPLOAD_DOKUMEN', 'VERIFIKASI_DOKUMEN', 'CICIL_BAYAR', 'VERIFIKASI_BAYAR', 'LUNAS', 'SIAP_BERANGKAT', 'BERANGKAT', 'SELESAI'].includes(lifecycleStatus);
       case 'dokumen':
-        return currentRegStatus === 'package_selected' && !registration.paxData?.[0]?.isSubmitted;
+        return !['UPLOAD_DOKUMEN', 'VERIFIKASI_DOKUMEN'].includes(lifecycleStatus);
       case 'pembayaran':
-        // Allow payment after bio is submitted and documents are at least uploaded or in verification
-        return !['bio_filled', 'documents_uploaded', 'dp1_paid', 'dp2_paid', 'fully_paid', 'visa_ticket_ready'].includes(currentRegStatus);
+        return !['CICIL_BAYAR', 'VERIFIKASI_BAYAR', 'LUNAS', 'SIAP_BERANGKAT', 'BERANGKAT', 'SELESAI'].includes(lifecycleStatus);
       case 'persiapan_keberangkatan':
       case 'dokumen_keberangkatan':
+        return !['SIAP_BERANGKAT', 'BERANGKAT'].includes(lifecycleStatus);
       case 'kenangan':
-        // Operational/Departure tabs only for paid users
-        return !['fully_paid', 'visa_ticket_ready'].includes(currentRegStatus);
+        return lifecycleStatus !== 'SELESAI';
       default:
         return false;
     }
@@ -3390,7 +3387,7 @@ export default function DashboardJamaah() {
                     <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl text-center min-w-[140px]">
                       <p className="text-sm text-matcha-100/70 font-medium mb-1 uppercase tracking-wider">Status Akun</p>
                       <p className="text-xl font-bold text-gold-400 uppercase tracking-tighter">
-                        {currentRegStatus.replace('_', ' ')}
+                        {currentStatus.replace('_', ' ')}
                       </p>
                     </div>
                   </div>
@@ -3414,7 +3411,7 @@ export default function DashboardJamaah() {
                     </div>
                     
                     <RegistrationStepper 
-                      currentStatus={currentRegStatus as RegistrationStatus}
+                      currentStatus={currentStatus as RegistrationStatus}
                       pendingPaymentStep={pendingPaymentStep}
                       computedPaymentStep={computedPaymentStep}
                       isDocumentPending={registration?.documents?.some((d: any) => d.status === 'pending')}

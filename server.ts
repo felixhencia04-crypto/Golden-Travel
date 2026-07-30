@@ -18,6 +18,7 @@ import * as schema from './src/db/schema.ts';
 import http from "http";
 import { Server as SocketServer } from "socket.io";
 import { ZipArchive } from 'archiver';
+import multer from 'multer';
 
 // Initialize Firebase Admin
 if (!getApps().length) {
@@ -31,9 +32,54 @@ export const adminAuth = getAuth();
 // Extend Request type to include user
 interface AuthRequest extends Request {
   user?: typeof schema.users.$inferSelect;
+  file?: any;
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || 'golden-travel-super-secret-key-2026';
+
+// --- Registration Status Management ---
+export const REGISTRATION_STATUS_ORDER = [
+  'DRAFT', 'PILIH_PAKET', 'ISI_BIODATA', 'UPLOAD_DOKUMEN', 'VERIFIKASI_DOKUMEN', 
+  'CICIL_BAYAR', 'VERIFIKASI_BAYAR', 'LUNAS', 'SIAP_BERANGKAT', 'BERANGKAT', 'SELESAI'
+];
+
+export function canTransitionTo(currentStatus: string, newStatus: string): boolean {
+  const currentIndex = REGISTRATION_STATUS_ORDER.indexOf(currentStatus);
+  const newIndex = REGISTRATION_STATUS_ORDER.indexOf(newStatus);
+  
+  if (currentIndex === -1 || newIndex === -1) return false;
+  
+  // Allow forward progression or staying in the same status
+  // For Admin, we might allow any transition, but strictly per request: "validasi transisi"
+  return newIndex >= currentIndex;
+}
+
+const requireStatus = (...allowedStatuses: string[]) => {
+  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      const regId = req.params.id;
+      if (!regId) return res.status(400).json({ error: "ID Registrasi diperlukan" });
+      
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, regId)
+      }));
+      
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+      
+      if (!allowedStatuses.includes(reg.status)) {
+        return res.status(403).json({ 
+          error: `Aksi ini memerlukan status: ${allowedStatuses.join(', ')}. Status saat ini: ${reg.status}`,
+          currentStatus: reg.status,
+          requiredStatuses: allowedStatuses
+        });
+      }
+      
+      next();
+    } catch (error) {
+      res.status(500).json({ error: "Gagal memvalidasi status registrasi" });
+    }
+  };
+};
 
 // Admin and User Cache to speed up middleware authentication and reduce DB/Firebase network overhead
 const adminUserCache = new Map<string, { user: any; timestamp: number }>();
@@ -75,6 +121,8 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
         where: eq(schema.users.id, targetId)
       }));
       
+      const defaultWorkspace = await db.query.workspaces.findFirst();
+
       if (!adminUser && targetId === ADMIN_ID) {
         // Create the default super admin if it doesn't exist
         const [newAdmin] = await withRetry(() => db.insert(schema.users).values({
@@ -83,8 +131,18 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
           email: 'admin@goldentravel.local',
           name: 'Administrator',
           role: 'admin',
+          workspaceId: (defaultWorkspace?.id as any),
+          status: 'Selesai' as any
         }).returning());
         adminUser = newAdmin;
+      }
+      
+      if (adminUser && !adminUser.workspaceId && defaultWorkspace) {
+        const [updatedAdmin] = await withRetry(() => db.update(schema.users)
+          .set({ workspaceId: (defaultWorkspace.id as any) })
+          .where(eq(schema.users.id, (adminUser!.id as any)))
+          .returning());
+        adminUser = updatedAdmin;
       }
       
       if (!adminUser) {
@@ -178,6 +236,38 @@ async function startServer() {
   app.use(cors());
   app.use(express.json({ limit: '500mb' }));
   app.use(express.urlencoded({ extended: true, limit: '500mb' }));
+
+  // Multer setup
+  const uploadDir = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+
+  const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+
+  const upload = multer({ storage: storage });
+  app.set("upload", upload); // Store in app for use in routes
+
+  app.use('/uploads', express.static(uploadDir));
+
+  // POST /api/upload -> Universal file upload
+  app.post("/api/upload", authenticate, (req: AuthRequest, res, next) => {
+    const uploadMiddleware = req.app.get('upload');
+    uploadMiddleware.single('file')(req, res, (err: any) => {
+      if (err) return res.status(500).json({ error: "Gagal upload file" });
+      if (!req.file) return res.status(400).json({ error: "File tidak ditemukan" });
+      const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+      res.json({ url: fileUrl, filename: req.file.filename });
+    });
+  });
 
   // Run lightweight schema auto-migrations in background (non-blocking for fast HTTP listen)
   (async () => {
@@ -293,11 +383,12 @@ async function startServer() {
         }
       }
 
+      const userEmail = decodedToken.email || `${decodedToken.uid}@goldentravel.local`;
+      const userName = requestedName || decodedToken.name || userEmail.split('@')[0];
+
       if (!user) {
         // Create user
         const role = (decodedToken.email === 'felix.hencia04@gmail.com') ? 'admin' : (requestedRole === 'mitra' ? 'mitra' : 'jamaah');
-        const userEmail = decodedToken.email || `${decodedToken.uid}@goldentravel.local`;
-        const userName = requestedName || decodedToken.name || userEmail.split('@')[0];
 
         const defaultWorkspace = await db.query.workspaces.findFirst();
 
@@ -310,12 +401,14 @@ async function startServer() {
             name: userName,
             role: role as any,
             workspaceId: defaultWorkspace?.id,
+            status: 'DRAFT'
           };
           
           const [newUser] = await withRetry(() => db.insert(schema.users).values(insertData).returning());
           
           user = newUser;
           console.log('New user created successfully:', user?.id);
+          notifyUpdate();
         } catch (insertErr: any) {
           console.error('Database insert error in /sync:', insertErr);
           
@@ -329,48 +422,1460 @@ async function startServer() {
               user = updatedUser;
             } catch (updErr: any) {
               const pool = createPool();
+              const defaultWs = await db.query.workspaces.findFirst();
               const rawUpd = await pool.query(
-                'UPDATE users SET uid = $1 WHERE email = $2 RETURNING *',
-                [decodedToken.uid, userEmail]
+                'UPDATE users SET uid = $1, workspace_id = COALESCE(workspace_id, $2) WHERE email = $3 RETURNING *',
+                [decodedToken.uid, defaultWs?.id, userEmail]
               );
               user = rawUpd.rows[0];
             }
           } else {
             try {
               const pool = createPool();
+              const defaultWs = await db.query.workspaces.findFirst();
               const rawIns = await pool.query(
-                'INSERT INTO users (uid, email, name, role) VALUES ($1, $2, $3, $4) RETURNING *',
-                [decodedToken.uid, userEmail, userName, role]
+                'INSERT INTO users (uid, email, name, role, workspace_id, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+                [decodedToken.uid, userEmail, userName, role, defaultWs?.id, 'DRAFT']
               );
               user = rawIns.rows[0];
+              notifyUpdate();
             } catch (rawInsErr: any) {
               throw new Error(`Gagal membuat user: ${insertErr.cause?.message || insertErr.message}`);
             }
           }
         }
-      } else if (decodedToken.email === 'felix.hencia04@gmail.com' && user.role !== 'admin') {
-        // Upgrade to admin if email matches
-        try {
-          const defaultWorkspace = await db.query.workspaces.findFirst();
+      }
+
+      if (user) {
+        const defaultWorkspace = await db.query.workspaces.findFirst();
+        
+        // Update info if needed
+        if (user.name !== userName || user.avatarUrl !== decodedToken.picture || (!user.workspaceId && defaultWorkspace)) {
           const updateData: any = { 
-            role: 'admin',
-            workspaceId: user.workspaceId || defaultWorkspace?.id
+            name: userName, 
+            avatarUrl: decodedToken.picture, 
+            updatedAt: new Date() 
           };
+          if (!user.workspaceId && defaultWorkspace) {
+            updateData.workspaceId = defaultWorkspace.id;
+          }
+          
           const [updatedUser] = await withRetry(() => db.update(schema.users)
             .set(updateData)
             .where(eq(schema.users.id, user.id))
             .returning());
           user = updatedUser;
-        } catch (updateErr: any) {
-          console.error('Admin promotion failed:', updateErr);
+        }
+
+        // Upgrade to admin if email matches
+        if (decodedToken.email === 'felix.hencia04@gmail.com' && user.role !== 'admin') {
+          try {
+            const updateData: any = { 
+              role: 'admin',
+              workspaceId: user.workspaceId || defaultWorkspace?.id
+            };
+            const [updatedUser] = await withRetry(() => db.update(schema.users)
+              .set(updateData)
+              .where(eq(schema.users.id, user.id))
+              .returning());
+            user = updatedUser;
+          } catch (e) {}
+        }
+      }
+
+      const registration = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.userId, user.id),
+        with: {
+          package: true,
+          schedule: true,
+          payments: true,
+          documents: true
+        }
+      }));
+
+      notifyUpdate();
+      res.json({
+        user,
+        registration
+      });
+    } catch (error: any) {
+      console.error("Sync error details:", error);
+      res.status(401).json({ error: `Gagal sinkronisasi: ${error.message || 'Token tidak valid'}` });
+    }
+  });
+
+  app.get("/api/auth/me", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const user = req.user;
+      const registration = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.userId, user!.id),
+        with: {
+          package: true,
+          schedule: true,
+          payments: true,
+          documents: true
+        }
+      }));
+      res.json({ user, registration });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch profile" });
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    res.json({ success: true });
+  });
+
+  // --- Transaksi & Keuangan Endpoints ---
+
+  // GET /api/registrasi/:id/invoice -> Jamaah: Detail tagihan
+  app.get("/api/registrasi/:id/invoice", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id),
+        with: {
+          package: true,
+          payments: true
+        }
+      }));
+
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+      if (req.user!.role !== 'admin' && reg.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const totalHarga = Number(reg.totalAmount || reg.package?.price || 0);
+      const payments = reg.payments || [];
+      const totalBayar = payments
+        .filter(p => p.status === 'VERIFIED')
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+      
+      const sisaTagihan = totalHarga - totalBayar;
+      
+      // Determine next stage
+      const hasDP1 = payments.some(p => p.paymentType === 'DP1' && p.status === 'VERIFIED');
+      const hasDP2 = payments.some(p => p.paymentType === 'DP2' && p.status === 'VERIFIED');
+      
+      let tahapBerikutnya = 'DP1';
+      let nominalBerikutnya = 1500000;
+
+      if (hasDP1) {
+        tahapBerikutnya = 'DP2';
+        nominalBerikutnya = 10000000;
+      }
+      if (hasDP2) {
+        tahapBerikutnya = 'PELUNASAN';
+        nominalBerikutnya = sisaTagihan;
+      }
+      if (sisaTagihan <= 0) {
+        tahapBerikutnya = 'LUNAS';
+        nominalBerikutnya = 0;
+      }
+
+      res.json({
+        totalHarga,
+        totalBayar,
+        sisaTagihan,
+        tahapBerikutnya,
+        nominalBerikutnya,
+        riwayatTransaksi: payments.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil data invoice" });
+    }
+  });
+
+  // POST /api/registrasi/:id/transaksis -> Jamaah: upload bukti bayar
+  app.post("/api/registrasi/:id/transaksis", authenticate, async (req: AuthRequest, res) => {
+    const { paymentType, amount, proofUrl } = req.body;
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id)
+      }));
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+      
+      // Check if user has permission
+      if (req.user!.role !== 'admin' && reg.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const [newPayment] = await withRetry(() => db.insert(schema.payments).values({
+        workspaceId: reg.workspaceId,
+        registrationId: req.params.id,
+        paymentType: paymentType as any,
+        amount: amount.toString(),
+        proofUrl: proofUrl || '',
+        status: 'PENDING'
+      }).returning());
+
+      // Update user/registration status to VERIFIKASI_BAYAR
+      await db.update(schema.users).set({ status: 'VERIFIKASI_BAYAR' }).where(eq(schema.users.id, reg.userId));
+      await db.update(schema.registrations).set({ status: 'VERIFIKASI_BAYAR' }).where(eq(schema.registrations.id, reg.id));
+
+      notifyUpdate();
+      res.status(201).json(newPayment);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengunggah bukti bayar" });
+    }
+  });
+
+  // GET /api/registrasi/:id/transaksis -> Lihat riwayat bayar
+  app.get("/api/registrasi/:id/transaksis", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id)
+      }));
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+      if (req.user!.role !== 'admin' && reg.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const payments = await withRetry(() => db.query.payments.findMany({
+        where: eq(schema.payments.registrationId, req.params.id),
+        orderBy: [desc(schema.payments.createdAt)]
+      }));
+      res.json(payments);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil riwayat pembayaran" });
+    }
+  });
+
+  // PUT /api/transaksis/:id/verifikasi -> Admin: konfirmasi/tolak
+  app.put("/api/transaksis/:id/verifikasi", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { status, alasan } = req.body; // status: 'VERIFIED' | 'REJECTED'
+    try {
+      const [updatedPayment] = await withRetry(() => db.update(schema.payments)
+        .set({ 
+          status: status as any,
+          adminNotes: alasan || null,
+          verifiedAt: new Date(),
+          verifiedBy: req.user!.id
+        })
+        .where(eq(schema.payments.id, req.params.id))
+        .returning());
+
+      if (!updatedPayment) return res.status(404).json({ error: "Transaksi tidak ditemukan" });
+
+      const regWithDetails = await db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, updatedPayment.registrationId),
+        with: {
+          package: true,
+          payments: true
+        }
+      });
+
+      if (regWithDetails && regWithDetails.package) {
+        if (status === 'VERIFIED') {
+          const totalHarga = Number(regWithDetails.totalAmount || regWithDetails.package.price);
+          const totalBayar = regWithDetails.payments
+            .filter(t => t.status === 'VERIFIED')
+            .reduce((sum, t) => sum + Number(t.amount), 0);
+          
+          const persen = totalBayar / totalHarga;
+          
+          let targetStatus: any = 'CICIL_BAYAR';
+
+          if (persen >= 0.999) { // Using small epsilon for float comparison if necessary, but decimal should be fine
+            targetStatus = 'LUNAS';
+          }
+
+          await withRetry(() => db.update(schema.users)
+            .set({ status: targetStatus })
+            .where(eq(schema.users.id, regWithDetails.userId)));
+          
+          await withRetry(() => db.update(schema.registrations)
+            .set({ status: targetStatus, updatedAt: new Date() })
+            .where(eq(schema.registrations.id, regWithDetails.id)));
+
+        } else if (status === 'REJECTED') {
+          // If rejected, keep as CICIL_BAYAR
+          await withRetry(() => db.update(schema.users)
+            .set({ status: 'CICIL_BAYAR' })
+            .where(eq(schema.users.id, regWithDetails.userId)));
+          await withRetry(() => db.update(schema.registrations)
+            .set({ status: 'CICIL_BAYAR', updatedAt: new Date() })
+            .where(eq(schema.registrations.id, regWithDetails.id)));
         }
       }
 
       notifyUpdate();
-      res.json(user);
+      res.json(updatedPayment);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal memverifikasi transaksi" });
+    }
+  });
+
+  // GET /api/admin/transaksis/pending -> Admin: antrean setoran
+  app.get("/api/admin/transaksis/pending", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const pendingPayments = await withRetry(() => db.query.payments.findMany({
+        where: eq(schema.payments.status, 'PENDING'),
+        with: {
+          registration: {
+            with: {
+              user: true,
+              package: true
+            }
+          }
+        }
+      }));
+      res.json(pendingPayments);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil antrean setoran" });
+    }
+  });
+
+  // GET /api/admin/laporan/keuangan -> Laporan keuangan
+  app.get("/api/admin/laporan/keuangan", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const allPayments = await db.query.payments.findMany({
+        where: eq(schema.payments.status, 'VERIFIED'),
+        with: {
+          registration: {
+            with: {
+              package: true
+            }
+          }
+        }
+      });
+
+      const totalOmset = allPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+      // Monthly breakdown
+      const perBulan: Record<string, number> = {};
+      allPayments.forEach(p => {
+        const month = p.createdAt.toISOString().substring(0, 7); // YYYY-MM
+        perBulan[month] = (perBulan[month] || 0) + Number(p.amount);
+      });
+
+      // Package breakdown
+      const perPaket: Record<string, number> = {};
+      allPayments.forEach(p => {
+        const packageName = p.registration?.package?.name || 'Unknown';
+        perPaket[packageName] = (perPaket[packageName] || 0) + Number(p.amount);
+      });
+
+      // Stage breakdown
+      const perTahap: Record<string, number> = {};
+      allPayments.forEach(p => {
+        const stage = p.paymentType || 'Unknown';
+        perTahap[stage] = (perTahap[stage] || 0) + Number(p.amount);
+      });
+
+      res.json({
+        totalOmset,
+        perBulan: Object.entries(perBulan).map(([label, value]) => ({ label, value })),
+        perPaket: Object.entries(perPaket).map(([label, value]) => ({ label, value })),
+        perTahap: Object.entries(perTahap).map(([label, value]) => ({ label, value }))
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil laporan keuangan" });
+    }
+  });
+
+  // GET /api/admin/dashboard/statistik
+  app.get("/api/admin/dashboard/statistik", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const workspaceId = req.user!.workspaceId!;
+      
+      const allUsers = await db.query.users.findMany({
+        where: eq(schema.users.workspaceId, workspaceId)
+      });
+      
+      const allRegs = await db.query.registrations.findMany({
+        where: eq(schema.registrations.workspaceId, workspaceId)
+      });
+      
+      const pendingDocsCount = await db.query.documents.findMany({
+        where: and(
+          eq(schema.documents.workspaceId, workspaceId),
+          eq(schema.documents.status, 'PENDING')
+        )
+      });
+      
+      const pendingPaymentsCount = await db.query.payments.findMany({
+        where: and(
+          eq(schema.payments.workspaceId, workspaceId),
+          eq(schema.payments.status, 'PENDING')
+        )
+      });
+      
+      const approvedPayments = await db.query.payments.findMany({
+        where: and(
+          eq(schema.payments.workspaceId, workspaceId),
+          eq(schema.payments.status, 'VERIFIED')
+        )
+      });
+
+      const now = new Date();
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const pendapatanBulanIni = approvedPayments
+        .filter(p => p.createdAt >= firstDayOfMonth)
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+
+      const statusCounts = allUsers.reduce((acc: any, u) => {
+        const status = u.status || 'DRAFT';
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {});
+
+      const registrationChart = allRegs.reduce((acc: any, r) => {
+        const month = r.createdAt.toISOString().substring(0, 7);
+        const existing = acc.find((i: any) => i.bulan === month);
+        if (existing) {
+          existing.jumlah += 1;
+        } else {
+          acc.push({ bulan: month, jumlah: 1 });
+        }
+        return acc;
+      }, []).sort((a: any, b: any) => a.bulan.localeCompare(b.bulan));
+
+      res.json({
+        total_jamaah: allUsers.length,
+        total_lunas: statusCounts['LUNAS'] || 0,
+        total_pending_dokumen: pendingDocsCount.length,
+        total_pending_setoran: pendingPaymentsCount.length,
+        pendapatan_bulan_ini: pendapatanBulanIni,
+        jamaah_by_status: statusCounts,
+        grafik_pendaftaran: registrationChart
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Gagal memuat statistik dashboard" });
+    }
+  });
+
+  // GET /api/admin/laporan/keuangan -> Admin: laporan omset
+  app.get("/api/admin/laporan/keuangan", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const approvedPayments = await withRetry(() => db.query.payments.findMany({
+        where: and(
+          eq(schema.payments.status, 'VERIFIED'),
+          eq(schema.payments.workspaceId, req.user!.workspaceId!)
+        )
+      }));
+
+      const totalOmset = approvedPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      
+      // Group by month
+      const omsetByMonth = approvedPayments.reduce((acc: any, p) => {
+        const month = p.createdAt.toISOString().substring(0, 7); // YYYY-MM
+        acc[month] = (acc[month] || 0) + Number(p.amount);
+        return acc;
+      }, {});
+
+      res.json({
+        totalOmset,
+        omsetByMonth,
+        count: approvedPayments.length
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Gagal membuat laporan keuangan" });
+    }
+  });
+
+  // --- Operasional Endpoints ---
+
+  // GET /api/jadwals/:id/manifes -> Generate/lihat manifes
+  app.get("/api/jadwals/:id/manifes", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const regs = await withRetry(() => db.query.registrations.findMany({
+        where: eq(schema.registrations.scheduleId, req.params.id),
+        with: { user: true }
+      }));
+      
+      const manifest = regs.map((reg, index) => ({
+        id: reg.id,
+        no: index + 1,
+        nama: reg.user.name,
+        email: reg.user.email,
+        paxData: reg.paxData || []
+      }));
+
+      res.json(manifest);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil manifes" });
+    }
+  });
+
+  // POST /api/jadwals/:id/broadcast -> Admin: kirim pengumuman
+  app.post("/api/jadwals/:id/broadcast", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { title, message, type } = req.body;
+    try {
+      const regs = await withRetry(() => db.query.registrations.findMany({
+        where: eq(schema.registrations.scheduleId, req.params.id)
+      }));
+
+      const notifications = regs.map(reg => ({
+        workspaceId: req.user!.workspaceId!,
+        userId: reg.userId,
+        title: title || "Pengumuman Jadwal",
+        message: message || "",
+        type: type || 'info',
+        isRead: 'false'
+      }));
+
+      if (notifications.length > 0) {
+        await withRetry(() => db.insert(schema.notifications).values(notifications));
+      }
+
+      notifyUpdate();
+      res.json({ success: true, count: notifications.length });
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengirim broadcast" });
+    }
+  });
+
+  // GET /api/registrasi/:id/perlengkapan -> Status distribusi atribut
+  app.get("/api/registrasi/:id/perlengkapan", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id)
+      }));
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+      if (req.user!.role !== 'admin' && reg.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      let equipmentStatus = await withRetry(() => db.query.equipment.findFirst({
+        where: eq(schema.equipment.registrationId, req.params.id)
+      }));
+
+      if (!equipmentStatus) {
+        // Initialize if not exists
+        [equipmentStatus] = await withRetry(() => db.insert(schema.equipment).values({
+          workspaceId: reg.workspaceId,
+          registrationId: req.params.id,
+          koper: false,
+          ihram: false,
+          mukena: false
+        }).returning());
+      }
+
+      res.json(equipmentStatus);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil status perlengkapan" });
+    }
+  });
+
+  // PUT /api/perlengkapan/:id/distribusi -> Admin: tandai sudah diterima
+  app.put("/api/perlengkapan/:id/distribusi", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { koper, ihram, mukena, assignee } = req.body;
+    try {
+      const [updated] = await withRetry(() => db.update(schema.equipment)
+        .set({ 
+          koper: koper ?? undefined,
+          ihram: ihram ?? undefined,
+          mukena: mukena ?? undefined,
+          assignee: assignee ?? undefined,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.equipment.id, req.params.id))
+        .returning());
+      
+      if (!updated) return res.status(404).json({ error: "Data perlengkapan tidak ditemukan" });
+
+      notifyUpdate();
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal update distribusi perlengkapan" });
+    }
+  });
+
+  // --- Sertifikat & Galeri Endpoints ---
+
+  // POST /api/registrasi/:id/sertifikat -> Admin: upload sertifikat
+  app.post("/api/registrasi/:id/sertifikat", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { recipientName, certificateUrl } = req.body;
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id),
+        with: { user: true }
+      }));
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+
+      const [newCert] = await withRetry(() => db.insert(schema.certificates).values({
+        workspaceId: reg.workspaceId,
+        registrationId: req.params.id,
+        recipientName: recipientName || reg.user.name || 'Jamaah',
+        certificateUrl: certificateUrl || ''
+      }).returning());
+
+      // Notify user
+      await withRetry(() => db.insert(schema.notifications).values({
+        workspaceId: reg.workspaceId,
+        userId: reg.userId,
+        title: "Sertifikat Digital Tersedia",
+        message: "Sertifikat kenangan Anda telah diterbitkan. Silakan unduh di dashboard.",
+        type: 'success',
+        isRead: 'false'
+      }));
+
+      notifyUpdate();
+      res.status(201).json(newCert);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengunggah sertifikat" });
+    }
+  });
+
+  // --- CRM & Admin Registration Management ---
+
+  // GET /api/admin/registrasis -> Admin: CRM list with filters & pagination
+  app.get("/api/admin/registrasis", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    
+    try {
+      const { 
+        page = '1', 
+        limit = '10', 
+        status, // array of statuses
+        packageId,
+        scheduleId,
+        search 
+      } = req.query;
+
+      const pageNum = Number(page);
+      const limitNum = Number(limit);
+      const offset = (pageNum - 1) * limitNum;
+      
+      const filters = [eq(schema.registrations.workspaceId, req.user!.workspaceId!)];
+      
+      if (status) {
+        const statusArray = Array.isArray(status) ? status : [status];
+        filters.push(inArray(schema.registrations.status, statusArray as any));
+      }
+      
+      if (packageId) {
+        filters.push(eq(schema.registrations.packageId, packageId as string));
+      }
+      
+      if (scheduleId) {
+        filters.push(eq(schema.registrations.scheduleId, scheduleId as string));
+      }
+
+      let baseQuery = db.select({
+        registration: schema.registrations,
+        user: schema.users,
+        package: schema.packages,
+        schedule: schema.schedules,
+      })
+      .from(schema.registrations)
+      .innerJoin(schema.users, eq(schema.registrations.userId, schema.users.id))
+      .innerJoin(schema.packages, eq(schema.registrations.packageId, schema.packages.id))
+      .leftJoin(schema.schedules, eq(schema.registrations.scheduleId, schema.schedules.id))
+      .where(and(...filters));
+
+      if (search) {
+        const searchStr = `%${search}%`;
+        baseQuery = baseQuery.where(
+          or(
+            sql`${schema.users.name} ILIKE ${searchStr}`,
+            sql`${schema.users.phone} ILIKE ${searchStr}`
+          )
+        );
+      }
+
+      // Clone query for count
+      const totalRes = await db.select({ count: sql<number>`count(*)` }).from(baseQuery.as('subquery'));
+      const total = Number(totalRes[0].count);
+
+      const data = await baseQuery
+        .limit(limitNum)
+        .offset(offset)
+        .orderBy(desc(schema.registrations.createdAt));
+
+      const registrationsWithMeta = await Promise.all(data.map(async (row) => {
+        const payments = await db.query.payments.findMany({
+          where: and(
+            eq(schema.payments.registrationId, row.registration.id),
+            eq(schema.payments.status, 'VERIFIED')
+          )
+        });
+        
+        const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+        const totalAmount = Number(row.registration.totalAmount || row.package.price);
+        const paymentProgress = totalAmount > 0 ? Math.min(100, Math.round((totalPaid / totalAmount) * 100)) : 0;
+
+        const docs = await db.query.documents.findMany({
+          where: eq(schema.documents.registrationId, row.registration.id)
+        });
+        const requiredDocs = ['KTP', 'Paspor'];
+        const verifiedDocsCount = docs.filter(d => requiredDocs.includes(d.docType) && d.status === 'VERIFIED').length;
+        const hasRequiredDocs = verifiedDocsCount >= requiredDocs.length;
+
+        return {
+          ...row.registration,
+          user: row.user,
+          package: row.package,
+          schedule: row.schedule,
+          paymentProgress,
+          hasRequiredDocs
+        };
+      }));
+
+      res.json({
+        data: registrationsWithMeta,
+        pagination: {
+          total,
+          page: pageNum,
+          limit: limitNum,
+          pages: Math.ceil(total / limitNum)
+        }
+      });
+    } catch (error) {
+      console.error('CRM fetch error:', error);
+      res.status(500).json({ error: "Gagal mengambil data CRM" });
+    }
+  });
+
+  // PUT /api/registrasi/:id/status -> Admin: update status manual
+  app.put("/api/registrasi/:id/status", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { status, notes } = req.body;
+    
+    try {
+      const [updated] = await db.update(schema.registrations)
+        .set({ status: status as any, updatedAt: new Date() })
+        .where(eq(schema.registrations.id, req.params.id))
+        .returning();
+      
+      if (!updated) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+
+      // Sync user status
+      await db.update(schema.users)
+        .set({ status: status as any })
+        .where(eq(schema.users.id, updated.userId));
+
+      // Record activity
+      await db.insert(schema.activities).values({
+        workspaceId: updated.workspaceId,
+        registrationId: updated.id,
+        userId: req.user!.id,
+        action: 'UPDATE_STATUS',
+        details: `Status diubah menjadi ${status}. Catatan: ${notes || '-'}`
+      });
+
+      notifyUpdate();
+      res.json(updated);
+    } catch (error) {
+      console.error('Status update error:', error);
+      res.status(500).json({ error: "Gagal update status" });
+    }
+  });
+
+  // GET /api/registrasi/:id/activity -> Admin: Lihat riwayat aktivitas
+  app.get("/api/registrasi/:id/activity", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const history = await db.query.activities.findMany({
+        where: eq(schema.activities.registrationId, req.params.id),
+        orderBy: [desc(schema.activities.createdAt)],
+        with: {
+          user: true
+        }
+      });
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil riwayat aktivitas" });
+    }
+  });
+
+  // GET /api/admin/registrasis/export -> Export to Excel
+  app.get("/api/admin/registrasis/export", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    
+    try {
+      const allData = await db.select({
+        registration: schema.registrations,
+        user: schema.users,
+        package: schema.packages,
+        schedule: schema.schedules,
+      })
+      .from(schema.registrations)
+      .innerJoin(schema.users, eq(schema.registrations.userId, schema.users.id))
+      .innerJoin(schema.packages, eq(schema.registrations.packageId, schema.packages.id))
+      .leftJoin(schema.schedules, eq(schema.registrations.scheduleId, schema.schedules.id))
+      .where(eq(schema.registrations.workspaceId, req.user!.workspaceId!));
+
+      // Simple JSON to Excel using 'xlsx'
+      const XLSX = await import('xlsx');
+      const worksheet = XLSX.utils.json_to_sheet(allData.map(row => ({
+        ID: row.registration.id,
+        Nama: row.user.name,
+        Email: row.user.email,
+        Phone: row.user.phone,
+        Paket: row.package.name,
+        Jadwal: row.schedule?.departureDate ? new Date(row.schedule.departureDate).toLocaleDateString() : '-',
+        Status: row.registration.status,
+        TotalAmount: row.registration.totalAmount,
+        CreatedAt: row.registration.createdAt
+      })));
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Jamaah");
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=jamaah_export.xlsx');
+      res.send(buffer);
+    } catch (error) {
+      console.error('Export error:', error);
+      res.status(500).json({ error: "Gagal ekspor data" });
+    }
+  });
+
+  // GET /api/registrasi/:id/sertifikat -> Jamaah: unduh sertifikat
+  app.get("/api/registrasi/:id/sertifikat", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id)
+      }));
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+      if (req.user!.role !== 'admin' && reg.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const certs = await withRetry(() => db.query.certificates.findMany({
+        where: eq(schema.certificates.registrationId, req.params.id)
+      }));
+      res.json(certs);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil sertifikat" });
+    }
+  });
+
+  // POST /api/galeri -> Admin: tambah foto momen
+  app.post("/api/galeri", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { packageId, scheduleId, registrationId, imageUrl, caption } = req.body;
+    try {
+      const [newMemory] = await withRetry(() => db.insert(schema.memories).values({
+        workspaceId: req.user!.workspaceId!,
+        packageId: packageId || null,
+        scheduleId: scheduleId || null,
+        registrationId: registrationId || null,
+        imageUrl: imageUrl || '',
+        caption: caption || ''
+      }).returning());
+
+      notifyUpdate();
+      res.status(201).json(newMemory);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal menambah galeri" });
+    }
+  });
+
+  // GET /api/galeri -> Jamaah & Admin: lihat galeri
+  app.get("/api/galeri", authenticate, async (req: AuthRequest, res) => {
+    const { jadwal_id, paket_id, registrasi_id } = req.query;
+    try {
+      let conditions = [eq(schema.memories.workspaceId, req.user!.workspaceId!)];
+      
+      if (jadwal_id) conditions.push(eq(schema.memories.scheduleId, jadwal_id as string));
+      if (paket_id) conditions.push(eq(schema.memories.packageId, paket_id as string));
+      if (registrasi_id) conditions.push(eq(schema.memories.registrationId, registrasi_id as string));
+
+      const gallery = await withRetry(() => db.query.memories.findMany({
+        where: and(...conditions),
+        orderBy: [desc(schema.memories.createdAt)]
+      }));
+      res.json(gallery);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil galeri" });
+    }
+  });
+
+  // --- Dokumen Final & Keberangkatan Endpoints ---
+
+  // POST /api/registrasi/:id/dokumen-final -> Admin: upload E-Visa/Tiket
+  app.post("/api/registrasi/:id/dokumen-final", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { docType, fileUrl } = req.body; // e.g., 'E-Visa', 'Tiket Pesawat'
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id)
+      }));
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+
+      const [newDoc] = await withRetry(() => db.insert(schema.documents).values({
+        registrationId: req.params.id,
+        docType: docType || 'E-Visa',
+        fileUrl: fileUrl || '',
+        status: 'VERIFIED', // Final documents from admin are auto-approved
+        workspaceId: reg.workspaceId
+      }).returning());
+
+      // Send notification to user
+      await withRetry(() => db.insert(schema.notifications).values({
+        workspaceId: reg.workspaceId,
+        userId: reg.userId,
+        title: "Dokumen Perjalanan Terbit",
+        message: `Dokumen ${docType} Anda telah diterbitkan. Silakan unduh di dashboard.`,
+        type: 'success',
+        isRead: 'false'
+      }));
+
+      notifyUpdate();
+      res.status(201).json(newDoc);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengunggah dokumen final" });
+    }
+  });
+
+  // GET /api/registrasi/:id/dokumen-final -> Jamaah: unduh dokumen
+  app.get("/api/registrasi/:id/dokumen-final", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id)
+      }));
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+      if (req.user!.role !== 'admin' && reg.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const finalDocs = await withRetry(() => db.query.documents.findMany({
+        where: and(
+          eq(schema.documents.registrationId, req.params.id),
+          or(
+            eq(schema.documents.docType, 'E-Visa'),
+            eq(schema.documents.docType, 'Tiket Pesawat'),
+            eq(schema.documents.docType, 'Itinerary Final')
+          )
+        )
+      }));
+      res.json(finalDocs);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil dokumen final" });
+    }
+  });
+
+  // --- Paket & Jadwal Endpoints (Standardized) ---
+
+  // GET /api/pakets -> Jamaah: katalog aktif
+  app.get("/api/pakets", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const allPackages = await withRetry(() => db.query.packages.findMany({
+        where: and(
+          eq(schema.packages.workspaceId, req.user!.workspaceId!),
+          eq(schema.packages.isAvailable, true)
+        )
+      }));
+      
+      const packagesWithParsedDesc = allPackages.map(pkg => {
+        let description = pkg.description;
+        try { description = JSON.parse(pkg.description); } catch(e) {}
+        return { ...pkg, description };
+      });
+
+      res.json(packagesWithParsedDesc);
     } catch (error: any) {
-      console.error("Sync error details:", error);
-      res.status(401).json({ error: `Gagal sinkronisasi: ${error.message || 'Token tidak valid'}` });
+      res.status(500).json({ error: "Gagal mengambil katalog paket" });
+    }
+  });
+
+  // POST /api/pakets -> Admin: buat paket baru
+  app.post("/api/pakets", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    // Proxy to existing implementation or reimplement
+    try {
+      const { name, description, price, duration, imageUrl, type, isAvailable, quota } = req.body;
+      const data: any = {
+        workspaceId: req.user!.workspaceId!,
+        name: name || "Paket Baru",
+        description: typeof description === 'string' ? description : JSON.stringify(description || []),
+        price: Number(price) || 0,
+        duration: duration || "9 Hari",
+        imageUrl: imageUrl || "https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa",
+        type: type || 'umroh',
+        isAvailable: isAvailable ?? true,
+        quota: Number(quota) || 45
+      };
+      const [newPackage] = await withRetry(() => db.insert(schema.packages).values(data).returning());
+      res.status(201).json(newPackage);
+      notifyUpdate();
+    } catch (error) {
+      res.status(500).json({ error: "Gagal membuat paket" });
+    }
+  });
+
+  // PUT /api/pakets/:id -> Admin: edit paket
+  app.put("/api/pakets/:id", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { name, description, price, duration, imageUrl, type, isAvailable, quota } = req.body;
+      const data: any = {};
+      if (name !== undefined) data.name = name;
+      if (description !== undefined) data.description = typeof description === 'string' ? description : JSON.stringify(description);
+      if (price !== undefined) data.price = Number(price);
+      if (duration !== undefined) data.duration = duration;
+      if (imageUrl !== undefined) data.imageUrl = imageUrl;
+      if (type !== undefined) data.type = type;
+      if (isAvailable !== undefined) data.isAvailable = isAvailable;
+      if (quota !== undefined) data.quota = Number(quota);
+
+      const [updated] = await withRetry(() => db.update(schema.packages)
+        .set(data)
+        .where(eq(schema.packages.id, req.params.id))
+        .returning());
+      res.json(updated);
+      notifyUpdate();
+    } catch (error) {
+      res.status(500).json({ error: "Gagal update paket" });
+    }
+  });
+
+  // DELETE /api/pakets/:id -> Admin: hapus/nonaktifkan
+  app.delete("/api/pakets/:id", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      await withRetry(() => db.delete(schema.packages).where(eq(schema.packages.id, req.params.id)));
+      res.json({ success: true });
+      notifyUpdate();
+    } catch (error) {
+      res.status(500).json({ error: "Gagal menghapus paket" });
+    }
+  });
+
+  // GET /api/jadwals?paket_id= -> list jadwal per paket
+  app.get("/api/jadwals", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const { paket_id } = req.query;
+      let conditions = [eq(schema.schedules.workspaceId, req.user!.workspaceId!)];
+      if (paket_id) {
+        conditions.push(eq(schema.schedules.packageId, paket_id as string));
+      }
+      const allSchedules = await withRetry(() => db.query.schedules.findMany({
+        where: and(...conditions),
+        with: { package: true }
+      }));
+      res.json(allSchedules);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil jadwal" });
+    }
+  });
+
+  // POST /api/jadwals -> Admin: buat jadwal
+  app.post("/api/jadwals", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { packageId, departureDate, name, airline, totalSeats } = req.body;
+      const [newSchedule] = await withRetry(() => db.insert(schema.schedules).values({
+        workspaceId: req.user!.workspaceId!,
+        packageId,
+        departureDate: new Date(departureDate),
+        name,
+        airline,
+        totalSeats: Number(totalSeats),
+        availableSeats: Number(totalSeats)
+      }).returning());
+      res.status(201).json(newSchedule);
+      notifyUpdate();
+    } catch (error) {
+      res.status(500).json({ error: "Gagal membuat jadwal" });
+    }
+  });
+
+  // PUT /api/jadwals/:id/itinerary -> Admin: susun itinerary
+  app.put("/api/jadwals/:id/itinerary", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { itineraryPdfUrl } = req.body;
+      const [updated] = await withRetry(() => db.update(schema.schedules)
+        .set({ itineraryPdfUrl })
+        .where(eq(schema.schedules.id, req.params.id))
+        .returning());
+      res.json(updated);
+      notifyUpdate();
+    } catch (error) {
+      res.status(500).json({ error: "Gagal update itinerary" });
+    }
+  });
+
+  // --- Registrasi Endpoints (Standardized) ---
+
+  // POST /api/registrasi -> Jamaah: daftar & pilih paket
+  app.post("/api/registrasi", authenticate, async (req: AuthRequest, res) => {
+    const { packageId, paxCount } = req.body;
+    try {
+      const pkg = await withRetry(() => db.query.packages.findFirst({
+        where: eq(schema.packages.id, packageId)
+      }));
+
+      if (!pkg) return res.status(404).json({ error: "Paket tidak ditemukan" });
+
+      const count = Number(paxCount) || 1;
+      const totalAmount = (Number(pkg.price) * count).toString();
+      const initialPaxData = Array.from({ length: count }, () => ({
+        fullName: "",
+        passportNumber: "",
+        ktpNumber: "",
+        birthDate: "",
+        isSubmitted: false
+      }));
+
+      const existing = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.userId, req.user!.id)
+      }));
+
+      let registration;
+      if (existing) {
+        [registration] = await withRetry(() => db.update(schema.registrations)
+          .set({
+            packageId,
+            adultCount: count.toString(),
+            totalAmount,
+            paxData: initialPaxData,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.registrations.id, existing.id))
+          .returning());
+      } else {
+        [registration] = await withRetry(() => db.insert(schema.registrations).values({
+          userId: req.user!.id,
+          packageId,
+          adultCount: count.toString(),
+          childCount: '0',
+          infantCount: '0',
+          totalAmount,
+          paxData: initialPaxData,
+          workspaceId: pkg.workspaceId,
+          status: 'PILIH_PAKET'
+        }).returning());
+      }
+
+      await withRetry(() => db.update(schema.users)
+        .set({ status: 'PILIH_PAKET' })
+        .where(eq(schema.users.id, req.user!.id)));
+
+      if (existing) {
+        await withRetry(() => db.update(schema.registrations)
+          .set({ status: 'PILIH_PAKET' })
+          .where(eq(schema.registrations.id, existing.id)));
+      }
+
+      notifyUpdate();
+      res.status(201).json(registration);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mendaftar" });
+    }
+  });
+
+  // GET /api/registrasi/:id -> Jamaah: lihat progress sendiri
+  app.get("/api/registrasi/:id", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id),
+        with: {
+          package: true,
+          schedule: true,
+          payments: true,
+          documents: true,
+          user: true
+        }
+      }));
+
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+      
+      // Security check: Only admin or the owner can see it
+      if (req.user!.role !== 'admin' && reg.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      res.json(reg);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil data registrasi" });
+    }
+  });
+
+  // GET /api/registrasi -> Admin: semua data jamaah
+  app.get("/api/registrasi", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const allRegs = await withRetry(() => db.query.registrations.findMany({
+        where: eq(schema.registrations.workspaceId, req.user!.workspaceId!),
+        with: {
+          user: true,
+          package: true,
+          schedule: true
+        }
+      }));
+      res.json(allRegs);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil semua data registrasi" });
+    }
+  });
+
+  // PUT /api/registrasi/:id/status -> Admin: transisi status manual
+  app.put("/api/registrasi/:id/status", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { status: newStatus } = req.body;
+    
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({ 
+        where: eq(schema.registrations.id, req.params.id) 
+      }));
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+
+      if (!canTransitionTo(reg.status, newStatus)) {
+        return res.status(400).json({ 
+          error: "Transisi status tidak valid",
+          currentStatus: reg.status,
+          requestedStatus: newStatus
+        });
+      }
+
+      // Update both user and registration status to keep them in sync
+      await withRetry(() => db.transaction(async (tx) => {
+        await tx.update(schema.users)
+          .set({ status: newStatus as any })
+          .where(eq(schema.users.id, reg.userId));
+          
+        await tx.update(schema.registrations)
+          .set({ status: newStatus as any, updatedAt: new Date() })
+          .where(eq(schema.registrations.id, req.params.id));
+      }));
+
+      notifyUpdate();
+      res.json({ success: true, status: newStatus });
+    } catch (error) {
+      console.error("Status update error:", error);
+      res.status(500).json({ error: "Gagal memperbarui status" });
+    }
+  });
+
+  // --- Biodata Endpoints ---
+
+  // GET /api/registrasi/:id/biodata -> Jamaah: lihat biodata
+  app.get("/api/registrasi/:id/biodata", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id)
+      }));
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+      if (req.user!.role !== 'admin' && reg.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+      res.json(reg.paxData || []);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil biodata" });
+    }
+  });
+
+  // PUT /api/registrasi/:id/biodata -> Jamaah: simpan biodata
+  app.put("/api/registrasi/:id/biodata", authenticate, requireStatus('PILIH_PAKET', 'ISI_BIODATA'), async (req: AuthRequest, res) => {
+    const { paxData } = req.body;
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id)
+      }));
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+      if (req.user!.role !== 'admin' && reg.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      await withRetry(() => db.update(schema.registrations)
+        .set({ 
+          paxData, 
+          status: 'ISI_BIODATA',
+          updatedAt: new Date() 
+        })
+        .where(eq(schema.registrations.id, req.params.id)));
+
+      // Move user to UPLOAD_DOKUMEN phase
+      await withRetry(() => db.update(schema.users)
+        .set({ status: 'ISI_BIODATA' })
+        .where(eq(schema.users.id, reg.userId)));
+      
+      // If all pax data is submitted (conceptual check), we could move to UPLOAD_DOKUMEN
+      // For now, let's just use the requested flow
+      await withRetry(() => db.update(schema.users)
+        .set({ status: 'UPLOAD_DOKUMEN' })
+        .where(eq(schema.users.id, reg.userId)));
+      
+      await withRetry(() => db.update(schema.registrations)
+        .set({ status: 'UPLOAD_DOKUMEN' })
+        .where(eq(schema.registrations.id, req.params.id)));
+
+      notifyUpdate();
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Gagal menyimpan biodata" });
+    }
+  });
+
+  // --- Dokumen Endpoints ---
+
+  // POST /api/registrasi/:id/dokumens -> Jamaah: upload file
+  app.post("/api/registrasi/:id/dokumens", authenticate, requireStatus('ISI_BIODATA', 'UPLOAD_DOKUMEN', 'VERIFIKASI_DOKUMEN'), upload.single('file'), async (req: AuthRequest, res) => {
+    const { docType, fileUrl: bodyFileUrl } = req.body;
+    const fileUrl = req.file ? `/uploads/${req.file.filename}` : bodyFileUrl;
+
+    if (!fileUrl) return res.status(400).json({ error: "File atau URL file diperlukan" });
+    if (!docType) return res.status(400).json({ error: "Jenis dokumen diperlukan" });
+
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id)
+      }));
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+      
+      if (req.user!.role !== 'admin' && reg.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const existingDoc = await db.query.documents.findFirst({
+        where: and(
+          eq(schema.documents.registrationId, req.params.id),
+          eq(schema.documents.docType, docType as any)
+        )
+      });
+
+      let document;
+      if (existingDoc) {
+        [document] = await withRetry(() => db.update(schema.documents)
+          .set({ 
+            fileUrl,
+            status: 'PENDING',
+            adminNotes: null,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.documents.id, existingDoc.id))
+          .returning());
+      } else {
+        [document] = await withRetry(() => db.insert(schema.documents).values({
+          registrationId: req.params.id,
+          docType: docType as any,
+          fileUrl,
+          status: 'PENDING',
+          workspaceId: reg.workspaceId
+        }).returning());
+      }
+
+      await withRetry(() => db.transaction(async (tx) => {
+        await tx.update(schema.users)
+          .set({ status: 'VERIFIKASI_DOKUMEN' })
+          .where(eq(schema.users.id, reg.userId));
+        
+        await tx.update(schema.registrations)
+          .set({ status: 'VERIFIKASI_DOKUMEN', updatedAt: new Date() })
+          .where(eq(schema.registrations.id, req.params.id));
+      }));
+
+      notifyUpdate();
+      res.status(201).json(document);
+    } catch (error) {
+      console.error("Upload document error:", error);
+      res.status(500).json({ error: "Gagal mengunggah dokumen" });
+    }
+  });
+
+  // GET /api/registrasi/:id/dokumens -> Lihat dokumen
+  app.get("/api/registrasi/:id/dokumens", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const reg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, req.params.id)
+      }));
+      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+      if (req.user!.role !== 'admin' && reg.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const docs = await withRetry(() => db.query.documents.findMany({
+        where: eq(schema.documents.registrationId, req.params.id)
+      }));
+      res.json(docs);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil dokumen" });
+    }
+  });
+
+  // PUT /api/dokumens/:id/verifikasi -> Admin: approve/reject
+  app.put("/api/dokumens/:id/verifikasi", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { action, alasan } = req.body;
+    const newStatus = action === 'APPROVE' ? 'VERIFIED' : 'REJECTED';
+    
+    try {
+      const existingDoc = await db.query.documents.findFirst({
+        where: eq(schema.documents.id, req.params.id),
+        with: { registration: true }
+      });
+      if (!existingDoc) return res.status(404).json({ error: "Dokumen tidak ditemukan" });
+
+      const [updatedDoc] = await withRetry(() => db.update(schema.documents)
+        .set({ 
+          status: newStatus,
+          adminNotes: alasan || null,
+          updatedAt: new Date()
+        })
+        .where(eq(schema.documents.id, req.params.id))
+        .returning());
+
+      if (newStatus === 'VERIFIED') {
+        const allDocs = await db.query.documents.findMany({
+          where: eq(schema.documents.registrationId, existingDoc.registrationId)
+        });
+        
+        const mandatoryTypes = ['KTP', 'Paspor', 'Foto', 'Buku Nikah'];
+        const allVerified = mandatoryTypes.every(type => 
+          allDocs.find(d => d.docType === type && d.status === 'VERIFIED')
+        );
+
+        if (allVerified) {
+          await withRetry(() => db.transaction(async (tx) => {
+            await tx.update(schema.users)
+              .set({ status: 'CICIL_BAYAR' })
+              .where(eq(schema.users.id, existingDoc.registration.userId));
+            
+            await tx.update(schema.registrations)
+              .set({ status: 'CICIL_BAYAR', updatedAt: new Date() })
+              .where(eq(schema.registrations.id, existingDoc.registrationId));
+          }));
+        }
+      } else if (newStatus === 'REJECTED') {
+        await withRetry(() => db.transaction(async (tx) => {
+          await tx.update(schema.users)
+            .set({ status: 'UPLOAD_DOKUMEN' })
+            .where(eq(schema.users.id, existingDoc.registration.userId));
+          
+          await tx.update(schema.registrations)
+            .set({ status: 'UPLOAD_DOKUMEN', updatedAt: new Date() })
+            .where(eq(schema.registrations.id, existingDoc.registrationId));
+        }));
+      }
+
+      notifyUpdate();
+      res.json(updatedDoc);
+    } catch (error) {
+      console.error("Verification error:", error);
+      res.status(500).json({ error: "Gagal memverifikasi dokumen" });
+    }
+  });
+
+  // GET /api/admin/dokumens/pending -> Admin: list antrean
+  app.get("/api/admin/dokumens/pending", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const pendingDocs = await withRetry(() => db.query.documents.findMany({
+        where: eq(schema.documents.status, 'PENDING'),
+        with: {
+          registration: {
+            with: {
+              user: true
+            }
+          }
+        }
+      }));
+      res.json(pendingDocs);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil antrean dokumen" });
     }
   });
 
@@ -555,7 +2060,7 @@ async function startServer() {
          return res.status(403).json({ error: "Unauthorized" });
       }
 
-      const validStatusesForPayment = ['bio_filled', 'documents_uploaded', 'dp1_paid', 'dp2_paid', 'fully_paid'];
+      const validStatusesForPayment = ['ISI_BIODATA', 'UPLOAD_DOKUMEN', 'VERIFIKASI_DOKUMEN', 'CICIL_BAYAR', 'VERIFIKASI_BAYAR', 'LUNAS'];
       if (!validStatusesForPayment.includes(reg.status)) {
          return res.status(400).json({ error: "Pendaftaran belum mencapai tahap pembayaran. Harap lengkapi tahap sebelumnya." });
       }
@@ -566,8 +2071,11 @@ async function startServer() {
               paymentType,
               amount,
               proofUrl,
-              status: 'pending',
+              status: 'PENDING',
             } as any).returning());
+
+      // Update user status to VERIFIKASI_BAYAR
+      await db.update(schema.users).set({ status: 'VERIFIKASI_BAYAR' }).where(eq(schema.users.id, req.user!.id));
 
       res.status(201).json(newPayment);
       notifyUpdate();
@@ -589,7 +2097,7 @@ async function startServer() {
             }));
       if (existing) {
         const [updated] = await withRetry(() => db.update(schema.documents)
-                  .set({ fileUrl, status: 'pending', rejectionReason: null, updatedAt: new Date() })
+                  .set({ fileUrl, status: 'PENDING', adminNotes: null, updatedAt: new Date() })
                   .where(eq(schema.documents.id, existing.id))
                   .returning());
         notifyUpdate();
@@ -600,13 +2108,17 @@ async function startServer() {
                   registrationId,
                   docType,
                   fileUrl,
-                  status: 'pending'
+                  status: 'PENDING'
                 } as any).returning());
 
         // Update registration status to documents_uploaded if it was bio_filled
         const reg = await db.query.registrations.findFirst({ where: eq(schema.registrations.id, registrationId) });
-        if (reg && reg.status === 'bio_filled') {
-          await db.update(schema.registrations).set({ status: 'documents_uploaded', updatedAt: new Date() }).where(eq(schema.registrations.id, registrationId));
+        if (reg) {
+          if (reg.status === 'ISI_BIODATA') {
+            await db.update(schema.registrations).set({ status: 'UPLOAD_DOKUMEN', updatedAt: new Date() }).where(eq(schema.registrations.id, registrationId));
+          }
+          // Move user to VERIFIKASI_DOKUMEN phase
+          await db.update(schema.users).set({ status: 'VERIFIKASI_DOKUMEN' }).where(eq(schema.users.id, reg.userId));
         }
 
         notifyUpdate();
@@ -710,6 +2222,10 @@ async function startServer() {
                   })
                   .where(eq(schema.registrations.userId, req.user!.id))
                   .returning());
+        await withRetry(() => db.update(schema.users)
+          .set({ status: 'PILIH_PAKET' })
+          .where(eq(schema.users.id, req.user!.id)));
+
         notifyUpdate();
         return res.status(200).json(updatedReg);
       }
@@ -723,8 +2239,12 @@ async function startServer() {
               totalAmount: totalAmount,
               paxData: initialPaxData,
               workspaceId: pkg.workspaceId,
-              status: 'package_selected'
+              status: 'PILIH_PAKET'
             }).returning());
+
+      await withRetry(() => db.update(schema.users)
+        .set({ status: 'PILIH_PAKET' })
+        .where(eq(schema.users.id, req.user!.id)));
 
       notifyUpdate();
       res.status(201).json(newReg);
@@ -764,13 +2284,9 @@ async function startServer() {
       const { status, paxData, name, phone, email, notes, paymentStep } = req.body;
       const updateData: any = { updatedAt: new Date() };
       
-      const statusOrder = ['package_selected', 'bio_filled', 'documents_uploaded', 'dp1_paid', 'dp2_paid', 'fully_paid', 'visa_ticket_ready'];
-      
       if (status) {
-         const currentIndex = statusOrder.indexOf(reg.status);
-         const nextIndex = statusOrder.indexOf(status);
-         if (nextIndex > currentIndex + 1) {
-             return res.status(400).json({ error: "Tidak dapat melewati tahapan pendaftaran." });
+         if (!canTransitionTo(reg.status, status)) {
+             return res.status(400).json({ error: "Transisi status tidak valid atau melompati tahapan." });
          }
          updateData.status = status;
       }
@@ -786,6 +2302,17 @@ async function startServer() {
               .set(updateData)
               .where(eq(schema.registrations.userId, req.user!.id)));
       
+      // Map registration status to user status
+      if (status === 'ISI_BIODATA') {
+        await withRetry(() => db.update(schema.users)
+          .set({ status: 'UPLOAD_DOKUMEN' })
+          .where(eq(schema.users.id, req.user!.id)));
+      } else if (status === 'PILIH_PAKET') {
+        await withRetry(() => db.update(schema.users)
+          .set({ status: 'PILIH_PAKET' })
+          .where(eq(schema.users.id, req.user!.id)));
+      }
+
       res.json({ message: "Registration updated" });
       notifyUpdate();
     } catch (error) {
@@ -810,6 +2337,43 @@ async function startServer() {
       res.json({ message: "Registration reset successfully" });
     } catch (error) {
       res.status(500).json({ error: "Failed to reset registration" });
+    }
+  });
+
+  // Update User Status (Admin)
+  app.patch("/api/admin/users/:id/status", authenticate, async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { status } = req.body;
+    
+    try {
+      const user = await db.query.users.findFirst({ where: eq(schema.users.id, req.params.id) });
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      const currentStatus = user.status || 'DRAFT';
+      const validTransitions: Record<string, string[]> = {
+        'DRAFT':               ['PILIH_PAKET'],
+        'PILIH_PAKET':         ['ISI_BIODATA'],
+        'ISI_BIODATA':         ['UPLOAD_DOKUMEN'],
+        'UPLOAD_DOKUMEN':      ['VERIFIKASI_DOKUMEN'],
+        'VERIFIKASI_DOKUMEN':  ['CICIL_BAYAR', 'UPLOAD_DOKUMEN'],
+        'CICIL_BAYAR':         ['VERIFIKASI_BAYAR'],
+        'VERIFIKASI_BAYAR':    ['LUNAS', 'CICIL_BAYAR'],
+        'LUNAS':               ['SIAP_BERANGKAT'],
+        'SIAP_BERANGKAT':      ['BERANGKAT'],
+        'BERANGKAT':           ['SELESAI'],
+      };
+
+      if (!validTransitions[currentStatus as string]?.includes(status)) {
+        return res.status(400).json({ error: `Invalid transition from ${currentStatus} to ${status}` });
+      }
+
+      await withRetry(() => db.update(schema.users)
+              .set({ status })
+              .where(eq(schema.users.id, req.params.id)));
+      res.json({ success: true });
+      notifyUpdate();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update user status" });
     }
   });
 
@@ -993,7 +2557,7 @@ async function startServer() {
               .innerJoin(schema.users, eq(schema.registrations.userId, schema.users.id))
               .where(and(
                 eq(schema.users.mitraId, req.user.id),
-                eq(schema.payments.status, 'approved')
+                eq(schema.payments.status, 'VERIFIED')
               )));
 
       res.json({ 
@@ -1032,7 +2596,7 @@ async function startServer() {
             .innerJoin(schema.registrations, eq(schema.payments.registrationId, schema.registrations.id))
             .innerJoin(schema.users, eq(schema.registrations.userId, schema.users.id))
             .innerJoin(schema.packages, eq(schema.registrations.packageId, schema.packages.id))
-            .where(eq(schema.payments.status, 'pending')));
+            .where(eq(schema.payments.status, 'PENDING')));
 
       res.json(pendingPayments);
     } catch (error: any) {
@@ -1052,22 +2616,61 @@ async function startServer() {
 
     try {
       const [updatedPayment] = await withRetry(() => db.update(schema.payments)
-        .set({ status, rejectionReason: reason || null })
+        .set({ status, adminNotes: reason || null })
         .where(eq(schema.payments.id, id))
         .returning());
 
       if (!updatedPayment) return res.status(404).json({ error: "Payment not found" });
-      if (status === 'approved') {
+      if (status === 'VERIFIED') {
         // Advance registration status
-        let nextStatus: typeof schema.registrationStatusEnum.enumValues[number] | undefined;
-        if (updatedPayment.paymentType === 'dp1') nextStatus = 'dp1_paid';
-        else if (updatedPayment.paymentType === 'dp2') nextStatus = 'dp2_paid';
-        else if (updatedPayment.paymentType === 'full') nextStatus = 'fully_paid';
+        let nextStatus: any;
+        let userStatus: any;
 
-        if (nextStatus) {
-          await withRetry(() => db.update(schema.registrations)
-            .set({ status: nextStatus, updatedAt: new Date() })
-            .where(eq(schema.registrations.id, updatedPayment.registrationId)));
+        const regWithDetails = await db.query.registrations.findFirst({
+          where: eq(schema.registrations.id, updatedPayment.registrationId),
+          with: {
+            package: true,
+            payments: true
+          }
+        });
+
+        if (regWithDetails && regWithDetails.package) {
+          const totalHarga = Number(regWithDetails.package.price);
+          const totalBayar = regWithDetails.payments
+            .filter(t => t.status === 'VERIFIED')
+            .reduce((sum, t) => sum + Number(t.amount), 0);
+          
+          const persen = totalBayar / totalHarga;
+          
+          if (persen >= 1.0) {
+            userStatus = 'LUNAS';
+            nextStatus = 'LUNAS';
+          } else {
+            userStatus = 'CICIL_BAYAR';
+            if (updatedPayment.paymentType === 'DP1') nextStatus = 'CICIL_BAYAR';
+            else if (updatedPayment.paymentType === 'DP2') nextStatus = 'CICIL_BAYAR';
+          }
+
+          if (nextStatus) {
+            await withRetry(() => db.update(schema.registrations)
+              .set({ status: nextStatus, updatedAt: new Date() })
+              .where(eq(schema.registrations.id, updatedPayment.registrationId)));
+          }
+          
+          if (userStatus) {
+             await withRetry(() => db.update(schema.users)
+               .set({ status: userStatus })
+               .where(eq(schema.users.id, regWithDetails.userId)));
+          }
+        }
+      }
+ else if (status === 'REJECTED') {
+        // If rejected, move back to CICIL_BAYAR
+        const reg = await db.query.registrations.findFirst({ where: eq(schema.registrations.id, updatedPayment.registrationId) });
+        if (reg) {
+          await withRetry(() => db.update(schema.users)
+            .set({ status: 'CICIL_BAYAR' })
+            .where(eq(schema.users.id, reg.userId)));
         }
       }
 
@@ -1267,7 +2870,7 @@ async function startServer() {
       for (const item of docItems) {
         if (!item.docType) continue;
         let existing = await withRetry(() => db.query.documents.findFirst({
-                  where: and(eq(schema.documents.registrationId, registrationId), eq(schema.documents.docType, item.docType))
+                  where: and(eq(schema.documents.registrationId, registrationId), eq(schema.documents.docType, item.docType as any))
                 }));
 
         if (!item.fileUrl) {
@@ -1275,14 +2878,14 @@ async function startServer() {
             await withRetry(() => db.delete(schema.documents).where(eq(schema.documents.id, existing.id)));
           }
         } else if (existing) {
-          await withRetry(() => db.update(schema.documents).set({ fileUrl: item.fileUrl, status: 'approved', updatedAt: new Date() }).where(eq(schema.documents.id, existing.id)));
+          await withRetry(() => db.update(schema.documents).set({ fileUrl: item.fileUrl, status: 'VERIFIED', updatedAt: new Date() }).where(eq(schema.documents.id, existing.id)));
         } else {
           await withRetry(() => db.insert(schema.documents).values({
                       workspaceId: req.user!.workspaceId!,
                       registrationId,
-                      docType: item.docType,
+                      docType: item.docType as any,
                       fileUrl: item.fileUrl,
-                      status: 'approved'
+                      status: 'VERIFIED'
                     }));
         }
 
@@ -1318,7 +2921,7 @@ async function startServer() {
     const { registrationId, docType } = req.params;
     try {
       await withRetry(() => db.delete(schema.documents).where(
-              and(eq(schema.documents.registrationId, registrationId), eq(schema.documents.docType, docType))
+              and(eq(schema.documents.registrationId, registrationId), eq(schema.documents.docType, docType as any))
             ));
       res.json({ success: true });
       notifyUpdate();
@@ -1328,133 +2931,6 @@ async function startServer() {
     }
   });
 
-  // --- Document Management Endpoints ---
-  
-  // Get Jamaah Documents
-  app.get("/api/jamaah/documents", authenticate, async (req: AuthRequest, res) => {
-    try {
-      const registration = await getRegistrationForUser(req.user!.id, req.user?.email);
-      if (!registration) return res.json([]);
-
-      const userDocs = await withRetry(() => db.query.documents.findMany({
-              where: eq(schema.documents.registrationId, registration.id)
-            }));
-      res.json(userDocs);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch documents" });
-    }
-  });
-
-  // Upload Document
-  app.post("/api/documents/upload", authenticate, async (req: AuthRequest, res) => {
-    const { docType, fileUrl } = req.body;
-    try {
-      const registration = await getRegistrationForUser(req.user!.id, req.user?.email);
-      if (!registration) return res.status(404).json({ error: "No registration found" });
-
-      // Upsert document (or just insert new one)
-      const existing = await withRetry(() => db.query.documents.findFirst({
-              where: and(
-                eq(schema.documents.registrationId, registration.id),
-                eq(schema.documents.docType, docType)
-              )
-            }));
-
-      if (existing) {
-        await withRetry(() => db.update(schema.documents)
-                  .set({ fileUrl, status: 'pending', rejectionReason: null, updatedAt: new Date() })
-                  .where(eq(schema.documents.id, existing.id)));
-      } else {
-        await withRetry(() => db.insert(schema.documents).values({
-                  registrationId: registration.id,
-                  docType,
-                  fileUrl,
-                  status: 'pending'
-                }));
-      }
-
-      // Notify admin
-      await withRetry(() => db.insert(schema.notifications).values({
-              title: "Dokumen Baru Diupload",
-              message: `${req.user?.name} telah mengupload ${docType}.`,
-              type: "info"
-            }));
-
-      res.json({ message: "Document uploaded successfully" });
-      notifyUpdate();
-    } catch (error) {
-      res.status(500).json({ error: "Failed to upload document" });
-    }
-  });
-
-  // Get Admin Pending Documents
-  app.get("/api/admin/pending-documents", authenticate, async (req: AuthRequest, res) => {
-    if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    try {
-      const pendingDocs = await withRetry(() => db.select({
-              id: schema.documents.id,
-              docType: schema.documents.docType,
-              fileUrl: schema.documents.fileUrl,
-              status: schema.documents.status,
-              createdAt: schema.documents.createdAt,
-              userName: schema.users.name,
-              userEmail: schema.users.email
-            })
-            .from(schema.documents)
-            .innerJoin(schema.registrations, eq(schema.documents.registrationId, schema.registrations.id))
-            .innerJoin(schema.users, eq(schema.registrations.userId, schema.users.id))
-            .where(eq(schema.documents.status, 'pending')));
-
-      res.json(pendingDocs);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch pending documents" });
-    }
-  });
-
-  // Verify Document
-  app.patch("/api/admin/documents/:id/verify", authenticate, async (req: AuthRequest, res) => {
-    if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    const { status, reason } = req.body;
-    try {
-      const doc = await withRetry(() => db.query.documents.findFirst({
-              where: eq(schema.documents.id, req.params.id),
-              with: {
-                registration: true
-              }
-            }));
-
-      if (!doc) return res.status(404).json({ error: "Document not found" });
-
-      await withRetry(() => db.update(schema.documents)
-              .set({ status, rejectionReason: reason, updatedAt: new Date() })
-              .where(eq(schema.documents.id, req.params.id)));
-
-      // If approved, check if we should advance registration status
-      // For now, let's just make sure it stays at documents_uploaded or moves to next if everything is approved
-      // But payment is usually the next hard trigger.
-      // One logic: if doc is 'eticket' or 'visa' and approved, move to 'visa_ticket_ready'
-      if (status === 'approved' && (doc.docType.includes('eticket') || doc.docType.includes('visa'))) {
-          await withRetry(() => db.update(schema.registrations)
-            .set({ status: 'visa_ticket_ready', updatedAt: new Date() })
-            .where(eq(schema.registrations.id, doc.registrationId)));
-      }
-
-      // Notify Jamaah
-      await withRetry(() => db.insert(schema.notifications).values({
-              userId: doc.registration.userId,
-              title: status === 'approved' ? "Dokumen Tervalidasi" : "Dokumen Ditolak",
-              message: status === 'approved' 
-                ? `Dokumen ${doc.docType} Anda telah disetujui.` 
-                : `Dokumen ${doc.docType} Anda ditolak. Alasan: ${reason}`,
-              type: status === 'approved' ? "success" : "error"
-            }));
-
-      res.json({ message: "Verification processed" });
-      notifyUpdate();
-    } catch (error) {
-      res.status(500).json({ error: "Failed to verify document" });
-    }
-  });
 
   // --- Finance Module Endpoints ---
 
@@ -1496,7 +2972,7 @@ async function startServer() {
         paymentType: schema.payments.paymentType,
         proofUrl: schema.payments.proofUrl,
         status: schema.payments.status,
-        rejectionReason: schema.payments.rejectionReason,
+        adminNotes: schema.payments.adminNotes,
         createdAt: schema.payments.createdAt,
         registrationId: schema.registrations.id,
         userName: sql<string>`COALESCE(${schema.registrations.ordererName}, ${schema.users.name}, 'Jamaah')`,
@@ -1529,13 +3005,17 @@ async function startServer() {
 
       // Calculate Progress
       const statusMap: Record<string, number> = {
-        'package_selected': 15,
-        'bio_filled': 30,
-        'dp1_paid': 45,
-        'dp2_paid': 60,
-        'documents_uploaded': 75,
-        'fully_paid': 90,
-        'visa_ticket_ready': 100
+        'DRAFT': 0,
+        'PILIH_PAKET': 10,
+        'ISI_BIODATA': 20,
+        'UPLOAD_DOKUMEN': 30,
+        'VERIFIKASI_DOKUMEN': 40,
+        'CICIL_BAYAR': 50,
+        'VERIFIKASI_BAYAR': 60,
+        'LUNAS': 75,
+        'SIAP_BERANGKAT': 90,
+        'BERANGKAT': 95,
+        'SELESAI': 100
       };
       const progress = statusMap[registration.status] || 0;
 
@@ -1571,8 +3051,7 @@ async function startServer() {
       .where(and(
         eq(schema.registrations.workspaceId, req.user!.workspaceId!),
         eq(schema.users.role, 'jamaah'),
-        ne(schema.registrations.status, 'package_selected'),
-        ne(schema.registrations.status, 'cancelled')
+        ne(schema.registrations.status, 'PILIH_PAKET')
       )));
       
       const totalJamaah = allActiveRegs.reduce((acc, r) => 
@@ -1585,7 +3064,7 @@ async function startServer() {
       .from(schema.payments)
       .where(and(
         eq(schema.payments.workspaceId, req.user!.workspaceId!),
-        eq(schema.payments.status, 'approved'),
+        eq(schema.payments.status, 'VERIFIED'),
         gte(schema.payments.createdAt, firstDayOfMonth)
       )));
       const monthlyCashFlow = Number(cashFlow[0]?.total || 0);
@@ -1595,7 +3074,7 @@ async function startServer() {
         .from(schema.documents)
         .where(eq(schema.documents.workspaceId, req.user!.workspaceId!)));
       const totalDocs = allDocs.length;
-      const approvedDocsCount = allDocs.filter(d => d.status === 'approved').length;
+      const approvedDocsCount = allDocs.filter(d => d.status === 'VERIFIED').length;
       
       const docProgress = totalDocs > 0 
         ? Math.round((approvedDocsCount / totalDocs) * 100) 
@@ -1659,8 +3138,7 @@ async function startServer() {
         .where(and(
           eq(schema.registrations.packageId, nextBatch.id),
           eq(schema.users.role, 'jamaah'),
-          ne(schema.registrations.status, 'package_selected'),
-          ne(schema.registrations.status, 'cancelled')
+          ne(schema.registrations.status, 'PILIH_PAKET')
         )));
         
         nextBatchRegs = regs.reduce((acc, r) => acc + (parseInt(r.adultCount) || 0) + (parseInt(r.childCount) || 0) + (parseInt(r.infantCount) || 0), 0);
@@ -1673,14 +3151,14 @@ async function startServer() {
             .from(schema.documents)
             .where(and(
               inArray(schema.documents.registrationId, regIds),
-              eq(schema.documents.status, 'approved')
+              eq(schema.documents.status, 'VERIFIED')
             )));
           
           const approvedPayments = await withRetry(() => db.select({ total: sql<number>`sum(${schema.payments.amount})` })
             .from(schema.payments)
             .where(and(
               inArray(schema.payments.registrationId, regIds),
-              eq(schema.payments.status, 'approved')
+              eq(schema.payments.status, 'VERIFIED')
             )));
 
           const totalExpectedDocs = nextBatchRegs * 3; // heuristic: 3 docs per pax
@@ -1755,7 +3233,7 @@ async function startServer() {
         .from(schema.payments)
         .where(and(
           eq(schema.payments.workspaceId, req.user!.workspaceId!),
-          eq(schema.payments.status, 'pending')
+          eq(schema.payments.status, 'PENDING')
         )));
 
       // 2. Pending Documents
@@ -1763,7 +3241,7 @@ async function startServer() {
         .from(schema.documents)
         .where(and(
           eq(schema.documents.workspaceId, req.user!.workspaceId!),
-          eq(schema.documents.status, 'pending')
+          eq(schema.documents.status, 'PENDING')
         )));
 
       // 3. Unpaid registrations near departure
@@ -1772,7 +3250,7 @@ async function startServer() {
         .innerJoin(schema.packages, eq(schema.registrations.packageId, schema.packages.id))
         .where(and(
           eq(schema.registrations.workspaceId, req.user!.workspaceId!),
-          sql`${schema.registrations.status} != 'fully_paid'`,
+          sql`${schema.registrations.status} != 'LUNAS'`,
           gte(schema.packages.departureDate, now),
           sql`${schema.packages.departureDate} <= ${hMinus15}`
         )));
@@ -2364,7 +3842,7 @@ async function startServer() {
       await withRetry(() => db.transaction(async (tx) => {
               // A. Ubah status pembayaran jadi valid
               const updatedPayment = await tx.update(schema.payments)
-                .set({ status: 'approved' })
+                .set({ status: 'VERIFIED' })
                 .where(eq(schema.payments.id, paymentId))
                 .returning();
 
@@ -2384,12 +3862,12 @@ async function startServer() {
               });
               
               // Update Registration Status based on Payment Type
-              if (payment.paymentType === 'dp1') {
-                 await tx.update(schema.registrations).set({ status: 'dp1_paid' }).where(eq(schema.registrations.id, payment.registrationId));
-              } else if (payment.paymentType === 'dp2') {
-                 await tx.update(schema.registrations).set({ status: 'dp2_paid' }).where(eq(schema.registrations.id, payment.registrationId));
-              } else if (payment.paymentType === 'full') {
-                 await tx.update(schema.registrations).set({ status: 'fully_paid' }).where(eq(schema.registrations.id, payment.registrationId));
+              if (payment.paymentType === 'DP1') {
+                 await tx.update(schema.registrations).set({ status: 'CICIL_BAYAR' }).where(eq(schema.registrations.id, payment.registrationId));
+              } else if (payment.paymentType === 'DP2') {
+                 await tx.update(schema.registrations).set({ status: 'CICIL_BAYAR' }).where(eq(schema.registrations.id, payment.registrationId));
+              } else if (payment.paymentType === 'PELUNASAN') {
+                 await tx.update(schema.registrations).set({ status: 'LUNAS' }).where(eq(schema.registrations.id, payment.registrationId));
               }
             }));
 

@@ -75,11 +75,40 @@ export interface Consultation {
   }[];
 }
 
+export type RegistrationStatus = 
+  | 'DRAFT'
+  | 'PILIH_PAKET'
+  | 'ISI_BIODATA'
+  | 'UPLOAD_DOKUMEN'
+  | 'VERIFIKASI_DOKUMEN'
+  | 'CICIL_BAYAR'
+  | 'VERIFIKASI_BAYAR'
+  | 'LUNAS'
+  | 'SIAP_BERANGKAT'
+  | 'BERANGKAT'
+  | 'SELESAI';
+
+export interface Registration {
+  id: string;
+  userId: string;
+  packageId: string;
+  scheduleId?: string;
+  status: RegistrationStatus;
+  totalAmount: number;
+  paxData?: any[];
+  package?: Package;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface User {
   id: string;
   name: string;
-  role: 'consumer' | 'mitra' | 'admin';
+  role: 'admin' | 'mitra' | 'jamaah';
   email: string;
+  status: RegistrationStatus;
+  phone?: string;
+  avatarUrl?: string;
 }
 
 export interface Notification {
@@ -115,4 +144,22 @@ export interface TripMemory {
   imageUrl: string;
   type: 'photo' | 'video';
   date: string;
+}
+
+export interface CRMRegistration extends Registration {
+  user: User;
+  package: Package;
+  schedule?: Schedule;
+  paymentProgress: number;
+  hasRequiredDocs: boolean;
+}
+
+export interface Activity {
+  id: string;
+  registrationId: string;
+  userId: string;
+  action: string;
+  details: string;
+  createdAt: string;
+  user?: User;
 }

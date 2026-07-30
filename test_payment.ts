@@ -11,7 +11,7 @@ async function main() {
     
     // Simulate what the backend does
     const [updatedPayment] = await db.update(schema.payments)
-        .set({ status: 'approved', rejectionReason: null })
+        .set({ status: 'VERIFIED', adminNotes: null })
         .where(eq(schema.payments.id, '495b778c-3318-43e1-a05b-61ffd8a1e488'))
         .returning();
     console.log("Updated:", updatedPayment);

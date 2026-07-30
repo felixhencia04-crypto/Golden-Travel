@@ -6,7 +6,7 @@ async function main() {
   try {
     const reason = undefined;
     const [updatedPayment] = await db.update(schema.payments)
-        .set({ status: 'pending', rejectionReason: reason })
+        .set({ status: 'PENDING', adminNotes: reason })
         .where(eq(schema.payments.id, '495b778c-3318-43e1-a05b-61ffd8a1e488'))
         .returning();
     console.log("Updated:", updatedPayment);

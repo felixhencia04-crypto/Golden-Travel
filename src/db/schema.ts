@@ -4,20 +4,24 @@ import { relations } from 'drizzle-orm';
 export const userRoleEnum = pgEnum('user_role', ['admin', 'mitra', 'jamaah']);
 
 export const registrationStatusEnum = pgEnum('registration_status', [
-  'package_selected',
-  'bio_filled',
-  'dp1_paid',
-  'dp2_paid',
-  'documents_uploaded',
-  'fully_paid',
-  'visa_ticket_ready',
-  'cancelled',
-  'pending',
-  'rejected'
+  'DRAFT',
+  'PILIH_PAKET',
+  'ISI_BIODATA',
+  'UPLOAD_DOKUMEN',
+  'VERIFIKASI_DOKUMEN',
+  'CICIL_BAYAR',
+  'VERIFIKASI_BAYAR',
+  'LUNAS',
+  'SIAP_BERANGKAT',
+  'BERANGKAT',
+  'SELESAI'
 ]);
 
-export const paymentStatusEnum = pgEnum('payment_status', ['pending', 'approved', 'rejected']);
-export const paymentTypeEnum = pgEnum('payment_type', ['dp1', 'dp2', 'full']);
+export const paymentStatusEnum = pgEnum('payment_status', ['PENDING', 'VERIFIED', 'REJECTED']);
+export const paymentTypeEnum = pgEnum('payment_type', ['DP1', 'DP2', 'PELUNASAN']);
+
+export const documentTypeEnum = pgEnum('document_type', ['KTP', 'Paspor', 'Foto', 'Buku Nikah', 'Vaksin', 'Tiket Pesawat', 'Itinerary Final', 'E-Visa', 'Lainnya']);
+export const documentStatusEnum = pgEnum('document_status', ['PENDING', 'VERIFIED', 'REJECTED']);
 
 export const workspaces = pgTable('workspaces', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -33,6 +37,20 @@ export const workspacesRelations = relations(workspaces, ({ many }) => ({
   registrations: many(registrations),
 }));
 
+export const userStatusEnum = pgEnum('user_status', [
+  'DRAFT',
+  'PILIH_PAKET',
+  'ISI_BIODATA',
+  'UPLOAD_DOKUMEN',
+  'VERIFIKASI_DOKUMEN',
+  'CICIL_BAYAR',
+  'VERIFIKASI_BAYAR',
+  'LUNAS',
+  'SIAP_BERANGKAT',
+  'BERANGKAT',
+  'SELESAI'
+]);
+
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').references(() => workspaces.id),
@@ -42,6 +60,7 @@ export const users = pgTable('users', {
   phone: text('phone'),
   avatarUrl: text('avatar_url'),
   role: userRoleEnum('role').default('jamaah').notNull(),
+  status: userStatusEnum('status').default('DRAFT').notNull(),
   mitraId: uuid('mitra_id'), // The Mitra who referred this user
   referralCode: text('referral_code').unique(), // For users with role 'mitra'
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -84,7 +103,7 @@ export const registrations = pgTable('registrations', {
   userId: uuid('user_id').references(() => users.id).notNull(),
   packageId: uuid('package_id').references(() => packages.id).notNull(),
   scheduleId: uuid('schedule_id').references(() => schedules.id), // Link to a specific schedule
-  status: registrationStatusEnum('status').default('package_selected').notNull(),
+  status: registrationStatusEnum('status').default('DRAFT').notNull(),
   ordererName: text('orderer_name'),
   ordererPhone: text('orderer_phone'),
   ordererEmail: text('orderer_email'),
@@ -106,6 +125,7 @@ export const registrationsRelations = relations(registrations, ({ one, many }) =
   payments: many(payments),
   documents: many(documents),
   certificates: many(certificates),
+  activities: many(activities),
 }));
 
 export const payments = pgTable('payments', {
@@ -115,8 +135,10 @@ export const payments = pgTable('payments', {
   paymentType: paymentTypeEnum('payment_type').notNull(),
   amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
   proofUrl: text('proof_url').notNull(),
-  status: paymentStatusEnum('status').default('pending').notNull(),
-  rejectionReason: text('rejection_reason'),
+  status: paymentStatusEnum('status').default('PENDING').notNull(),
+  adminNotes: text('admin_notes'),
+  verifiedAt: timestamp('verified_at'),
+  verifiedBy: uuid('verified_by').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -129,10 +151,10 @@ export const documents = pgTable('documents', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').references(() => workspaces.id),
   registrationId: uuid('registration_id').references(() => registrations.id).notNull(),
-  docType: text('doc_type').notNull(), // ktp, kk, passport, etc
+  docType: documentTypeEnum('doc_type').notNull(),
   fileUrl: text('file_url').notNull(),
-  status: text('status').default('pending').notNull(), // pending, approved, rejected
-  rejectionReason: text('rejection_reason'),
+  status: documentStatusEnum('status').default('PENDING').notNull(),
+  adminNotes: text('admin_notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => {
@@ -251,6 +273,7 @@ export const memories = pgTable('memories', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').references(() => workspaces.id),
   packageId: uuid('package_id').references(() => packages.id), // Memories per package
+  scheduleId: uuid('schedule_id').references(() => schedules.id), // Memories per specific schedule
   registrationId: uuid('registration_id').references(() => registrations.id), // Targeted memory for specific jamaah registration
   imageUrl: text('image_url').notNull(),
   caption: text('caption'),
@@ -260,5 +283,22 @@ export const memories = pgTable('memories', {
 export const memoriesRelations = relations(memories, ({ one }) => ({
   workspace: one(workspaces, { fields: [memories.workspaceId], references: [workspaces.id] }),
   package: one(packages, { fields: [memories.packageId], references: [packages.id] }),
+  schedule: one(schedules, { fields: [memories.scheduleId], references: [schedules.id] }),
   registration: one(registrations, { fields: [memories.registrationId], references: [registrations.id] }),
+}));
+
+export const activities = pgTable('activities', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id),
+  registrationId: uuid('registration_id').references(() => registrations.id).notNull(),
+  userId: uuid('user_id').references(() => users.id), // Who performed the action (e.g. admin name or id)
+  action: text('action').notNull(),
+  details: text('details'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const activitiesRelations = relations(activities, ({ one }) => ({
+  workspace: one(workspaces, { fields: [activities.workspaceId], references: [workspaces.id] }),
+  registration: one(registrations, { fields: [activities.registrationId], references: [registrations.id] }),
+  user: one(users, { fields: [activities.userId], references: [users.id] }),
 }));
