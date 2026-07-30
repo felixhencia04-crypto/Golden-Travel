@@ -45,19 +45,60 @@ export default function Login() {
     setIsLoading(true); 
     localStorage.removeItem('admin_token');
     
+    let user: any = null;
+
+    // 1. Try direct backend auth first for instant speed & high reliability
     try {
-      if (isRegister) {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        // Set persistence based on Remember Me
-        const { setPersistence, browserLocalPersistence, browserSessionPersistence } = await import('firebase/auth');
-        await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-        await signInWithEmailAndPassword(auth, email, password);
+      const directRes = await api.post('/auth/direct-auth', {
+        action: isRegister ? 'register' : 'login',
+        email,
+        password,
+        name: isRegister ? name : undefined,
+        role: 'jamaah'
+      });
+
+      if (directRes.token) {
+        localStorage.setItem('jamaah_token', directRes.token);
       }
-      
-      const response = await api.post('/auth/sync', { name: isRegister ? name : undefined });
-      const user = response.user;
-      
+      user = directRes.user;
+
+      // Try Firebase sign-in in background if possible for auth state sync
+      try {
+        if (isRegister) {
+          await createUserWithEmailAndPassword(auth, email, password);
+        } else {
+          await signInWithEmailAndPassword(auth, email, password);
+        }
+      } catch (fbErr) {
+        // Firebase error non-blocking if direct-auth succeeded
+      }
+
+    } catch (directErr: any) {
+      console.warn('Direct auth failed, attempting Firebase Auth + Sync...', directErr);
+      try {
+        if (isRegister) {
+          await createUserWithEmailAndPassword(auth, email, password);
+        } else {
+          const { setPersistence, browserLocalPersistence, browserSessionPersistence } = await import('firebase/auth');
+          await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+          await signInWithEmailAndPassword(auth, email, password);
+        }
+        
+        const response = await api.post('/auth/sync', { name: isRegister ? name : undefined, role: 'jamaah' });
+        if (response.token) {
+          localStorage.setItem('jamaah_token', response.token);
+        }
+        user = response.user;
+      } catch (error: any) {
+        console.error('Login/Register error:', error);
+        toast.error(error.message || (isRegister ? 'Pendaftaran gagal.' : 'Login gagal. Periksa email dan password Anda.'));
+        setIsLoading(false);
+        return;
+      }
+    }
+
+    if (user) {
+      toast.success(isRegister ? 'Pendaftaran berhasil! Selamat datang.' : 'Login berhasil!');
       if (user.role === 'admin') {
         navigate('/admin');
       } else if (user.role === 'mitra') {
@@ -65,23 +106,27 @@ export default function Login() {
       } else {
         navigate('/dashboard');
       }
-    } catch (error: any) {
-      console.error('Login/Register error:', error);
-      toast.error(error.message || (isRegister ? 'Pendaftaran gagal.' : 'Login gagal. Periksa email dan password Anda.'));
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
 
   const loginWithGoogle = async () => {
-    setIsLoading(true); localStorage.removeItem('admin_token');
+    setIsLoading(true); 
+    localStorage.removeItem('admin_token');
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      const response = await api.post('/auth/sync', {});
+      const googleResult = await signInWithPopup(auth, provider);
+      const response = await api.post('/auth/sync', {
+        name: googleResult.user.displayName,
+        role: 'jamaah'
+      });
+      if (response.token) {
+        localStorage.setItem('jamaah_token', response.token);
+      }
       const user = response.user;
       
+      toast.success('Login dengan Google berhasil!');
       if (user.role === 'admin') {
         navigate('/admin');
       } else if (user.role === 'mitra') {

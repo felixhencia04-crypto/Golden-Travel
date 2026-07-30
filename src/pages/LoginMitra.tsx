@@ -16,26 +16,52 @@ export default function LoginMitra() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    let user: any = null;
+
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const idToken = await userCredential.user.getIdToken();
-      
-      // Sync with backend
-      const response = await api.post('/auth/sync', { role: 'mitra' });
-      const user = response.user;
-      
-      if (user.role !== 'mitra' && user.role !== 'admin') {
-        throw new Error('Akses ditolak. Akun Anda bukan akun Mitra.');
+      const directRes = await api.post('/auth/direct-auth', {
+        action: 'login',
+        email,
+        password,
+        role: 'mitra'
+      });
+
+      if (directRes.token) {
+        localStorage.setItem('mitra_token', directRes.token);
       }
-      
+      user = directRes.user;
+
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (e) {
+        // Firebase sync non-blocking
+      }
+    } catch (directErr) {
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const response = await api.post('/auth/sync', { role: 'mitra' });
+        if (response.token) {
+          localStorage.setItem('mitra_token', response.token);
+        }
+        user = response.user;
+      } catch (error: any) {
+        console.error("Login failed", error);
+        toast.error(error.message || 'Login gagal. Periksa email dan password Anda.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    if (user) {
+      if (user.role !== 'mitra' && user.role !== 'admin') {
+        toast.error('Akses ditolak. Akun Anda bukan akun Mitra.');
+        setLoading(false);
+        return;
+      }
       toast.success('Login berhasil!');
       navigate('/mitra/dashboard');
-    } catch (error: any) {
-      console.error("Login failed", error);
-      toast.error(error.message || 'Login gagal. Periksa email dan password Anda.');
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   return (

@@ -23,9 +23,11 @@ export const createPool = () => {
     console.log(`[DB Pool] Initializing pool: host=${host}, port=${port}, user=${user}, db=${dbName}, DATABASE_URL=${rawDbUrl ? 'SET' : 'UNSET'}`);
     
     const poolConfig: pg.PoolConfig = {
-      max: 20,
-      connectionTimeoutMillis: 10000,
-      idleTimeoutMillis: 10000,
+      max: 15,
+      min: 1,
+      connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 2000, // Drop idle connections after 2s to prevent dead socket errors
+      maxUses: 100, // Recycle connection after 100 queries
     };
 
     const isPlaceholderUrl = rawDbUrl && (

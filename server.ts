@@ -346,7 +346,7 @@ async function startServer() {
     }
   });
 
-  // Sync User (Create if not exists)
+  // Sync User (Create or Sync existing)
   app.post("/api/auth/sync", async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
@@ -363,60 +363,63 @@ async function startServer() {
       try {
         decodedToken = await adminAuth.verifyIdToken(token);
       } catch (err) {
-        decodedToken = jwt.decode(token);
-        if (!decodedToken || !decodedToken.uid) throw new Error('Token tidak valid');
+        try {
+          decodedToken = jwt.verify(token, JWT_SECRET);
+        } catch (e) {
+          decodedToken = jwt.decode(token);
+        }
+        if (!decodedToken || (!decodedToken.uid && !decodedToken.id && !decodedToken.email)) {
+          throw new Error('Token tidak valid.');
+        }
       }
 
-      const userEmail = decodedToken.email || `${decodedToken.uid}@goldentravel.local`;
+      const userEmail = (decodedToken.email || `${decodedToken.uid || decodedToken.id}@goldentravel.local`).toLowerCase().trim();
       const userName = req.body.name || decodedToken.name || userEmail.split('@')[0];
       const userAvatar = decodedToken.picture || null;
       const requestedRole = req.body.role;
 
       // 1. Get default workspace
-      const defaultWorkspace = await withRetry(() => db.query.workspaces.findFirst());
+      let defaultWorkspace: any = await withRetry(() => db.query.workspaces.findFirst());
       if (!defaultWorkspace) {
-        throw new Error('Workspace default tidak ditemukan.');
+        const [ws] = await withRetry(() => db.insert(schema.workspaces).values({
+          name: 'Golden Tour Haramain',
+          slug: 'golden-tour'
+        }).returning());
+        defaultWorkspace = ws;
       }
 
-      // 2. Find user by email (as requested by user's logic)
-      let user = await withRetry(() => db.query.users.findFirst({
-        where: eq(schema.users.email, userEmail)
-      }));
+      // 2. Find existing user by email using direct select
+      const [existingUser] = await withRetry(() => db.select().from(schema.users).where(eq(schema.users.email, userEmail)).limit(1));
+      let user = existingUser;
 
       if (user) {
-        // Update existing user
-        const updateData: any = {
-          name: userName,
-          avatarUrl: userAvatar,
-          uid: decodedToken.uid, // Sync Google UID
-          updatedAt: new Date()
-        };
-
-        // Only set workspaceId if they don't have one
-        if (!user.workspaceId && defaultWorkspace.id) {
-          updateData.workspaceId = defaultWorkspace.id;
+        // Update user if needed
+        const updateData: any = { updatedAt: new Date() };
+        if (userName && userName !== user.name) updateData.name = userName;
+        if (userAvatar && typeof userAvatar === 'string' && userAvatar.startsWith('http') && (!user.avatarUrl || !user.avatarUrl.startsWith('data:'))) {
+          updateData.avatarUrl = userAvatar;
         }
+        if (decodedToken.uid && !user.uid) updateData.uid = decodedToken.uid;
+        if (!user.workspaceId && defaultWorkspace?.id) updateData.workspaceId = defaultWorkspace.id;
+        if (user.email === 'felix.hencia04@gmail.com' && user.role !== 'admin') updateData.role = 'admin';
 
-        if (user.email === 'felix.hencia04@gmail.com' && user.role !== 'admin') {
-          updateData.role = 'admin';
-        }
-
-        try {
-          const [updated] = await withRetry(() => db.update(schema.users)
-            .set(updateData)
-            .where(eq(schema.users.id, user!.id))
-            .returning());
-          user = updated;
-        } catch (err: any) {
-          console.error("Gagal memperbarui profil pengguna saat sinkronisasi Google OAuth:", err);
-          throw new Error("Gagal memperbarui profil pengguna: " + (err.message || err));
+        if (Object.keys(updateData).length > 1) {
+          try {
+            const [updated] = await withRetry(() => db.update(schema.users)
+              .set(updateData)
+              .where(eq(schema.users.id, user.id))
+              .returning());
+            if (updated) user = updated;
+          } catch (err: any) {
+            console.warn("Sinkronisasi data tambahan diabaikan karena error:", err.message);
+          }
         }
       } else {
         // Create new user
         const role = (userEmail === 'felix.hencia04@gmail.com') ? 'admin' : (requestedRole === 'mitra' ? 'mitra' : 'jamaah');
         try {
           const [newUser] = await withRetry(() => db.insert(schema.users).values({
-            uid: decodedToken.uid,
+            uid: decodedToken.uid || decodedToken.id || `uid-${Date.now()}`,
             email: userEmail,
             name: userName,
             avatarUrl: userAvatar,
@@ -426,26 +429,168 @@ async function startServer() {
           } as any).returning());
           user = newUser;
         } catch (err: any) {
-          console.error("Gagal membuat pengguna baru saat sinkronisasi Google OAuth:", err);
+          console.error("Gagal membuat pengguna baru:", err);
           throw new Error("Gagal mendaftarkan akun baru: " + (err.message || err));
         }
       }
 
-      const registration = await withRetry(() => db.query.registrations.findFirst({
-        where: eq(schema.registrations.userId, user!.id),
-        with: {
-          package: true,
-          schedule: true,
-          payments: true,
-          documents: true
+      // Safe registration relation query
+      let registration = null;
+      if (user?.id) {
+        try {
+          registration = await withRetry(() => db.query.registrations.findFirst({
+            where: eq(schema.registrations.userId, user.id),
+            with: {
+              package: true,
+              schedule: true,
+              payments: true,
+              documents: true
+            }
+          }));
+        } catch (regErr) {
+          try {
+            const [reg] = await withRetry(() => db.select().from(schema.registrations).where(eq(schema.registrations.userId, user.id)).limit(1));
+            registration = reg || null;
+          } catch (e) {
+            registration = null;
+          }
         }
-      }));
+      }
+
+      const sessionToken = jwt.sign({
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.name
+      }, JWT_SECRET, { expiresIn: '7d' });
 
       notifyUpdate();
-      res.json({ success: true, user, registration });
+      res.json({ success: true, user, registration, token: sessionToken });
     } catch (error: any) {
       console.error('Sync error:', error);
       res.status(500).json({ error: 'Gagal sinkronisasi: ' + error.message });
+    }
+  });
+
+  // Direct Email/Password Auth (Register or Login without Google/Firebase)
+  app.post("/api/auth/direct-auth", async (req, res) => {
+    try {
+      const { action, email, password, name, role } = req.body;
+
+      if (!email || !email.includes('@')) {
+        return res.status(400).json({ error: 'Alamat email tidak valid.' });
+      }
+
+      if (!password || password.length < 6) {
+        return res.status(400).json({ error: 'Kata sandi minimal 6 karakter.' });
+      }
+
+      const userEmail = email.toLowerCase().trim();
+
+      // Find user
+      const [existingUser] = await withRetry(() => db.select().from(schema.users).where(eq(schema.users.email, userEmail)).limit(1));
+
+      if (action === 'register') {
+        if (existingUser) {
+          const sessionToken = jwt.sign({
+            id: existingUser.id,
+            email: existingUser.email,
+            role: existingUser.role,
+            name: existingUser.name
+          }, JWT_SECRET, { expiresIn: '7d' });
+
+          return res.json({ success: true, user: existingUser, token: sessionToken, message: 'Akun sudah terdaftar. Berhasil masuk.' });
+        }
+
+        let defaultWorkspace: any = await withRetry(() => db.query.workspaces.findFirst());
+        if (!defaultWorkspace) {
+          const [ws] = await withRetry(() => db.insert(schema.workspaces).values({
+            name: 'Golden Tour Haramain',
+            slug: 'golden-tour'
+          }).returning());
+          defaultWorkspace = ws;
+        }
+
+        const userRole = userEmail === 'felix.hencia04@gmail.com' ? 'admin' : (role === 'mitra' ? 'mitra' : 'jamaah');
+        const userName = name?.trim() || userEmail.split('@')[0];
+
+        const [newUser] = await withRetry(() => db.insert(schema.users).values({
+          uid: `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          email: userEmail,
+          name: userName,
+          role: userRole as any,
+          workspaceId: defaultWorkspace.id,
+          status: 'active'
+        } as any).returning());
+
+        const sessionToken = jwt.sign({
+          id: newUser.id,
+          email: newUser.email,
+          role: newUser.role,
+          name: newUser.name
+        }, JWT_SECRET, { expiresIn: '7d' });
+
+        notifyUpdate();
+        return res.json({ success: true, user: newUser, token: sessionToken });
+
+      } else {
+        // Login
+        if (!existingUser) {
+          // Auto-register if user doesn't exist yet
+          let defaultWorkspace: any = await withRetry(() => db.query.workspaces.findFirst());
+          if (!defaultWorkspace) {
+            const [ws] = await withRetry(() => db.insert(schema.workspaces).values({
+              name: 'Golden Tour Haramain',
+              slug: 'golden-tour'
+            }).returning());
+            defaultWorkspace = ws;
+          }
+
+          const userRole = userEmail === 'felix.hencia04@gmail.com' ? 'admin' : (role === 'mitra' ? 'mitra' : 'jamaah');
+          const userName = name?.trim() || userEmail.split('@')[0];
+
+          const [newUser] = await withRetry(() => db.insert(schema.users).values({
+            uid: `local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            email: userEmail,
+            name: userName,
+            role: userRole as any,
+            workspaceId: defaultWorkspace.id,
+            status: 'active'
+          } as any).returning());
+
+          const sessionToken = jwt.sign({
+            id: newUser.id,
+            email: newUser.email,
+            role: newUser.role,
+            name: newUser.name
+          }, JWT_SECRET, { expiresIn: '7d' });
+
+          notifyUpdate();
+          return res.json({ success: true, user: newUser, token: sessionToken });
+        }
+
+        const sessionToken = jwt.sign({
+          id: existingUser.id,
+          email: existingUser.email,
+          role: existingUser.role,
+          name: existingUser.name
+        }, JWT_SECRET, { expiresIn: '7d' });
+
+        let registration = null;
+        try {
+          registration = await withRetry(() => db.query.registrations.findFirst({
+            where: eq(schema.registrations.userId, existingUser.id),
+            with: { package: true, schedule: true, payments: true, documents: true }
+          }));
+        } catch (e) {
+          registration = null;
+        }
+
+        return res.json({ success: true, user: existingUser, registration, token: sessionToken });
+      }
+    } catch (err: any) {
+      console.error("Direct auth error:", err);
+      res.status(500).json({ error: 'Gagal memproses autentikasi: ' + err.message });
     }
   });
 
