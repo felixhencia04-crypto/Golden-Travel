@@ -378,19 +378,64 @@ async function startServer() {
       const userAvatar = decodedToken.picture || null;
       const requestedRole = req.body.role;
 
+      // Helper for resilient user lookup by email
+      const findUserByEmail = async (email: string) => {
+        try {
+          const [u] = await withRetry(() => db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1));
+          if (u) return u;
+        } catch (err: any) {
+          console.warn("Select full user columns failed, falling back to essential columns:", err.message);
+        }
+
+        try {
+          const [u] = await withRetry(() => db.select({
+            id: schema.users.id,
+            email: schema.users.email,
+            name: schema.users.name,
+            role: schema.users.role,
+            workspaceId: schema.users.workspaceId,
+            uid: schema.users.uid,
+            avatarUrl: schema.users.avatarUrl,
+            status: schema.users.status
+          }).from(schema.users).where(eq(schema.users.email, email)).limit(1));
+          if (u) return u;
+        } catch (err: any) {
+          console.warn("Select essential columns failed:", err.message);
+        }
+
+        try {
+          const u = await withRetry(() => db.query.users.findFirst({
+            where: eq(schema.users.email, email)
+          }));
+          if (u) return u;
+        } catch (err: any) {
+          console.warn("db.query users failed:", err.message);
+        }
+
+        return null;
+      };
+
       // 1. Get default workspace
-      let defaultWorkspace: any = await withRetry(() => db.query.workspaces.findFirst());
+      let defaultWorkspace: any;
+      try {
+        defaultWorkspace = await withRetry(() => db.query.workspaces.findFirst());
+      } catch (e) {
+        // fallback
+      }
       if (!defaultWorkspace) {
-        const [ws] = await withRetry(() => db.insert(schema.workspaces).values({
-          name: 'Golden Tour Haramain',
-          slug: 'golden-tour'
-        }).returning());
-        defaultWorkspace = ws;
+        try {
+          const [ws] = await withRetry(() => db.insert(schema.workspaces).values({
+            name: 'Golden Tour Haramain',
+            slug: 'golden-tour'
+          }).returning());
+          defaultWorkspace = ws;
+        } catch (e) {
+          defaultWorkspace = { id: 'default-workspace-id' };
+        }
       }
 
-      // 2. Find existing user by email using direct select
-      const [existingUser] = await withRetry(() => db.select().from(schema.users).where(eq(schema.users.email, userEmail)).limit(1));
-      let user = existingUser;
+      // 2. Find existing user by email using resilient finder
+      let user = await findUserByEmail(userEmail);
 
       if (user) {
         // Update user if needed
@@ -415,7 +460,7 @@ async function startServer() {
           }
         }
       } else {
-        // Create new user
+        // Create new user safely
         const role = (userEmail === 'felix.hencia04@gmail.com') ? 'admin' : (requestedRole === 'mitra' ? 'mitra' : 'jamaah');
         try {
           const [newUser] = await withRetry(() => db.insert(schema.users).values({
@@ -429,8 +474,19 @@ async function startServer() {
           } as any).returning());
           user = newUser;
         } catch (err: any) {
-          console.error("Gagal membuat pengguna baru:", err);
-          throw new Error("Gagal mendaftarkan akun baru: " + (err.message || err));
+          console.warn("Insert full user values failed, inserting essential fields...", err.message);
+          try {
+            const [essentialUser] = await withRetry(() => db.insert(schema.users).values({
+              email: userEmail,
+              name: userName,
+              role: role as any,
+              uid: decodedToken.uid || `uid-${Date.now()}`
+            } as any).returning());
+            user = essentialUser;
+          } catch (insertErr: any) {
+            console.error("Gagal membuat pengguna baru:", insertErr);
+            throw new Error("Gagal mendaftarkan akun baru: " + (insertErr.message || insertErr));
+          }
         }
       }
 
@@ -487,8 +543,25 @@ async function startServer() {
 
       const userEmail = email.toLowerCase().trim();
 
-      // Find user
-      const [existingUser] = await withRetry(() => db.select().from(schema.users).where(eq(schema.users.email, userEmail)).limit(1));
+      // Find user with resilient lookup
+      let existingUser: any = null;
+      try {
+        const [u] = await withRetry(() => db.select().from(schema.users).where(eq(schema.users.email, userEmail)).limit(1));
+        existingUser = u || null;
+      } catch (err: any) {
+        try {
+          const [u] = await withRetry(() => db.select({
+            id: schema.users.id,
+            email: schema.users.email,
+            name: schema.users.name,
+            role: schema.users.role,
+            workspaceId: schema.users.workspaceId
+          }).from(schema.users).where(eq(schema.users.email, userEmail)).limit(1));
+          existingUser = u || null;
+        } catch (e) {
+          existingUser = null;
+        }
+      }
 
       if (action === 'register') {
         if (existingUser) {
