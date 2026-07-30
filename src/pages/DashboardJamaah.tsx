@@ -152,6 +152,21 @@ export default function DashboardJamaah() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [packageCategory, setPackageCategory] = useState<'umroh' | 'haji'>('umroh');
 
+  // Handle packageId from URL for seamless catalog-to-registration transition
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pkgId = params.get('packageId');
+    if (pkgId && packages.length > 0 && !registration) {
+      const pkg = packages.find(p => p.id === pkgId);
+      if (pkg) {
+        setSelectedPackageForPax(pkg);
+        setIsPaxModalOpen(true);
+        // Clear param to avoid re-triggering on manual refreshes
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, [packages, registration]);
+
   // Auto-refresh data when switching to catalog or schedules
   useEffect(() => {
     if (activeTab === 'katalog_paket' || activeTab === 'informasi_jadwal') {

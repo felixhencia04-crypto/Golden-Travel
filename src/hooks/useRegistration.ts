@@ -31,7 +31,7 @@ export function useRegistration() {
   const refreshData = async (silent = false) => {
     if (!silent && !cache) setLoading(true);
     try {
-      const [reg, pkgs, schs, notifData, manifestData, equipData, me] = await Promise.all([
+      const results = await Promise.all([
         api.get('/jamaah/registration').catch((err) => {
           console.error("refreshData: Registration fetch failed", err);
           if (err.message?.includes('Sesi') || err.message?.includes('login')) {
@@ -39,44 +39,41 @@ export function useRegistration() {
             sessionStorage.removeItem(JAMAAH_CACHE_KEY);
             window.location.href = '/login';
           }
-          return null;
+          return { __error: true };
         }),
         api.get('/packages').catch((err) => {
           console.error("refreshData: Packages fetch failed", err);
-          return [];
+          return { __error: true };
         }),
         api.get('/schedules').catch((err) => {
           console.error("refreshData: Schedules fetch failed", err);
-          return [];
+          return { __error: true };
         }),
-        api.get('/jamaah/notifications').catch(() => []),
-        api.get('/jamaah/manifest').catch(() => null),
-        api.get('/jamaah/equipment').catch(() => null),
-        api.get('/users/me').catch(() => null)
+        api.get('/jamaah/notifications').catch(() => ({ __error: true })),
+        api.get('/jamaah/manifest').catch(() => ({ __error: true })),
+        api.get('/jamaah/equipment').catch(() => ({ __error: true })),
+        api.get('/users/me').catch(() => ({ __error: true }))
       ]);
 
-      const freshPkgs = Array.isArray(pkgs) ? pkgs : packages;
-      const freshSchs = Array.isArray(schs) ? schs : [];
-      const freshNotifs = Array.isArray(notifData) ? notifData : [];
+      const [reg, pkgs, schs, notifData, manifestData, equipData, me] = results;
 
-      setRegistration(reg);
-      if (Array.isArray(pkgs)) {
-        setPackages(pkgs);
-      }
-      setSchedules(freshSchs);
-      setNotifications(freshNotifs);
-      setManifest(manifestData);
-      setEquipment(equipData);
-      setDbUser(me);
+      if (reg !== undefined && !(reg as any)?.__error) setRegistration(reg);
+      if (pkgs !== undefined && !(pkgs as any)?.__error) setPackages(Array.isArray(pkgs) ? pkgs : []);
+      if (schs !== undefined && !(schs as any)?.__error) setSchedules(Array.isArray(schs) ? schs : []);
+      if (notifData !== undefined && !(notifData as any)?.__error) setNotifications(Array.isArray(notifData) ? notifData : []);
+      if (manifestData !== undefined && !(manifestData as any)?.__error) setManifest(manifestData);
+      if (equipData !== undefined && !(equipData as any)?.__error) setEquipment(equipData);
+      if (me !== undefined && !(me as any)?.__error) setDbUser(me);
 
+      const cached = getJamaahCache() || {};
       sessionStorage.setItem(JAMAAH_CACHE_KEY, JSON.stringify({
-        registration: reg,
-        packages: freshPkgs,
-        schedules: freshSchs,
-        notifications: freshNotifs,
-        manifest: manifestData,
-        equipment: equipData,
-        dbUser: me
+        registration: reg !== undefined && !(reg as any)?.__error ? reg : cached.registration,
+        packages: pkgs !== undefined && !(pkgs as any)?.__error ? pkgs : cached.packages,
+        schedules: schs !== undefined && !(schs as any)?.__error ? schs : cached.schedules,
+        notifications: notifData !== undefined && !(notifData as any)?.__error ? notifData : cached.notifications,
+        manifest: manifestData !== undefined && !(manifestData as any)?.__error ? manifestData : cached.manifest,
+        equipment: equipData !== undefined && !(equipData as any)?.__error ? equipData : cached.equipment,
+        dbUser: me !== undefined && !(me as any)?.__error ? me : cached.dbUser
       }));
     } catch (error) {
       console.error("refreshData: Critical error", error);

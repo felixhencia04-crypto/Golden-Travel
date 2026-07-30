@@ -1987,6 +1987,7 @@ async function startServer() {
               itineraryPdfUrl
             }).returning());
       res.status(201).json(newSchedule);
+      notifyUpdate();
     } catch (error: any) {
       console.error("Error creating schedule:", error);
       res.status(500).json({ error: error.message || "Failed to create schedule" });
@@ -2010,6 +2011,7 @@ async function startServer() {
               .where(eq(schema.schedules.id, req.params.id))
               .returning());
       res.json(updatedSchedule);
+      notifyUpdate();
     } catch (error: any) {
       console.error("Error updating schedule:", error);
       res.status(500).json({ error: error.message || "Failed to update schedule" });
@@ -2021,6 +2023,7 @@ async function startServer() {
     try {
       await withRetry(() => db.delete(schema.schedules).where(eq(schema.schedules.id, req.params.id)));
       res.json({ success: true });
+      notifyUpdate();
     } catch (error: any) {
       console.error("Error deleting schedule:", error);
       res.status(500).json({ error: error.message || "Failed to delete schedule" });
