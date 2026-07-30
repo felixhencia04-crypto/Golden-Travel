@@ -289,10 +289,63 @@ async function startServer() {
       await withRetry(() => db.execute(sql`SELECT 1`), 3, 1000);
       console.log('[DB Status] Database connected successfully at startup.');
       
-      // Auto-Migration for missing columns
+      // Auto-Migration for missing tables, enums and columns (guarantees Railway & external DB compatibility)
       try {
-        await db.execute(sql`ALTER TABLE manifest_keberangkatan ADD COLUMN IF NOT EXISTS pax_manifest jsonb;`);
-      } catch (e) {}
+        await db.execute(sql`
+          DO $$ BEGIN
+            CREATE TYPE "user_role" AS ENUM ('jamaah', 'mitra', 'admin', 'super_admin');
+          EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+          DO $$ BEGIN
+            CREATE TYPE "user_status" AS ENUM ('active', 'inactive', 'pending', 'Selesai');
+          EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+          CREATE TABLE IF NOT EXISTS "workspaces" (
+            "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            "name" text NOT NULL,
+            "slug" text NOT NULL,
+            "created_at" timestamp DEFAULT now()
+          );
+
+          CREATE TABLE IF NOT EXISTS "users" (
+            "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            "workspace_id" uuid,
+            "uid" text,
+            "email" text,
+            "name" text,
+            "phone" text,
+            "avatar_url" text,
+            "role" "user_role" DEFAULT 'jamaah',
+            "status" "user_status" DEFAULT 'active',
+            "mitra_id" uuid,
+            "referral_code" text,
+            "created_at" timestamp DEFAULT now(),
+            "updated_at" timestamp DEFAULT now(),
+            "deleted_at" timestamp
+          );
+
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "uid" text;
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "email" text;
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "name" text;
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone" text;
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text;
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "role" "user_role" DEFAULT 'jamaah';
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "status" "user_status" DEFAULT 'active';
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "mitra_id" uuid;
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "referral_code" text;
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "created_at" timestamp DEFAULT now();
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "updated_at" timestamp DEFAULT now();
+          ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "deleted_at" timestamp;
+
+          DO $$ BEGIN
+            ALTER TABLE "manifest_keberangkatan" ADD COLUMN IF NOT EXISTS "pax_manifest" jsonb;
+          EXCEPTION WHEN OTHERS THEN null; END $$;
+        `);
+        console.log('[DB Auto-Migration] Enums and users table columns synced successfully.');
+      } catch (e: any) {
+        console.warn('[DB Auto-Migration Notice]:', e.message);
+      }
 
       // Ensure Default Workspace exists
       let defaultWorkspace: any = await db.query.workspaces.findFirst();
