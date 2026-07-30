@@ -21,7 +21,8 @@ export default function LoginMitra() {
       const idToken = await userCredential.user.getIdToken();
       
       // Sync with backend
-      const user = await api.post('/auth/sync', { role: 'mitra' });
+      const response = await api.post('/auth/sync', { role: 'mitra' });
+      const user = response.user;
       
       if (user.role !== 'mitra' && user.role !== 'admin') {
         throw new Error('Akses ditolak. Akun Anda bukan akun Mitra.');

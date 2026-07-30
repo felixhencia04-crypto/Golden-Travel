@@ -64,6 +64,7 @@ export const users = pgTable('users', {
   mitraId: uuid('mitra_id'), // The Mitra who referred this user
   referralCode: text('referral_code').unique(), // For users with role 'mitra'
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
   deletedAt: timestamp('deleted_at'), // Soft delete column
 });
 

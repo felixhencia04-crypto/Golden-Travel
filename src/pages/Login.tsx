@@ -55,7 +55,8 @@ export default function Login() {
         await signInWithEmailAndPassword(auth, email, password);
       }
       
-      const user = await api.post('/auth/sync', { name: isRegister ? name : undefined });
+      const response = await api.post('/auth/sync', { name: isRegister ? name : undefined });
+      const user = response.user;
       
       if (user.role === 'admin') {
         navigate('/admin');
@@ -78,7 +79,8 @@ export default function Login() {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      const user = await api.post('/auth/sync', {});
+      const response = await api.post('/auth/sync', {});
+      const user = response.user;
       
       if (user.role === 'admin') {
         navigate('/admin');

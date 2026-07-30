@@ -385,101 +385,86 @@ async function startServer() {
 
       const userEmail = decodedToken.email || `${decodedToken.uid}@goldentravel.local`;
       const userName = requestedName || decodedToken.name || userEmail.split('@')[0];
+      const userAvatar = decodedToken.picture || null;
+
+      const defaultWorkspace = await withRetry(() => db.query.workspaces.findFirst());
+      if (!defaultWorkspace) {
+        throw new Error('Workspace default tidak ditemukan. Silakan hubungi admin.');
+      }
 
       if (!user) {
         // Create user
         const role = (decodedToken.email === 'felix.hencia04@gmail.com') ? 'admin' : (requestedRole === 'mitra' ? 'mitra' : 'jamaah');
 
-        const defaultWorkspace = await db.query.workspaces.findFirst();
-
-        console.log('Creating new user:', { email: userEmail, role, workspaceId: defaultWorkspace?.id });
+        console.log('Creating new user:', { email: userEmail, role, workspaceId: defaultWorkspace.id });
 
         try {
           const insertData: any = {
             uid: decodedToken.uid,
             email: userEmail,
             name: userName,
+            avatarUrl: userAvatar,
             role: role as any,
-            workspaceId: defaultWorkspace?.id,
+            workspaceId: defaultWorkspace.id,
             status: 'DRAFT'
           };
           
           const [newUser] = await withRetry(() => db.insert(schema.users).values(insertData).returning());
-          
           user = newUser;
           console.log('New user created successfully:', user?.id);
           notifyUpdate();
         } catch (insertErr: any) {
           console.error('Database insert error in /sync:', insertErr);
           
-          if (insertErr.message?.includes('users_email_unique') || insertErr.cause?.message?.includes('users_email_unique')) {
-            console.log('Email already exists, linking UID...');
-            try {
-              const [updatedUser] = await withRetry(() => db.update(schema.users)
-                .set({ uid: decodedToken.uid })
-                .where(eq(schema.users.email, userEmail))
-                .returning());
-              user = updatedUser;
-            } catch (updErr: any) {
-              const pool = createPool();
-              const defaultWs = await db.query.workspaces.findFirst();
-              const rawUpd = await pool.query(
-                'UPDATE users SET uid = $1, workspace_id = COALESCE(workspace_id, $2) WHERE email = $3 RETURNING *',
-                [decodedToken.uid, defaultWs?.id, userEmail]
-              );
-              user = rawUpd.rows[0];
-            }
+          // Check if it's a conflict on email
+          if (insertErr.message?.includes('unique') || insertErr.code === '23505') {
+            console.log('User already exists (conflict), updating UID...');
+            const [updatedUser] = await withRetry(() => db.update(schema.users)
+              .set({ 
+                uid: decodedToken.uid,
+                workspaceId: defaultWorkspace.id 
+              })
+              .where(eq(schema.users.email, userEmail))
+              .returning());
+            user = updatedUser;
           } else {
-            try {
-              const pool = createPool();
-              const defaultWs = await db.query.workspaces.findFirst();
-              const rawIns = await pool.query(
-                'INSERT INTO users (uid, email, name, role, workspace_id, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-                [decodedToken.uid, userEmail, userName, role, defaultWs?.id, 'DRAFT']
-              );
-              user = rawIns.rows[0];
-              notifyUpdate();
-            } catch (rawInsErr: any) {
-              throw new Error(`Gagal membuat user: ${insertErr.cause?.message || insertErr.message}`);
-            }
+            throw insertErr;
           }
         }
       }
 
       if (user) {
-        const defaultWorkspace = await db.query.workspaces.findFirst();
-        
-        // Update info if needed
-        if (user.name !== userName || user.avatarUrl !== decodedToken.picture || (!user.workspaceId && defaultWorkspace)) {
+        // Update profile if needed
+        const needsUpdate = user.name !== userName || 
+                            user.avatarUrl !== userAvatar || 
+                            !user.workspaceId || 
+                            (user.email === 'felix.hencia04@gmail.com' && user.role !== 'admin');
+
+        if (needsUpdate) {
           const updateData: any = { 
             name: userName, 
-            avatarUrl: decodedToken.picture, 
-            updatedAt: new Date() 
+            avatarUrl: userAvatar,
+            updatedAt: new Date()
           };
-          if (!user.workspaceId && defaultWorkspace) {
+          
+          if (!user.workspaceId) {
             updateData.workspaceId = defaultWorkspace.id;
           }
+          
+          if (user.email === 'felix.hencia04@gmail.com') {
+            updateData.role = 'admin';
+          }
+          
+          console.log('Updating user profile for:', user.id, updateData);
           
           const [updatedUser] = await withRetry(() => db.update(schema.users)
             .set(updateData)
             .where(eq(schema.users.id, user.id))
             .returning());
-          user = updatedUser;
-        }
-
-        // Upgrade to admin if email matches
-        if (decodedToken.email === 'felix.hencia04@gmail.com' && user.role !== 'admin') {
-          try {
-            const updateData: any = { 
-              role: 'admin',
-              workspaceId: user.workspaceId || defaultWorkspace?.id
-            };
-            const [updatedUser] = await withRetry(() => db.update(schema.users)
-              .set(updateData)
-              .where(eq(schema.users.id, user.id))
-              .returning());
+          
+          if (updatedUser) {
             user = updatedUser;
-          } catch (e) {}
+          }
         }
       }
 
