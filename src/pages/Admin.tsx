@@ -1562,7 +1562,11 @@ export default function Admin() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {consultations.map((c) => {
+                      {[...consultations].sort((a, b) => {
+                        const aPending = (a.payments || []).some((p: any) => p.status === 'pending') ? 1 : 0;
+                        const bPending = (b.payments || []).some((p: any) => p.status === 'pending') ? 1 : 0;
+                        return bPending - aPending;
+                      }).map((c) => {
                         const pkg = packages.find(p => p.id === c.packageId) || packages.find(p => p.name === c.packageName);
                         const basePrice = pkg?.price || 0;
                         const paxCount = c.paxCount || 1;
@@ -2233,7 +2237,11 @@ export default function Admin() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {consultations.map((c) => {
+                    {[...consultations].sort((a, b) => {
+                      const aPending = (a.documents || []).some((d: any) => d.status === 'pending') ? 1 : 0;
+                      const bPending = (b.documents || []).some((d: any) => d.status === 'pending') ? 1 : 0;
+                      return bPending - aPending;
+                    }).map((c) => {
                       const docs = Array.isArray(c.documents) ? c.documents : [];
                       
                       // Handle duplicates by taking the latest version of each docType

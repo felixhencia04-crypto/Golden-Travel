@@ -602,6 +602,13 @@ async function startServer() {
                   fileUrl,
                   status: 'pending'
                 } as any).returning());
+
+        // Update registration status to documents_uploaded if it was bio_filled
+        const reg = await db.query.registrations.findFirst({ where: eq(schema.registrations.id, registrationId) });
+        if (reg && reg.status === 'bio_filled') {
+          await db.update(schema.registrations).set({ status: 'documents_uploaded', updatedAt: new Date() }).where(eq(schema.registrations.id, registrationId));
+        }
+
         notifyUpdate();
         return res.status(201).json(newDoc);
       }
@@ -1421,6 +1428,16 @@ async function startServer() {
       await withRetry(() => db.update(schema.documents)
               .set({ status, rejectionReason: reason, updatedAt: new Date() })
               .where(eq(schema.documents.id, req.params.id)));
+
+      // If approved, check if we should advance registration status
+      // For now, let's just make sure it stays at documents_uploaded or moves to next if everything is approved
+      // But payment is usually the next hard trigger.
+      // One logic: if doc is 'eticket' or 'visa' and approved, move to 'visa_ticket_ready'
+      if (status === 'approved' && (doc.docType.includes('eticket') || doc.docType.includes('visa'))) {
+          await withRetry(() => db.update(schema.registrations)
+            .set({ status: 'visa_ticket_ready', updatedAt: new Date() })
+            .where(eq(schema.registrations.id, doc.registrationId)));
+      }
 
       // Notify Jamaah
       await withRetry(() => db.insert(schema.notifications).values({

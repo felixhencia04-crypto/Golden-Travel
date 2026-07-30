@@ -837,14 +837,61 @@ export default function DashboardJamaah() {
     return false;
   };
 
+  const currentRegStatus = registration?.status || 'none';
+
+  const isTabDisabled = (tabId: string) => {
+    if (tabId === 'dashboard' || tabId === 'akun' || tabId === 'bantuan') return false;
+    
+    if (!registration) {
+      return tabId !== 'pilih_paket' && tabId !== 'katalog_paket' && tabId !== 'informasi_jadwal';
+    }
+
+    switch (tabId) {
+      case 'pilih_paket':
+      case 'katalog_paket':
+      case 'informasi_jadwal':
+        return currentRegStatus !== 'package_selected'; // Locked after choosing unless reset
+      case 'biodata':
+        return false; // Always allow editing bio if registered
+      case 'dokumen':
+        return currentRegStatus === 'package_selected' && !registration.paxData?.[0]?.isSubmitted;
+      case 'pembayaran':
+        // Allow payment after bio is submitted and documents are at least uploaded or in verification
+        return !['bio_filled', 'documents_uploaded', 'dp1_paid', 'dp2_paid', 'fully_paid', 'visa_ticket_ready'].includes(currentRegStatus);
+      case 'persiapan_keberangkatan':
+      case 'dokumen_keberangkatan':
+      case 'kenangan':
+        // Operational/Departure tabs only for paid users
+        return !['fully_paid', 'visa_ticket_ready'].includes(currentRegStatus);
+      default:
+        return false;
+    }
+  };
+
   const handleTabClick = (tabId: string, paymentMode?: 'step' | 'full') => {
-    if (isTabLocked(tabId)) {
-      toast.error('Selesaikan tahap sebelumnya terlebih dahulu.');
+    if (isTabDisabled(tabId)) {
+      const reason = getDisabledReason(tabId);
+      toast.error(reason || "Tahapan ini belum terbuka.");
       return;
     }
     setActiveTab(tabId);
     if (paymentMode) {
       setSelectedPaymentMode(paymentMode);
+    }
+    if (isSidebarOpen) setIsSidebarOpen(false);
+  };
+
+  const getDisabledReason = (tabId: string) => {
+    if (!registration && tabId !== 'pilih_paket' && tabId !== 'katalog_paket') return "Silakan pilih paket terlebih dahulu.";
+    
+    switch (tabId) {
+      case 'pembayaran':
+        return "Lengkapi biodata dan dokumen wajib sebelum melakukan pembayaran.";
+      case 'persiapan_keberangkatan':
+      case 'dokumen_keberangkatan':
+        return "Menu ini akan aktif setelah pembayaran Anda lunas dan dokumen keberangkatan diterbitkan.";
+      default:
+        return "Tahapan ini belum tersedia.";
     }
   };
 
@@ -977,16 +1024,19 @@ export default function DashboardJamaah() {
                         className={`w-full flex items-center py-3 rounded-xl font-medium transition-all duration-200 ${isCollapsed ? 'justify-center px-0' : 'px-4'} ${
                           ((activeTab === item.id || item.subItems?.some(s => s.id === activeTab)) && !item.subItems)
                             ? 'bg-gold-500 text-gray-900 font-semibold shadow-md ' 
-                            : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                            : isTabDisabled(item.id) 
+                              ? 'text-gray-600 cursor-not-allowed opacity-50'
+                              : 'text-slate-300 hover:bg-white/10 hover:text-white'
                         }`}
                       >
-                        <span className={`${!isCollapsed ? 'mr-3' : ''} ${(activeTab === item.id || item.subItems?.some(s => s.id === activeTab)) ? 'text-inherit' : 'text-slate-400'}`}>{item.icon}</span>
+                        <span className={`${!isCollapsed ? 'mr-3' : ''} ${(activeTab === item.id || item.subItems?.some(s => s.id === activeTab)) ? 'text-inherit' : isTabDisabled(item.id) ? 'text-gray-700' : 'text-slate-400'}`}>{item.icon}</span>
                         {!isCollapsed && (
                           <>
                             <span className="flex-1 text-left">{item.label}</span>
                             {item.subItems && (
                               <ChevronRight className={`w-4 h-4 transition-transform ${openSubMenus[item.id] ? 'rotate-90' : ''}`} />
                             )}
+                            {isTabDisabled(item.id) && <Lock className="w-3 h-3 text-gray-600 ml-2" />}
                           </>
                         )}
                       </button>
@@ -997,13 +1047,16 @@ export default function DashboardJamaah() {
                             <button
                               key={sub.id}
                               onClick={() => handleTabClick(sub.id)}
-                              className={`w-full text-left py-2 px-3 rounded-lg text-sm transition-all ${
+                              className={`w-full text-left py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-between ${
                                 activeTab === sub.id 
                                   ? 'text-gold-400 font-bold bg-white/10' 
-                                  : 'text-slate-300 hover:text-white hover:bg-white/10'
+                                  : isTabDisabled(sub.id)
+                                    ? 'text-gray-700 cursor-not-allowed'
+                                    : 'text-slate-300 hover:text-white hover:bg-white/10'
                               }`}
                             >
-                              {sub.label}
+                              <span>{sub.label}</span>
+                              {isTabDisabled(sub.id) && <Lock className="w-3 h-3" />}
                             </button>
                           ))}
                         </div>
@@ -3325,7 +3378,7 @@ export default function DashboardJamaah() {
 
           {activeTab === 'dashboard' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-gradient-to-r from-matcha-900 to-matcha-800 rounded-3xl p-8 sm:p-10 text-white shadow-lg relative overflow-hidden">
+              <div className="bg-gradient-to-r from-[#1a2f24] to-[#132019] rounded-3xl p-8 sm:p-10 text-white shadow-lg relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-gold-400/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div>
@@ -3335,30 +3388,45 @@ export default function DashboardJamaah() {
                   {userConsultation && (
                   <div className="flex gap-4">
                     <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl text-center min-w-[140px]">
-                      <p className="text-sm text-matcha-100/70 font-medium mb-1 uppercase tracking-wider">Keberangkatan</p>
-                      <p className="text-3xl font-bold text-gold-400">45 <span className="text-base font-normal text-matcha-50">Hari</span></p>
+                      <p className="text-sm text-matcha-100/70 font-medium mb-1 uppercase tracking-wider">Status Akun</p>
+                      <p className="text-xl font-bold text-gold-400 uppercase tracking-tighter">
+                        {currentRegStatus.replace('_', ' ')}
+                      </p>
                     </div>
                   </div>
                   )}
                 </div>
-                
-                {/* Progress Bar Section */}
-                <div className="mt-10 relative z-10">
-                  <div className="flex justify-between items-center mb-3">
-                    <span className="text-sm font-bold text-matcha-200 uppercase tracking-widest">Progress Kelengkapan</span>
-                    <span className="text-2xl font-bold text-gold-400">{progress}%</span>
-                  </div>
-                  <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm border border-white/5">
-                    <div 
-                      className="h-full bg-gradient-to-r from-gold-500 to-gold-400 transition-all duration-1000 ease-out shadow-[0_0_15px_rgba(234,179,8,0.5)]"
-                      style={{ width: `${progress}%` }}
-                    ></div>
-                  </div>
-                </div>
               </div>
 
-              
-              
+              {/* Status Tracking Stepper */}
+              <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm overflow-hidden relative group">
+                  <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">
+                    <ShieldCheck className="w-40 h-40 text-emerald-900" />
+                  </div>
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-8">
+                      <div>
+                        <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-gold-500" /> Progres Pendaftaran Anda
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-1">Selesaikan seluruh tahapan untuk keberangkatan Umroh yang mabrur.</p>
+                      </div>
+                    </div>
+                    
+                    <RegistrationStepper 
+                      currentStatus={currentRegStatus as RegistrationStatus}
+                      pendingPaymentStep={pendingPaymentStep}
+                      computedPaymentStep={computedPaymentStep}
+                      isDocumentPending={registration?.documents?.some((d: any) => d.status === 'pending')}
+                      onNavigate={(tabId) => setActiveTab(tabId)}
+                      onResetPackage={handleResetPackage}
+                      selectedPackageName={registration?.package?.name}
+                      paxCount={paxCount}
+                      packagePrice={Number(registration?.package?.price)}
+                    />
+                  </div>
+              </div>
+
               {/* Smart Alerts */}
               {alerts.length > 0 && (
                 <section className="portal-alert-section">
