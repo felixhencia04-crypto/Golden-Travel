@@ -37,30 +37,18 @@ export const workspacesRelations = relations(workspaces, ({ many }) => ({
   registrations: many(registrations),
 }));
 
-export const userStatusEnum = pgEnum('user_status', [
-  'DRAFT',
-  'PILIH_PAKET',
-  'ISI_BIODATA',
-  'UPLOAD_DOKUMEN',
-  'VERIFIKASI_DOKUMEN',
-  'CICIL_BAYAR',
-  'VERIFIKASI_BAYAR',
-  'LUNAS',
-  'SIAP_BERANGKAT',
-  'BERANGKAT',
-  'SELESAI'
-]);
+export const userStatusEnum = pgEnum('user_status', ['active', 'inactive', 'suspended']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').references(() => workspaces.id),
-  uid: text('uid').notNull().unique(), // Firebase Auth UID
+  uid: text('uid').unique(), // Firebase Auth UID
   email: text('email').notNull().unique(),
   name: text('name').notNull(),
   phone: text('phone'),
   avatarUrl: text('avatar_url'),
   role: userRoleEnum('role').default('jamaah').notNull(),
-  status: userStatusEnum('status').default('DRAFT').notNull(),
+  status: userStatusEnum('status').default('active').notNull(),
   mitraId: uuid('mitra_id'), // The Mitra who referred this user
   referralCode: text('referral_code').unique(), // For users with role 'mitra'
   createdAt: timestamp('created_at').defaultNow().notNull(),

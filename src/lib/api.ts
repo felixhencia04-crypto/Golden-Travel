@@ -151,4 +151,28 @@ export const api = {
     }
     return response.blob();
   },
+  async upload(endpoint: string, file: File, otherData: any = {}) {
+    const formData = new FormData();
+    formData.append('file', file);
+    Object.keys(otherData).forEach(key => {
+      formData.append(key, otherData[key]);
+    });
+
+    const headers = await getHeaders(endpoint);
+    // Delete content-type to let browser set it with boundary
+    delete (headers as any)['Content-Type'];
+
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: headers as any,
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      let errText = await response.text();
+      try { errText = JSON.parse(errText).error || errText; } catch(e) {}
+      throw new Error(errText);
+    }
+    return response.json();
+  },
 };

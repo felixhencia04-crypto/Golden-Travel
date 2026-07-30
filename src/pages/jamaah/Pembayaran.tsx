@@ -13,7 +13,8 @@ import {
   Download,
   Info,
   ChevronRight,
-  Camera
+  Camera,
+  Banknote
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -62,10 +63,7 @@ export const Pembayaran: React.FC = () => {
     setUploading(true);
     try {
       // 1. Upload file
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      
-      const uploadRes = await api.upload('/api/upload', formData);
+      const uploadRes = await api.upload('/api/upload', selectedFile);
       const proofUrl = uploadRes.url;
 
       // 2. Create transaction
