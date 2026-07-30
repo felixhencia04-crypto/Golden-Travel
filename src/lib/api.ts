@@ -2,6 +2,14 @@ import { getAuth } from 'firebase/auth';
 
 const API_BASE_URL = '/api';
 
+export function getStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('jamaah_token') ||
+         localStorage.getItem('mitra_token') ||
+         localStorage.getItem('admin_token') ||
+         sessionStorage.getItem('admin_token');
+}
+
 export function getAdminToken(): string | null {
   return localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token');
 }
@@ -11,11 +19,11 @@ async function getHeaders(endpoint: string) {
     'Content-Type': 'application/json',
   };
 
-  const adminToken = getAdminToken();
+  const storedToken = getStoredToken();
   const isAdminPath = endpoint.startsWith('/admin') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'));
 
-  if (isAdminPath && adminToken) {
-    headers['Authorization'] = `Bearer ${adminToken}`;
+  if (isAdminPath && storedToken) {
+    headers['Authorization'] = `Bearer ${storedToken}`;
     return headers;
   }
 
@@ -23,13 +31,17 @@ async function getHeaders(endpoint: string) {
   const user = auth.currentUser;
   
   if (user && !endpoint.includes('/admin/login')) {
-    const token = await user.getIdToken();
-    headers['Authorization'] = `Bearer ${token}`;
-    return headers;
+    try {
+      const token = await user.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+      return headers;
+    } catch (e) {
+      // Fallback to stored token if getIdToken fails
+    }
   }
 
-  if (adminToken) {
-    headers['Authorization'] = `Bearer ${adminToken}`;
+  if (storedToken) {
+    headers['Authorization'] = `Bearer ${storedToken}`;
   }
 
   return headers;

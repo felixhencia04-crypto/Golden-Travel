@@ -35,7 +35,8 @@ export function useRegistration() {
         api.get('/jamaah/registration').catch((err) => {
           console.error("refreshData: Registration fetch failed", err);
           if (err.message?.includes('Sesi') || err.message?.includes('login')) {
-            auth.signOut();
+            auth.signOut().catch(() => {});
+            localStorage.removeItem('jamaah_token');
             sessionStorage.removeItem(JAMAAH_CACHE_KEY);
             window.location.href = '/login';
           }
@@ -83,9 +84,11 @@ export function useRegistration() {
   };
 
   useEffect(() => {
+    const hasJamaahToken = !!localStorage.getItem('jamaah_token');
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
-      if (firebaseUser) {
+      if (firebaseUser || localStorage.getItem('jamaah_token')) {
         refreshData(true);
       } else {
         setRegistration(null);
@@ -95,6 +98,10 @@ export function useRegistration() {
         sessionStorage.removeItem(JAMAAH_CACHE_KEY);
       }
     });
+
+    if (hasJamaahToken) {
+      refreshData(true);
+    }
 
     return () => unsubscribe();
   }, []);

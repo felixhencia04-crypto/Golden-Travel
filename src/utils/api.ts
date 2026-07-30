@@ -4,6 +4,7 @@ const API_BASE_URL = '/api';
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
   const adminToken = localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token') || localStorage.getItem('adminToken');
+  const storedToken = localStorage.getItem('jamaah_token') || localStorage.getItem('mitra_token') || adminToken || localStorage.getItem('token');
   const user = auth.currentUser;
   let token: string | null = null;
 
@@ -20,7 +21,7 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
   }
 
   if (!token) {
-    token = adminToken || localStorage.getItem('token');
+    token = storedToken;
   }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {

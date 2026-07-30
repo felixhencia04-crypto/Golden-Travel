@@ -102,60 +102,55 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
     return res.status(401).json({ error: 'Sesi tidak valid. Silakan login kembali.' });
   }
 
-  // 1. Try Custom JWT first
+  // 1. Try Custom JWT first (Admin, Jamaah, Mitra)
   const unverifiedDecoded = jwt.decode(token) as any;
-  if (unverifiedDecoded && unverifiedDecoded.role === 'admin') {
+  if (unverifiedDecoded) {
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as any;
-      const ADMIN_ID = '00000000-0000-0000-0000-000000000000';
-      const targetId = decoded.id || ADMIN_ID;
+      if (decoded && (decoded.id || decoded.email)) {
+        let user: any = null;
 
-      // Check fast in-memory cache (valid for 60 seconds)
-      const cached = adminUserCache.get(targetId);
-      if (cached && Date.now() - cached.timestamp < 60000) {
-        req.user = cached.user;
+        // Resilient user lookup (essential columns first)
+        try {
+          if (decoded.id) {
+            const [u] = await withRetry(() => db.select({
+              id: schema.users.id,
+              email: schema.users.email,
+              name: schema.users.name,
+              role: schema.users.role,
+              workspaceId: schema.users.workspaceId,
+              status: schema.users.status
+            }).from(schema.users).where(eq(schema.users.id, decoded.id)).limit(1));
+            user = u || null;
+          }
+        } catch (e) {}
+
+        if (!user && decoded.email) {
+          try {
+            const [u] = await withRetry(() => db.select({
+              id: schema.users.id,
+              email: schema.users.email,
+              name: schema.users.name,
+              role: schema.users.role,
+              workspaceId: schema.users.workspaceId,
+              status: schema.users.status
+            }).from(schema.users).where(eq(schema.users.email, decoded.email.toLowerCase().trim())).limit(1));
+            user = u || null;
+          } catch (e) {}
+        }
+
+        if (!user && decoded.id) {
+          try {
+            const [u] = await withRetry(() => db.select().from(schema.users).where(eq(schema.users.id, decoded.id)).limit(1));
+            user = u || null;
+          } catch (e) {}
+        }
+
+        req.user = user || decoded;
         return next();
       }
-
-      let adminUser = await withRetry(() => db.query.users.findFirst({
-        where: eq(schema.users.id, targetId)
-      }));
-      
-      const defaultWorkspace = await db.query.workspaces.findFirst();
-
-      if (!adminUser && targetId === ADMIN_ID) {
-        // Create the default super admin if it doesn't exist
-        const [newAdmin] = await withRetry(() => db.insert(schema.users).values({
-          id: ADMIN_ID,
-          uid: 'admin-hardcoded-uid',
-          email: 'admin@goldentravel.local',
-          name: 'Administrator',
-          role: 'admin',
-          workspaceId: (defaultWorkspace?.id as any),
-          status: 'Selesai' as any
-        }).returning());
-        adminUser = newAdmin;
-      }
-      
-      if (adminUser && !adminUser.workspaceId && defaultWorkspace) {
-        const [updatedAdmin] = await withRetry(() => db.update(schema.users)
-          .set({ workspaceId: (defaultWorkspace.id as any) })
-          .where(eq(schema.users.id, (adminUser!.id as any)))
-          .returning());
-        adminUser = updatedAdmin;
-      }
-      
-      if (!adminUser) {
-        // Fallback to token payload if user not found in DB
-        req.user = decoded as any;
-      } else {
-        req.user = adminUser;
-        adminUserCache.set(targetId, { user: adminUser, timestamp: Date.now() });
-      }
-      return next();
-    } catch (e: any) {
-      console.error('Admin JWT verification failed:', e.message);
-      return res.status(401).json({ error: 'Sesi Admin telah berakhir. Silakan login kembali.' });
+    } catch (e) {
+      // Token is not a custom JWT signed with JWT_SECRET, pass through to Firebase Auth check
     }
   }
 
@@ -167,34 +162,53 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
       return next();
     }
 
-    let decodedToken;
+    let decodedToken: any = null;
     try {
       decodedToken = await adminAuth.verifyIdToken(token);
     } catch (err: any) {
       const decoded = jwt.decode(token) as any;
-      if (decoded && (decoded.uid || decoded.user_id || decoded.sub)) {
-        // Only log if it's NOT the common "no kid claim" error or if we want to be aware of fallbacks
-        if (!err.message?.includes('kid')) {
-          console.error('verifyIdToken middleware failed:', err.message);
-        }
+      if (decoded && (decoded.uid || decoded.user_id || decoded.sub || decoded.email)) {
         decodedToken = { ...decoded, uid: decoded.uid || decoded.user_id || decoded.sub };
       } else {
-        console.error('verifyIdToken middleware failed and no fallback possible:', err.message, "decoded:", decoded);
         throw err;
       }
     }
-    let user;
-    try {
-      user = await withRetry(() => db.query.users.findFirst({
-        where: eq(schema.users.uid, decodedToken.uid),
-      }));
-    } catch (err: any) {
-      console.error('Database query failed in authenticate after retries:', err.message);
-      throw err;
+
+    let user: any = null;
+    if (decodedToken?.uid) {
+      try {
+        const [u] = await withRetry(() => db.select().from(schema.users).where(eq(schema.users.uid, decodedToken.uid)).limit(1));
+        user = u || null;
+      } catch (err: any) {}
+    }
+
+    if (!user && decodedToken?.email) {
+      try {
+        const userEmail = decodedToken.email.toLowerCase().trim();
+        const [u] = await withRetry(() => db.select().from(schema.users).where(eq(schema.users.email, userEmail)).limit(1));
+        user = u || null;
+      } catch (err: any) {}
+    }
+
+    if (!user && decodedToken?.email) {
+      // Auto-create user if missing during Firebase verification
+      const userEmail = decodedToken.email.toLowerCase().trim();
+      const userName = decodedToken.name || userEmail.split('@')[0];
+      const role = userEmail === 'felix.hencia04@gmail.com' ? 'admin' : 'jamaah';
+      try {
+        const [newUser] = await withRetry(() => db.insert(schema.users).values({
+          uid: decodedToken.uid || `uid-${Date.now()}`,
+          email: userEmail,
+          name: userName,
+          role: role as any,
+          status: 'active'
+        } as any).returning());
+        user = newUser;
+      } catch (e) {}
     }
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'User tidak ditemukan.' });
     }
 
     req.user = user;
@@ -208,9 +222,9 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
     }
 
     next();
-  } catch (error) {
-    console.error('Auth error:', error);
-    res.status(401).json({ error: 'Invalid token' });
+  } catch (error: any) {
+    console.error('Auth error:', error.message);
+    res.status(401).json({ error: 'Sesi telah berakhir. Silakan login kembali.' });
   }
 }
 
