@@ -337,6 +337,7 @@ async function startServer() {
         }
       }
 
+      notifyUpdate();
       res.json(user);
     } catch (error: any) {
       console.error("Sync error details:", error);
@@ -575,42 +576,48 @@ async function startServer() {
     }
   });
 
-  // Get Jamaah Registration Details
-  app.get("/api/jamaah/registration", authenticate, async (req: AuthRequest, res) => {
-    try {
-      // 1. Try finding by userId first (primary owner)
-      let registration = await withRetry(() => db.query.registrations.findFirst({
-        where: eq(schema.registrations.userId, req.user!.id),
+  async function getRegistrationForUser(userId: string, email?: string): Promise<any> {
+    let registration = await withRetry(() => db.query.registrations.findFirst({
+      where: eq(schema.registrations.userId, userId),
+      with: {
+        package: true,
+        payments: true,
+        documents: true,
+        user: true,
+        schedule: true,
+        certificates: true
+      }
+    }));
+
+    if (!registration && email) {
+      const userEmail = email.toLowerCase();
+      const allRegs = await withRetry(() => db.query.registrations.findMany({
         with: {
           package: true,
           payments: true,
           documents: true,
-          user: true
+          user: true,
+          schedule: true,
+          certificates: true
         }
       }));
 
-      // 2. If not found, try searching by email in paxData or ordererEmail
-      if (!registration && req.user?.email) {
-        const userEmail = req.user.email.toLowerCase();
-        const allRegs = await withRetry(() => db.query.registrations.findMany({
-          with: {
-            package: true,
-            payments: true,
-            documents: true,
-            user: true
-          }
-        }));
+      registration = allRegs.find((r: any) => {
+        const ordererMatch = r.ordererEmail?.toLowerCase() === userEmail;
+        const paxMatch = Array.isArray(r.paxData) && r.paxData.some((p: any) => 
+          p.email?.toLowerCase() === userEmail
+        );
+        return ordererMatch || paxMatch;
+      }) || null;
+    }
 
-        registration = allRegs.find(r => {
-          const ordererMatch = r.ordererEmail?.toLowerCase() === userEmail;
-          const paxMatch = Array.isArray(r.paxData) && r.paxData.some((p: any) => 
-            p.email?.toLowerCase() === userEmail || 
-            (req.user?.name && p.fullName?.toLowerCase() === req.user.name.toLowerCase())
-          );
-          return ordererMatch || paxMatch;
-        });
-      }
+    return registration;
+  }
 
+  // Get Jamaah Registration Details
+  app.get("/api/jamaah/registration", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const registration = await getRegistrationForUser(req.user!.id, req.user?.email);
       res.json(registration || null);
     } catch (error) {
       console.warn("Failed to fetch registration (likely transient):", error);
@@ -661,6 +668,7 @@ async function startServer() {
                   })
                   .where(eq(schema.registrations.userId, req.user!.id))
                   .returning());
+        notifyUpdate();
         return res.status(200).json(updatedReg);
       }
 
@@ -676,6 +684,7 @@ async function startServer() {
               status: 'package_selected'
             }).returning());
 
+      notifyUpdate();
       res.status(201).json(newReg);
     } catch (error) {
       console.error("POST /api/jamaah/register error:", error);
@@ -790,6 +799,7 @@ async function startServer() {
               status: 'open'
             } as any).returning());
       res.json(newTicket);
+      notifyUpdate();
     } catch (error) {
       console.error("Failed to create ticket:", error);
       res.status(500).json({ error: "Failed to create ticket" });
@@ -824,6 +834,7 @@ async function startServer() {
               .returning());
 
       res.json(updatedTicket);
+      notifyUpdate();
     } catch (error) {
       console.error("Failed to reply to ticket:", error);
       res.status(500).json({ error: "Failed to reply to ticket" });
@@ -883,6 +894,7 @@ async function startServer() {
               .returning());
 
       res.json(updatedTicket);
+      notifyUpdate();
     } catch (error) {
       console.error("Failed to reply to ticket (admin):", error);
       res.status(500).json({ error: "Failed to reply to ticket" });
@@ -1163,9 +1175,7 @@ async function startServer() {
 
   app.get("/api/jamaah/manifest", authenticate, async (req: AuthRequest, res) => {
     try {
-      const registration = await withRetry(() => db.query.registrations.findFirst({
-              where: eq(schema.registrations.userId, req.user!.id)
-            }));
+      const registration = await getRegistrationForUser(req.user!.id, req.user?.email);
       if (!registration) return res.json(null);
       const manifest = await withRetry(() => db.query.manifests.findFirst({
               where: eq(schema.manifests.registrationId, registration.id)
@@ -1178,9 +1188,7 @@ async function startServer() {
 
   app.get("/api/jamaah/equipment", authenticate, async (req: AuthRequest, res) => {
     try {
-      const registration = await withRetry(() => db.query.registrations.findFirst({
-              where: eq(schema.registrations.userId, req.user!.id)
-            }));
+      const registration = await getRegistrationForUser(req.user!.id, req.user?.email);
       if (!registration) return res.json(null);
       const equipment = await withRetry(() => db.query.equipment.findFirst({
               where: eq(schema.equipment.registrationId, registration.id)
@@ -1272,9 +1280,7 @@ async function startServer() {
   // Get Jamaah Documents
   app.get("/api/jamaah/documents", authenticate, async (req: AuthRequest, res) => {
     try {
-      const registration = await withRetry(() => db.query.registrations.findFirst({
-              where: eq(schema.registrations.userId, req.user!.id)
-            }));
+      const registration = await getRegistrationForUser(req.user!.id, req.user?.email);
       if (!registration) return res.json([]);
 
       const userDocs = await withRetry(() => db.query.documents.findMany({
@@ -1290,9 +1296,7 @@ async function startServer() {
   app.post("/api/documents/upload", authenticate, async (req: AuthRequest, res) => {
     const { docType, fileUrl } = req.body;
     try {
-      const registration = await withRetry(() => db.query.registrations.findFirst({
-              where: eq(schema.registrations.userId, req.user!.id)
-            }));
+      const registration = await getRegistrationForUser(req.user!.id, req.user?.email);
       if (!registration) return res.status(404).json({ error: "No registration found" });
 
       // Upsert document (or just insert new one)
@@ -1394,13 +1398,7 @@ async function startServer() {
   // Get Jamaah Invoice
   app.get("/api/jamaah/invoice", authenticate, async (req: AuthRequest, res) => {
     try {
-      const registration = await withRetry(() => db.query.registrations.findFirst({
-              where: eq(schema.registrations.userId, req.user!.id),
-              with: {
-                package: true,
-                payments: true
-              }
-            }));
+      const registration = await getRegistrationForUser(req.user!.id, req.user?.email);
       if (!registration) return res.status(404).json({ error: "No registration found" });
 
       // Calculate discounts (example logic: child 10%, infant 50%)
@@ -1460,12 +1458,7 @@ async function startServer() {
   // Jamaah Dashboard Info
   app.get("/api/jamaah/dashboard-info", authenticate, async (req: AuthRequest, res) => {
     try {
-      const registration = await withRetry(() => db.query.registrations.findFirst({
-              where: eq(schema.registrations.userId, req.user!.id),
-              with: {
-                package: true,
-              }
-            }));
+      const registration = await getRegistrationForUser(req.user!.id, req.user?.email);
 
       if (!registration) {
         return res.json({ progress: 0, countdown: null });
@@ -2110,78 +2103,6 @@ async function startServer() {
       notifyUpdate();
     } catch (error: any) {
       res.status(500).json({ error: error.message });
-    }
-  });
-
-  app.get("/api/admin/pending-verifications", authenticate, async (req: AuthRequest, res) => {
-    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    try {
-      const pendingPayments = await withRetry(() => db.query.payments.findMany({
-              where: eq(schema.payments.status, 'pending'),
-              with: { registration: { with: { user: true, package: true } } }
-            }));
-      
-      const formatted = pendingPayments.map(p => ({
-        paymentId: p.id,
-        userName: p.registration?.user?.name,
-        userEmail: p.registration?.user?.email,
-        packageName: p.registration?.package?.name,
-        paymentType: p.paymentType,
-        amount: p.amount,
-        proofUrl: p.proofUrl,
-        createdAt: p.createdAt
-      }));
-      
-      res.json(formatted);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch pending verifications" });
-    }
-  });
-
-  
-
-  app.get("/api/admin/dashboard-stats", authenticate, async (req: AuthRequest, res) => {
-    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    try {
-      const allUsers = await withRetry(() => db.query.users.findMany());
-      const allRegs = await withRetry(() => db.query.registrations.findMany());
-      const allPayments = await withRetry(() => db.query.payments.findMany({ where: eq(schema.payments.status, 'approved') }));
-      
-      const totalJamaah = allUsers.filter(u => u.role === 'jamaah').length;
-      const totalMitra = allUsers.filter(u => u.role === 'mitra').length;
-      const totalRevenue = allPayments.reduce((acc, p) => acc + Number(p.amount), 0);
-      
-      res.json({
-        totalJamaah,
-        totalMitra,
-        totalRevenue,
-        totalRegistrations: allRegs.length
-      });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch dashboard stats" });
-    }
-  });
-
-  app.get("/api/admin/pending-documents", authenticate, async (req: AuthRequest, res) => {
-    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    try {
-      const pendingDocs = await withRetry(() => db.query.documents.findMany({
-              where: eq(schema.documents.status, 'pending'),
-              with: { registration: { with: { user: true } } }
-            }));
-      
-      const formatted = pendingDocs.map(d => ({
-        id: d.id,
-        userName: d.registration?.user?.name,
-        userEmail: d.registration?.user?.email,
-        docType: d.docType,
-        fileUrl: d.fileUrl,
-        createdAt: d.createdAt
-      }));
-      
-      res.json(formatted);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch pending documents" });
     }
   });
 

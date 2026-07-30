@@ -78,7 +78,12 @@ export default function Admin() {
     return uList
       .filter(u => u.role === 'jamaah')
       .flatMap(u => {
-        const userRegs = rList.filter(r => r.userId === u.id);
+        const uEmail = u.email?.toLowerCase();
+        const userRegs = rList.filter(r => 
+          r.userId === u.id || 
+          (uEmail && r.ordererEmail?.toLowerCase() === uEmail) ||
+          (uEmail && Array.isArray(r.paxData) && r.paxData.some((p: any) => p.email?.toLowerCase() === uEmail))
+        );
         if (userRegs.length === 0) {
           return [{
             id: `user-${u.id}`,
@@ -3420,7 +3425,7 @@ export default function Admin() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {consultations.filter(c => c.status === 'payment' || c.paymentStep === 'lunas').map((c) => {
+                      {consultations.filter(c => c.status !== 'none' && c.status !== 'cancelled' && c.packageName !== 'Belum Memilih Paket').map((c) => {
                         const status = inventory?.find(i => i.registrationId === c.id);
                         return (
                           <tr key={c.id} className="hover:bg-white/20 transition-colors">
@@ -3618,7 +3623,7 @@ export default function Admin() {
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                         {consultations
-                          .filter(c => (c.status === 'payment' || c.paymentStep === 'lunas') && (c.name || '').toLowerCase().includes(manifestFilter.toLowerCase()))
+                          .filter(c => c.status !== 'none' && c.status !== 'cancelled' && c.packageName !== 'Belum Memilih Paket' && (c.name || '').toLowerCase().includes(manifestFilter.toLowerCase()))
                           .map((c) => {
                             const existingM = manifest?.find(m => m.registrationId === c.id);
                             const paxList = c.paxData && Array.isArray(c.paxData) && c.paxData.length > 0
@@ -3693,7 +3698,7 @@ export default function Admin() {
                               </tr>
                             );
                           })}
-                        {consultations.filter(c => c.status === 'payment' || c.paymentStep === 'lunas').length === 0 && (
+                        {consultations.filter(c => c.status !== 'none' && c.status !== 'cancelled' && c.packageName !== 'Belum Memilih Paket').length === 0 && (
                           <tr>
                             <td colSpan={7} className="p-20 text-center text-gray-400">
                               <UserCheck className="w-12 h-12 mx-auto mb-4 opacity-20" />

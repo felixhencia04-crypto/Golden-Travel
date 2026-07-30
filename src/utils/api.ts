@@ -3,17 +3,24 @@ import { auth } from '../lib/firebase';
 const API_BASE_URL = '/api';
 
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
+  const adminToken = localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token') || localStorage.getItem('adminToken');
   const user = auth.currentUser;
   let token: string | null = null;
-  if (user) {
+
+  const isAdminCall = endpoint.startsWith('/admin') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'));
+
+  if (isAdminCall && adminToken) {
+    token = adminToken;
+  } else if (user) {
     try {
       token = await user.getIdToken();
     } catch (e) {
       console.warn('Failed to get Firebase token:', e);
     }
   }
+
   if (!token) {
-    token = localStorage.getItem('adminToken') || localStorage.getItem('token');
+    token = adminToken || localStorage.getItem('token');
   }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -56,5 +63,5 @@ export const api = {
     fetchApi('/documents/upload', { method: 'POST', body: JSON.stringify(data) }),
   
   verifyPayment: (id: string, status: 'approved' | 'rejected', reason?: string) => 
-    fetchApi(`/payments/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ status, reason }) }),
+    fetchApi(`/admin/payments/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ status, reason }) }),
 };

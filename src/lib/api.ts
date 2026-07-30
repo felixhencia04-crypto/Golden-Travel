@@ -12,7 +12,9 @@ async function getHeaders(endpoint: string) {
   };
 
   const adminToken = getAdminToken();
-  if (endpoint.startsWith('/admin') && adminToken) {
+  const isAdminPath = endpoint.startsWith('/admin') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'));
+
+  if (isAdminPath && adminToken) {
     headers['Authorization'] = `Bearer ${adminToken}`;
     return headers;
   }
