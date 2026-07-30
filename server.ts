@@ -474,32 +474,38 @@ async function startServer() {
           }
         }
       } else {
-        // Create new user safely
+        // Create new user safely - only passing essential fields from Google
         const role = (userEmail === 'felix.hencia04@gmail.com') ? 'admin' : (requestedRole === 'mitra' ? 'mitra' : 'jamaah');
+        const googleUid = decodedToken.uid || decodedToken.id || `uid-${Date.now()}`;
+        const cleanName = userName || userEmail.split('@')[0];
+
+        const insertPayload: Record<string, any> = {
+          uid: googleUid,
+          email: userEmail,
+          name: cleanName,
+          role: role as any
+        };
+        if (userAvatar && typeof userAvatar === 'string' && userAvatar.startsWith('http')) {
+          insertPayload.avatarUrl = userAvatar;
+        }
+
         try {
-          const [newUser] = await withRetry(() => db.insert(schema.users).values({
-            uid: decodedToken.uid || decodedToken.id || `uid-${Date.now()}`,
-            email: userEmail,
-            name: userName,
-            avatarUrl: userAvatar,
-            role: role as any,
-            workspaceId: defaultWorkspace.id,
-            status: 'active'
-          } as any).returning());
+          const [newUser] = await withRetry(() => db.insert(schema.users).values(insertPayload as any).returning());
           user = newUser;
         } catch (err: any) {
-          console.warn("Insert full user values failed, inserting essential fields...", err.message);
+          console.warn("Drizzle insert failed, executing raw clean INSERT query:", err.message);
           try {
-            const [essentialUser] = await withRetry(() => db.insert(schema.users).values({
-              email: userEmail,
-              name: userName,
-              role: role as any,
-              uid: decodedToken.uid || `uid-${Date.now()}`
-            } as any).returning());
-            user = essentialUser;
-          } catch (insertErr: any) {
-            console.error("Gagal membuat pengguna baru:", insertErr);
-            throw new Error("Gagal mendaftarkan akun baru: " + (insertErr.message || insertErr));
+            const hasAvatar = !!insertPayload.avatarUrl;
+            const rawResult = await withRetry(() => db.execute(sql`
+              INSERT INTO "users" ("uid", "email", "name", "role"${hasAvatar ? sql`, "avatar_url"` : sql``})
+              VALUES (${googleUid}, ${userEmail}, ${cleanName}, ${role}${hasAvatar ? sql`, ${insertPayload.avatarUrl}` : sql``})
+              RETURNING "id", "email", "name", "role", "uid", "avatar_url"
+            `));
+            const row = rawResult.rows?.[0] || (rawResult as any)?.[0];
+            user = row;
+          } catch (rawErr: any) {
+            console.error("Gagal mendaftarkan akun baru (Drizzle & Raw SQL):", rawErr);
+            throw new Error("Gagal mendaftarkan akun baru: " + (rawErr.message || rawErr));
           }
         }
       }
