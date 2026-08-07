@@ -425,7 +425,7 @@ async function startServer() {
     }, 500); // 500ms fast real-time debounce
   };
 
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
 
   app.use(express.json({ limit: '500mb' }));
   app.use(express.urlencoded({ extended: true, limit: '500mb' }));
