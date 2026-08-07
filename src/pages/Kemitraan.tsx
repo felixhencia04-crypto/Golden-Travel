@@ -51,7 +51,7 @@ export default function Kemitraan() {
         className="relative py-16 sm:py-24 lg:py-28 bg-[#d6daba] text-stone-900 border-b-4 border-[#D4AF37] overflow-hidden"
         >
         <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img src="/images/bg-mitra.png" alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
+          <img src="/images/bg-mitra.webp" alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center lg:text-left max-w-3xl space-y-7 my-2">
@@ -170,7 +170,7 @@ export default function Kemitraan() {
         className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 border-b-4 border-[#D4AF37] overflow-hidden"
         >
         <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img src="/images/bg-mitra.png" alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
+          <img src="/images/bg-mitra.webp" alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
         </div>
         {/* Background Subtle Patterns */}
         <div className="absolute inset-0 bg-[radial-gradient(#063b2c_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.04] pointer-events-none"></div>
@@ -427,7 +427,7 @@ export default function Kemitraan() {
         className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 border-b-4 border-[#D4AF37] overflow-hidden"
         >
         <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img src="/images/bg-mitra.png" alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
+          <img src="/images/bg-mitra.webp" alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
         </div>
         {/* Subtle background highlight for optimal clarity */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-white/30 backdrop-blur-[0.5px] pointer-events-none"></div>
@@ -703,7 +703,7 @@ export default function Kemitraan() {
         className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 border-b-4 border-[#D4AF37] overflow-hidden"
         >
         <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img src="/images/bg-mitra.png" alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
+          <img src="/images/bg-mitra.webp" alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
         </div>
         {/* Subtle background highlight for optimal clarity */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-white/30 backdrop-blur-[0.5px] pointer-events-none"></div>
@@ -858,7 +858,7 @@ export default function Kemitraan() {
         className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 border-b-4 border-[#D4AF37] overflow-hidden"
         >
         <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img src="/images/bg-mitra.png" alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
+          <img src="/images/bg-mitra.webp" alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
         </div>
         {/* Subtle background highlight for optimal clarity */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-white/30 backdrop-blur-[0.5px] pointer-events-none"></div>
@@ -1144,7 +1144,7 @@ export default function Kemitraan() {
         className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 border-b-4 border-[#D4AF37] overflow-hidden"
         >
         <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img src="/images/bg-mitra.png" alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
+          <img src="/images/bg-mitra.webp" alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
         </div>
         {/* Subtle background highlight for optimal clarity */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-white/30 backdrop-blur-[0.5px] pointer-events-none"></div>
