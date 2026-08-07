@@ -6772,7 +6772,7 @@ async function startServer() {
       }));
       res.json(photos);
     } catch (error) {
-      console.error("Gallery fetch error:", error); res.status(500).json({ error: "Failed to fetch photos", details: String(error) });
+      console.error("Gallery fetch error:", error); res.status(500).json({ error: "Failed to fetch photos", details: String(error), originalError: (error as any).message });
     }
   });
 
@@ -7320,6 +7320,23 @@ async function startServer() {
 
   httpServer.listen(Number(PORT), "0.0.0.0", async () => {
     
+    // Ensure gallery_photos table exists to prevent 500 error if db:push fails in production
+    try {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS gallery_photos (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          workspace_id UUID REFERENCES workspaces(id),
+          title TEXT,
+          description TEXT,
+          image_url TEXT NOT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+      `);
+      console.log("Successfully ensured gallery_photos table exists.");
+    } catch (e) {
+      console.error("Failed to ensure gallery_photos table exists:", e);
+    }
+
       // Seed gallery if empty
       try {
         const galleryCount = await db.select({ count: sql`count(*)` }).from(schema.gallery_photos);
