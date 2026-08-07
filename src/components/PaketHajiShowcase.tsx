@@ -153,7 +153,7 @@ const DEFAULT_HAJI_PACKAGES: HajiPackage[] = [
       'Porsi Nomor Kuota Resmi Kementerian Agama RI (SISKOHAT)',
       'Jaminan Kepastian Berangkat Sesuai Nomor Porsi Kuota',
       'Fasilitas Hotel Bintang 5 Dekat Pelataran Masjid',
-      'Penyelenggara Berizin Resmi PIHK Kemenag No. 912/2021',
+      'Penyelenggara Berizin Resmi Kementerian Agama RI',
       'Pembimbing Ibadah Ulama & Pembimbing Bersertifikat'
     ],
     includes: [
@@ -425,7 +425,7 @@ export default function PaketHajiShowcase() {
         
         {/* Section Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 sm:gap-8 border-b border-[#D4AF37]/20 pb-8 sm:pb-12">
-          <div className="max-w-2xl space-y-3 sm:space-y-4">
+          <div className="max-w-3xl space-y-3 sm:space-y-4">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/40 text-[#D4AF37] text-xs font-bold tracking-wider uppercase">
               <Sparkles className="w-3.5 h-3.5" /> Program Haji Khusus & Furoda Resmi
             </div>
@@ -435,17 +435,6 @@ export default function PaketHajiShowcase() {
             <p className="text-stone-300 text-sm sm:text-base md:text-lg font-light leading-relaxed">
               Tunaikan Rukun Islam kelima dengan kepastian visa resmi, bimbingan syariat intensif, dan kenyamanan akomodasi Bintang 5 di Makkah, Madinah, serta Tenda Maktab VIP Armuzna.
             </p>
-          </div>
-
-          {/* Guarantee Badge */}
-          <div className="flex items-center gap-3 bg-[#012B1E]/90 border border-[#D4AF37]/30 p-4 rounded-2xl backdrop-blur-md shrink-0">
-            <div className="w-12 h-12 rounded-xl bg-[#D4AF37]/20 flex items-center justify-center text-[#D4AF37] shrink-0">
-              <Shield className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="text-xs text-stone-300 font-medium">Legalitas PIHK Kemenag RI</div>
-              <div className="text-sm font-bold text-white font-serif">Izin Resmi No. 912/2021</div>
-            </div>
           </div>
         </div>
 
@@ -962,7 +951,7 @@ export default function PaketHajiShowcase() {
                       <div className="space-y-2 text-xs text-stone-200">
                         <p>• <strong>Setoran DP Booking Seat:</strong> {selectedPackage.dpAmount} saat pendaftaran.</p>
                         <p>• <strong>Pelunasan Haji Furoda:</strong> Dilakukan saat penerbitan Visa Haji Furoda resmi oleh Kerajaan Arab Saudi.</p>
-                        <p>• <strong>Legalitas Resmi:</strong> Dikelola langsung oleh PT. Golden Tour Haramain (PIHK Kemenag RI No. 912/2021).</p>
+                        <p>• <strong>Legalitas Resmi:</strong> Dikelola langsung oleh PT. Golden Tour Haramain dengan izin resmi Kementerian Agama RI.</p>
                       </div>
                     </div>
                   </div>
