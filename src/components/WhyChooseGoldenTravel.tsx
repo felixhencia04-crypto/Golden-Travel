@@ -300,7 +300,7 @@ export default function WhyChooseGoldenTravel() {
 
             <div className="pt-2 flex flex-wrap items-center justify-center gap-4">
               <a
-                href="https://wa.me/6281234567890?text=Assalamu%27alaikum,%20saya%20ingin%20konsultasi%20paket%20Umrah%2FHaji%20Golden%20Travel"
+                href="https://wa.me/6282283201103?text=Assalamu%27alaikum,%20saya%20ingin%20konsultasi%20paket%20Umrah%2FHaji%20Golden%20Travel"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-[#D4AF37] via-[#F3E5AB] to-[#8B6508] text-[#0B2319] font-bold text-sm sm:text-base hover:brightness-110 shadow-xl transition-all duration-300"

@@ -507,7 +507,7 @@ export default function DashboardMitra() {
 
   const handleRegisterJemaahHelp = (pkg: any) => {
     const text = `Assalamu'alaikum Admin, saya Mitra *${dbUser?.name || profile?.namaLengkap || 'Mitra'}* (ID: ${(dbUser?.id || '').substring(0, 8)})\ningin membantu pendaftaran calon jemaah untuk paket:\n📌 *${pkg.name}*\nMohon informasi ketersediaan kuota & prosedur pendaftarannya. Terima kasih!`;
-    const adminPhone = '628123456789';
+    const adminPhone = '6282283201103';
     window.open(`https://wa.me/${adminPhone}?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -1690,7 +1690,7 @@ export default function DashboardMitra() {
                           <p className="text-sm text-slate-400 leading-relaxed font-medium">Tim kami tersedia Senin - Jumat (09:00 - 17:00) untuk membantu proses verifikasi Anda.</p>
                         </div>
                         <a 
-                          href="https://wa.me/628123456789" 
+                          href="https://wa.me/6282283201103" 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-black text-sm hover:bg-emerald-600 transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/20"

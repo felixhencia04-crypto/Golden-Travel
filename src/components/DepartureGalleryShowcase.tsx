@@ -527,7 +527,7 @@ export const DepartureGalleryShowcase: React.FC = () => {
 
                   <div className="pt-2 flex items-center justify-between gap-3">
                     <a
-                      href="https://wa.me/6281234567890?text=Assalamu%27alaikum,%20saya%20tertarik%20dengan%20jadwal%20keberangkatan%20dan%20paket%20seperti%20pada%20dokumentasi%20di%20galeri."
+                      href="https://wa.me/6282283201103?text=Assalamu%27alaikum,%20saya%20tertarik%20dengan%20jadwal%20keberangkatan%20dan%20paket%20seperti%20pada%20dokumentasi%20di%20galeri."
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full py-2.5 px-4 rounded-full bg-gradient-to-r from-[#D4AF37] to-[#B89228] text-[#011710] font-bold text-xs text-center hover:brightness-110 transition-all shadow-md"

@@ -342,7 +342,7 @@ export default function Home() {
                 <a href="#pilihan-paket" className="w-full sm:w-auto bg-[#D4AF37] text-white text-center px-6 sm:px-8 py-3 rounded-full font-semibold text-sm sm:text-base transition-transform duration-300 hover:scale-105 shadow-lg" onClick={(e) => scrollToSection(e, 'pilihan-paket')}>
                   Lihat Paket Umroh
                 </a>
-                <a href="https://wa.me/628123456789" className="w-full sm:w-auto border-2 border-[#d4af37] text-white text-center px-6 sm:px-8 py-3 rounded-full font-semibold text-sm sm:text-base transition-all hover:bg-[#d4af37]/20" target="_blank" rel="noreferrer">
+                <a href="https://wa.me/6282283201103?text=Assalamu%27alaikum%20Golden%20Travel,%20saya%20ingin%20konsultasi%20layanan%20Haji%20dan%20Umroh" className="w-full sm:w-auto border-2 border-[#d4af37] text-white text-center px-6 sm:px-8 py-3 rounded-full font-semibold text-sm sm:text-base transition-all hover:bg-[#d4af37]/20" target="_blank" rel="noreferrer">
                   Konsultasi Gratis
                 </a>
               </div>
@@ -856,7 +856,7 @@ export default function Home() {
       </footer>
 
       {/* Floating WhatsApp */}
-      <a href="https://wa.me/628123456789" target="_blank" rel="noreferrer" className="fixed bottom-8 right-8 w-14 h-14 bg-[#25D366] text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all z-50 border-2 border-white">
+      <a href="https://wa.me/6282283201103?text=Assalamu%27alaikum%20Golden%20Travel,%20saya%20ingin%20konsultasi%20layanan%20Haji%20dan%20Umroh" target="_blank" rel="noreferrer" aria-label="Chat WhatsApp Admin" className="fixed bottom-8 right-8 w-14 h-14 bg-[#25D366] text-white rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all z-50 border-2 border-white">
         <svg width="28" height="28" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 2C6.48 2 2 6.48 2 12c0 1.74.45 3.38 1.23 4.79L2 22l5.35-1.18c1.37.7 2.94 1.1 4.65 1.1 5.52 0 10-4.48 10-10S17.52 2 12 2z"/>
         </svg>

@@ -406,7 +406,7 @@ export const TestimonialsShowcase: React.FC = () => {
 
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto shrink-0 z-10">
             <a 
-              href="https://wa.me/6281234567890?text=Assalamu%27alaikum,%20saya%20tertarik%20dengan%20paket%20Umrah/Haji%20Golden%20Tour%20Haramain.%20Bisa%20bantu%20jelaskan%20detailnya?"
+              href="https://wa.me/6282283201103?text=Assalamu%27alaikum,%20saya%20tertarik%20dengan%20paket%20Umrah/Haji%20Golden%20Tour%20Haramain.%20Bisa%20bantu%20jelaskan%20detailnya?"
               target="_blank"
               rel="noopener noreferrer"
               className="px-6 py-3 rounded-full bg-gradient-to-r from-[#D4AF37] to-[#B89228] text-[#011710] font-bold text-xs sm:text-sm shadow-lg hover:brightness-110 transition-all flex items-center justify-center gap-2"
@@ -501,7 +501,7 @@ export const TestimonialsShowcase: React.FC = () => {
                 </div>
 
                 <a
-                  href="https://wa.me/6281234567890?text=Assalamu%27alaikum,%20saya%20membaca%20ulasan%20dari%20jemaah%20Golden%20Tour%20Haramain%20dan%20tertarik%20untuk%20konsultasi."
+                  href="https://wa.me/6282283201103?text=Assalamu%27alaikum,%20saya%20membaca%20ulasan%20dari%20jemaah%20Golden%20Tour%20Haramain%20dan%20tertarik%20untuk%20konsultasi."
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full sm:w-auto px-5 py-2.5 rounded-full bg-[#D4AF37] text-[#011710] font-bold text-xs hover:bg-[#F3E5AB] transition-colors text-center"

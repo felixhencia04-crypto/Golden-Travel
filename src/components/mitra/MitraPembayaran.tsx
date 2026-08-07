@@ -326,7 +326,7 @@ export default function MitraPembayaran({ jamaahList, onRefresh }: MitraPembayar
           </div>
 
           <a 
-            href={`https://wa.me/6281234567890?text=${encodeURIComponent(`Halo Admin, saya Mitra ingin konfirmasi pembayaran untuk Jamaah ${selectedJamaah.userName}.`)}`}
+            href={`https://wa.me/6282283201103?text=${encodeURIComponent(`Halo Admin, saya Mitra ingin konfirmasi pembayaran untuk Jamaah ${selectedJamaah.userName}.`)}`}
             target="_blank"
             rel="noreferrer"
             className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
