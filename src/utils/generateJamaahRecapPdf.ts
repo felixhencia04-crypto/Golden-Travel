@@ -36,7 +36,7 @@ export const generateJamaahRecapPdf = (jamaahList: Consultation[], options?: Rec
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
   doc.setTextColor(255, 255, 255);
-  doc.text('PT GOLDEN TOUR HARAMAIN', 14, 13);
+  doc.text('PT. GOLDEN TOUR HARAMAIN', 14, 13);
 
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'normal');
@@ -157,16 +157,16 @@ export const generateJamaahRecapPdf = (jamaahList: Consultation[], options?: Rec
       fillColor: PRIMARY_COLOR,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      halign: 'left'
+      halign: 'center'
     },
     columnStyles: {
       0: { cellWidth: 10, halign: 'center', fontStyle: 'bold' },
-      1: { cellWidth: 50, fontStyle: 'bold' },
-      2: { cellWidth: 45 },
-      3: { cellWidth: 45 },
-      4: { cellWidth: 40 },
+      1: { cellWidth: 50, fontStyle: 'bold', halign: 'center' },
+      2: { cellWidth: 45, halign: 'center' },
+      3: { cellWidth: 45, halign: 'center' },
+      4: { cellWidth: 40, halign: 'center' },
       5: { cellWidth: 18, halign: 'center' },
-      6: { cellWidth: 32, fontStyle: 'bold' },
+      6: { cellWidth: 32, fontStyle: 'bold', halign: 'center' },
       7: { cellWidth: 28, halign: 'center' }
     },
     alternateRowStyles: {
@@ -200,17 +200,19 @@ export const generateJamaahRecapPdf = (jamaahList: Consultation[], options?: Rec
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_DARK);
 
-  doc.text('Dibuat & Diverifikasi Oleh,', 20, finalY);
-  doc.text('PT Golden Tour Haramain', 20, finalY + 5);
-  doc.text('( ______________________ )', 20, finalY + 25);
-  doc.text('Staff Administrasi & CRM', 20, finalY + 30);
+  const leftCenterX = pageWidth / 4;
+  doc.text('Dibuat & Diverifikasi Oleh,', leftCenterX, finalY, { align: 'center' });
+  doc.text('PT. Golden Tour Haramain', leftCenterX, finalY + 5, { align: 'center' });
+  doc.text('( ______________________ )', leftCenterX, finalY + 25, { align: 'center' });
+  doc.text('Staff Administrasi & CRM', leftCenterX, finalY + 30, { align: 'center' });
 
-  doc.text(`Batam, ${todayStr}`, pageWidth - 70, finalY);
-  doc.text('Mengetahui / Disetujui,', pageWidth - 70, finalY + 5);
+  const rightCenterX = (pageWidth / 4) * 3;
+  doc.text(`Batam, ${todayStr}`, rightCenterX, finalY, { align: 'center' });
+  doc.text('Mengetahui / Disetujui,', rightCenterX, finalY + 5, { align: 'center' });
   doc.setFont('helvetica', 'bold');
-  doc.text('Manajemen Operations', pageWidth - 70, finalY + 25);
+  doc.text('Manajemen Operations', rightCenterX, finalY + 25, { align: 'center' });
   doc.setFont('helvetica', 'normal');
-  doc.text('( Stempel & Tanda Tangan )', pageWidth - 70, finalY + 30);
+  doc.text('( Stempel & Tanda Tangan )', rightCenterX, finalY + 30, { align: 'center' });
 
   // 5. Page numbering on all pages
   const totalPages = (doc as any).internal.getNumberOfPages();
@@ -219,7 +221,7 @@ export const generateJamaahRecapPdf = (jamaahList: Consultation[], options?: Rec
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(140, 140, 140);
-    doc.text('PT Golden Tour Haramain — Laporan Rekapan Database Jamaah Dokumen Resmi', 14, pageHeight - 7);
+    doc.text('PT. Golden Tour Haramain — Laporan Rekapan Database Jamaah Dokumen Resmi', 14, pageHeight - 7);
     doc.text(`Halaman ${i} dari ${totalPages}`, pageWidth - 14, pageHeight - 7, { align: 'right' });
   }
 
@@ -260,7 +262,7 @@ export const generateDepartureManifestPdf = (
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(220, 220, 220);
-  doc.text('PT GOLDEN TOUR HARAMAIN — DOKUMEN MANIFEST RESMI EMBARKASI / KEBERANGKATAN', 14, 20);
+  doc.text('PT. GOLDEN TOUR HARAMAIN — DOKUMEN MANIFEST RESMI EMBARKASI / KEBERANGKATAN', 14, 20);
 
   doc.setFontSize(8.5);
   doc.setTextColor(255, 255, 255);
@@ -361,7 +363,7 @@ export const generateDepartureManifestPdf = (
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 8,
-      halign: 'left'
+      halign: 'center'
     },
     styles: {
       fontSize: 7.5,
@@ -371,16 +373,16 @@ export const generateDepartureManifestPdf = (
     },
     columnStyles: {
       0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 38, fontStyle: 'bold' },
-      2: { cellWidth: 22 },
-      3: { cellWidth: 28 },
+      1: { cellWidth: 38, fontStyle: 'bold', halign: 'center' },
+      2: { cellWidth: 22, halign: 'center' },
+      3: { cellWidth: 28, halign: 'center' },
       4: { cellWidth: 12, halign: 'center' },
-      5: { cellWidth: 32 },
-      6: { cellWidth: 24, fontStyle: 'bold' },
-      7: { cellWidth: 24 },
-      8: { cellWidth: 30 },
+      5: { cellWidth: 32, halign: 'center' },
+      6: { cellWidth: 24, fontStyle: 'bold', halign: 'center' },
+      7: { cellWidth: 24, halign: 'center' },
+      8: { cellWidth: 30, halign: 'center' },
       9: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
-      10: { cellWidth: 26 }
+      10: { cellWidth: 26, halign: 'center' }
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252]
@@ -413,21 +415,32 @@ export const generateDepartureManifestPdf = (
 
   const todayStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
-  doc.setFontSize(8.5);
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...TEXT_DARK);
 
-  doc.text('Petugas Embarkasi / Administrasi,', 20, finalY);
-  doc.text('PT Golden Tour Haramain', 20, finalY + 5);
-  doc.text('( ______________________ )', 20, finalY + 25);
-  doc.text('Staff Flight & Manifest', 20, finalY + 30);
-
-  doc.text(`Batam, ${todayStr}`, pageWidth - 70, finalY);
-  doc.text('Mengetahui / Disetujui,', pageWidth - 70, finalY + 5);
+  // Left Signature Block
+  const leftCenterX = pageWidth / 4;
+  doc.text('Dibuat & Diverifikasi Oleh,', leftCenterX, finalY, { align: 'center' });
   doc.setFont('helvetica', 'bold');
-  doc.text('Manajemen Operations & Tour Leader', pageWidth - 70, finalY + 25);
+  doc.text('PT. Golden Tour Haramain', leftCenterX, finalY + 6, { align: 'center' });
+  
   doc.setFont('helvetica', 'normal');
-  doc.text('( Stempel & Tanda Tangan )', pageWidth - 70, finalY + 30);
+  doc.text('( __________________________ )', leftCenterX, finalY + 30, { align: 'center' });
+  doc.setFontSize(8);
+  doc.text('Staff Administrasi & CRM', leftCenterX, finalY + 35, { align: 'center' });
+
+  // Right Signature Block
+  const rightCenterX = (pageWidth / 4) * 3;
+  doc.setFontSize(9);
+  doc.text(`Batam, ${todayStr}`, rightCenterX, finalY, { align: 'center' });
+  doc.text('Mengetahui / Disetujui,', rightCenterX, finalY + 6, { align: 'center' });
+  
+  doc.setFont('helvetica', 'bold');
+  doc.text('Manajemen Operations', rightCenterX, finalY + 30, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text('( Stempel & Tanda Tangan )', rightCenterX, finalY + 35, { align: 'center' });
 
   const totalPages = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
@@ -435,7 +448,7 @@ export const generateDepartureManifestPdf = (
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(140, 140, 140);
-    doc.text('PT Golden Tour Haramain — Document Manifest Official Manifest Departure List', 14, pageHeight - 7);
+    doc.text('PT. Golden Tour Haramain — Document Manifest Official Manifest Departure List', 14, pageHeight - 7);
     doc.text(`Halaman ${i} dari ${totalPages}`, pageWidth - 14, pageHeight - 7, { align: 'right' });
   }
 

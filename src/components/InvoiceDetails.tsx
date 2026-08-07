@@ -44,6 +44,8 @@ export default function InvoiceDetails() {
       return;
     }
 
+    if (uploading) return;
+
     try {
       setUploading(true);
       const reader = new FileReader();

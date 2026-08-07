@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { 
   Check, X, Eye, AlertCircle, Loader2, Search, Filter, 
-  ChevronRight, Calendar, User, Package, Banknote, FileText
+  ChevronRight, Calendar, User, Package, Banknote, FileText, Download
 } from 'lucide-react';
 import { api } from '../utils/api';
 import { motion, AnimatePresence } from 'motion/react';
 import DocumentVerification from './DocumentVerification';
+import { generateProofPdf } from '../utils/generateProofPdf';
+import PdfViewer from './PdfViewer';
 
 export default function VerificationManagement() {
   const [activeSubTab, setActiveSubTab] = useState<'pembayaran' | 'dokumen'>('pembayaran');
@@ -133,6 +135,20 @@ export default function VerificationManagement() {
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button 
+                        onClick={() => generateProofPdf(v, {
+                          id: v.paymentId,
+                          amount: v.amount,
+                          proofUrl: v.proofUrl,
+                          paymentType: v.paymentType,
+                          status: 'pending',
+                          createdAt: v.createdAt
+                        })}
+                        className="p-2 text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                        title="Unduh Bukti Transfer (PDF)"
+                      >
+                        <Download className="w-5 h-5" />
+                      </button>
+                      <button 
                         onClick={() => setSelectedVerification(v)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         title="Lihat Bukti"
@@ -224,14 +240,27 @@ export default function VerificationManagement() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Bukti Pembayaran</label>
-                  <div className="rounded-2xl border border-gray-100 overflow-hidden bg-gray-50 aspect-video relative group">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Bukti Pembayaran</label>
+                    <button
+                      type="button"
+                      onClick={() => generateProofPdf(selectedVerification, {
+                        id: selectedVerification.paymentId,
+                        amount: selectedVerification.amount,
+                        proofUrl: selectedVerification.proofUrl,
+                        paymentType: selectedVerification.paymentType,
+                        status: selectedVerification.status || 'pending',
+                        createdAt: selectedVerification.createdAt
+                      })}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-emerald-200" />
+                      Unduh Bukti Transfer (PDF)
+                    </button>
+                  </div>
+                  <div className="rounded-2xl border border-gray-100 overflow-hidden bg-slate-900 min-h-[300px] relative group flex items-center justify-center">
                     {(selectedVerification.proofUrl?.startsWith('data:application/pdf') || selectedVerification.proofUrl?.endsWith('.pdf')) ? (
-                      <iframe 
-                        src={selectedVerification.proofUrl} 
-                        className="w-full h-full border-none"
-                        title="PDF Preview"
-                      />
+                      <PdfViewer url={selectedVerification.proofUrl} title="Bukti Transfer" className="h-[350px] w-full" />
                     ) : (
                       <img 
                         src={selectedVerification.proofUrl} 

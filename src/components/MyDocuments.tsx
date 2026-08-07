@@ -61,14 +61,14 @@ export default function MyDocuments() {
       const fileUrl = reader.result as string;
       
       // Optimistic state update
-      const newDoc = { id: `doc-${Date.now()}`, docType, fileUrl, status: 'approved', createdAt: new Date().toISOString() };
+      const newDoc = { id: `doc-${Date.now()}`, docType, fileUrl, status: 'pending', createdAt: new Date().toISOString() };
       setDocuments(prev => [...prev.filter(d => d.docType !== docType), newDoc]);
       toast.success('Dokumen berhasil diunggah secara real-time!');
       setUploading(null);
 
       // Non-blocking background upload
       api.uploadDocument({ docType, fileUrl }).then(() => {
-        loadDocuments(true);
+        setTimeout(() => loadDocuments(true), 1000);
       }).catch((error) => {
         console.error('Upload failed:', error);
         toast.error('Gagal mengupload dokumen ke server');
@@ -78,7 +78,12 @@ export default function MyDocuments() {
   };
 
   const getDocStatus = (docType: string) => {
-    return documents.find(d => d.docType === docType);
+    return documents.find(d => 
+      d.docType === docType || 
+      d.docType?.toLowerCase() === docType.toLowerCase() ||
+      d.docType?.toLowerCase().includes(docType.toLowerCase()) ||
+      d.id === docType
+    );
   };
 
   return (
@@ -140,8 +145,14 @@ export default function MyDocuments() {
                 </div>
 
                 {status?.status === 'rejected' && (
-                  <div className="mb-4 p-3 bg-red-100/50 rounded-xl border border-red-100 text-xs text-red-800">
-                    <span className="font-bold">Alasan Penolakan:</span> {status.rejectionReason}
+                  <div className="mb-4 p-3.5 bg-red-50/90 rounded-xl border border-red-200 text-xs text-red-900 flex items-start gap-2.5 shadow-xs">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-red-950">Catatan Verifikasi (Alasan Penolakan):</p>
+                      <p className="text-red-800 mt-0.5 leading-relaxed font-medium">
+                        {status.adminNotes || status.rejectionReason || status.notes || status.reason || 'Dokumen belum memenuhi standar. Silakan unggah berkas pengganti yang baru.'}
+                      </p>
+                    </div>
                   </div>
                 )}
 
@@ -247,7 +258,7 @@ export default function MyDocuments() {
                 {hasGroup && (
                   <button
                     type="button"
-                    onClick={() => openDataUrlInNewTab(groupDoc.fileUrl)}
+                    onClick={() => openDataUrlInNewTab(groupDoc.fileUrl, `${finalDoc.label} Group`)}
                     className="w-full py-2.5 bg-gold-500 hover:bg-gold-400 text-gray-950 font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-gold-500/20 mb-2"
                   >
                     <Eye className="w-4 h-4" /> Lihat {finalDoc.label} Group
@@ -264,7 +275,7 @@ export default function MyDocuments() {
                         <button
                           key={pDoc.id}
                           type="button"
-                          onClick={() => openDataUrlInNewTab(pDoc.fileUrl)}
+                          onClick={() => openDataUrlInNewTab(pDoc.fileUrl, `${finalDoc.label} Pax #${paxNum}`)}
                           className="w-full py-2 bg-white/10 hover:bg-white/20 text-white font-semibold text-xs rounded-lg flex items-center justify-between px-3 transition-all border border-white/10"
                         >
                           <span>Jamaah Pax {paxNum}</span>

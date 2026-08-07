@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription 
-} from '@/components/ui/sheet';
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription 
+} from '@/components/ui/dialog';
 import { Tabs as ShadcnTabs, TabsContent as ShadcnTabsContent, TabsList as ShadcnTabsList, TabsTrigger as ShadcnTabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,12 +10,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/src/lib/api';
 import { toast } from 'sonner';
 import { 
-  User, FileText, CreditCard, History, CheckCircle2, XCircle, 
+  User, CheckCircle2, XCircle, 
   Clock, AlertCircle, Save, Download, Loader2 
 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { generateJamaahBiodataPdf } from '@/src/utils/generateJamaahBiodataPdf';
 
 interface CRMDetailDrawerProps {
   registration: CRMRegistration | null;
@@ -41,20 +42,7 @@ export const CRMDetailDrawer: React.FC<CRMDetailDrawerProps> = ({ registration, 
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [newStatus, setNewStatus] = useState<RegistrationStatus | ''>('');
   const [statusNotes, setStatusNotes] = useState('');
-
-  // Fetch Activity History
-  const { data: activities, isLoading: isLoadingActivities } = useQuery<Activity[]>({
-    queryKey: ['activities', registration?.id],
-    queryFn: () => api.get(`/registrasi/${registration?.id}/activity`),
-    enabled: !!registration?.id,
-  });
-
-  // Fetch Payments
-  const { data: payments, isLoading: isLoadingPayments } = useQuery<any[]>({
-    queryKey: ['payments', registration?.id],
-    queryFn: () => api.get(`/registrasi/${registration?.id}/transaksis`),
-    enabled: !!registration?.id,
-  });
+  const [activePaxIdx, setActivePaxIdx] = useState(0);
 
   const updateStatusMutation = useMutation({
     mutationFn: (data: { status: string; notes: string }) => 
@@ -75,23 +63,23 @@ export const CRMDetailDrawer: React.FC<CRMDetailDrawerProps> = ({ registration, 
   if (!registration) return null;
 
   return (
-    <Sheet open={!!registration} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="sm:max-w-2xl w-full p-0 flex flex-col h-full bg-white border-l shadow-2xl">
-        <SheetHeader className="p-6 border-b bg-gray-50/50">
+    <Dialog open={!!registration} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-4xl w-[95vw] h-[90vh] p-0 flex flex-col bg-white overflow-hidden rounded-2xl shadow-2xl">
+        <DialogHeader className="p-6 border-b bg-gray-50/50">
           <div className="flex justify-between items-start">
             <div>
-              <SheetTitle className="text-2xl font-black text-gray-900 tracking-tight">
+              <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight">
                 Detail Jamaah
-              </SheetTitle>
-              <SheetDescription className="mt-1 font-medium text-gray-500">
+              </DialogTitle>
+              <DialogDescription className="mt-1 font-medium text-gray-500">
                 Informasi lengkap pendaftaran #{registration.id.substring(0, 8)}
-              </SheetDescription>
+              </DialogDescription>
             </div>
             <Badge className="px-3 py-1 rounded-full bg-gold-100 text-gold-700 border-gold-200 font-bold">
               {registration.status}
             </Badge>
           </div>
-        </SheetHeader>
+        </DialogHeader>
 
         <ShadcnTabs defaultValue="biodata" className="flex-1 flex flex-col overflow-hidden">
           <div className="px-6 border-b bg-white">
@@ -102,27 +90,6 @@ export const CRMDetailDrawer: React.FC<CRMDetailDrawerProps> = ({ registration, 
               >
                 <User className="w-4 h-4" />
                 Biodata
-              </ShadcnTabsTrigger>
-              <ShadcnTabsTrigger 
-                value="dokumen" 
-                className="data-[state=active]:bg-transparent data-[state=active]:text-gold-600 data-[state=active]:border-b-2 data-[state=active]:border-gold-500 rounded-none px-0 h-full font-bold text-gray-400 transition-all flex gap-2 items-center"
-              >
-                <FileText className="w-4 h-4" />
-                Dokumen
-              </ShadcnTabsTrigger>
-              <ShadcnTabsTrigger 
-                value="pembayaran" 
-                className="data-[state=active]:bg-transparent data-[state=active]:text-gold-600 data-[state=active]:border-b-2 data-[state=active]:border-gold-500 rounded-none px-0 h-full font-bold text-gray-400 transition-all flex gap-2 items-center"
-              >
-                <CreditCard className="w-4 h-4" />
-                Pembayaran
-              </ShadcnTabsTrigger>
-              <ShadcnTabsTrigger 
-                value="aktivitas" 
-                className="data-[state=active]:bg-transparent data-[state=active]:text-gold-600 data-[state=active]:border-b-2 data-[state=active]:border-gold-500 rounded-none px-0 h-full font-bold text-gray-400 transition-all flex gap-2 items-center"
-              >
-                <History className="w-4 h-4" />
-                Aktivitas
               </ShadcnTabsTrigger>
             </ShadcnTabsList>
           </div>
@@ -138,15 +105,15 @@ export const CRMDetailDrawer: React.FC<CRMDetailDrawerProps> = ({ registration, 
                   <div className="grid grid-cols-2 gap-x-12 gap-y-6">
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Nama Lengkap</label>
-                      <p className="text-sm font-bold text-gray-900 mt-0.5">{registration.user?.name}</p>
+                      <p className="text-sm font-bold text-gray-900 mt-0.5">{(registration as any).name || (registration as any).ordererName || registration.paxData?.[0]?.fullName || registration.paxData?.[0]?.name || registration.user?.name}</p>
                     </div>
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Nomor HP</label>
-                      <p className="text-sm font-bold text-gray-900 mt-0.5">{registration.user?.phone || '-'}</p>
+                      <p className="text-sm font-bold text-gray-900 mt-0.5">{(registration as any).phone || (registration as any).ordererPhone || registration.paxData?.[0]?.phone || registration.user?.phone || '-'}</p>
                     </div>
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Email</label>
-                      <p className="text-sm font-bold text-gray-900 mt-0.5">{registration.user?.email}</p>
+                      <p className="text-sm font-bold text-gray-900 mt-0.5">{(registration as any).email || (registration as any).ordererEmail || registration.paxData?.[0]?.email || registration.user?.email}</p>
                     </div>
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">Tanggal Daftar</label>
@@ -162,11 +129,114 @@ export const CRMDetailDrawer: React.FC<CRMDetailDrawerProps> = ({ registration, 
                   </h4>
                   <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
                     <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-black text-gray-900">{registration.package?.name}</span>
-                      <Badge className="bg-white border-gray-200 text-gray-600 font-bold">{registration.package?.type}</Badge>
+                      <span className="text-sm font-black text-gray-900">{registration.package?.name || "Belum Pilih Paket"}</span>
+                      <Badge className="bg-white border-gray-200 text-gray-600 font-bold">{registration.package?.type || "-"}</Badge>
                     </div>
                     <p className="text-xs text-gray-500 font-medium">Jadwal: {registration.schedule?.departureDate ? new Date(registration.schedule.departureDate).toLocaleDateString('id-ID', { dateStyle: 'medium' }) : 'Segera Ditentukan'}</p>
                   </div>
+                </section>
+
+                <section>
+                  <h4 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gold-500"></span>
+                    Biodata Jamaah (Pax)
+                  </h4>
+                  {registration.paxData && registration.paxData.length > 0 ? (
+                    <div className="space-y-4">
+                      {registration.paxData.length > 1 && (
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                          {registration.paxData.map((pax, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setActivePaxIdx(idx)}
+                              className={`flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold transition-all border ${
+                                activePaxIdx === idx 
+                                  ? 'bg-gold-50 border-gold-200 text-gold-700' 
+                                  : 'bg-white border-gray-100 text-gray-500 hover:bg-gray-50'
+                              }`}
+                            >
+                              Jamaah {idx + 1}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {(() => {
+                        const idx = activePaxIdx;
+                        const pax = registration.paxData[idx];
+                        if (!pax) return null;
+                        
+                        return (
+                          <div key={idx} className="p-5 bg-white rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden animate-in fade-in duration-300">
+                            <div className="absolute top-0 left-0 w-1 h-full bg-gold-500"></div>
+                            <div className="flex justify-between items-start mb-4">
+                              <div>
+                                <h5 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+                                  <User className="w-4 h-4 text-gray-400" />
+                                  {pax.fullName || pax.name || 'Belum Diisi'}
+                                </h5>
+                                <p className="text-xs font-medium text-gray-500">Jamaah {idx + 1} • NIK: {pax.nik || '-'}</p>
+                              </div>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-8 rounded-xl font-bold bg-white text-gray-900 border-gray-200 hover:bg-gray-50 flex items-center gap-2"
+                                onClick={() => generateJamaahBiodataPdf(registration, idx)}
+                              >
+                                <Download className="w-3.5 h-3.5" />
+                                Cetak PDF
+                              </Button>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50/50 p-4 rounded-xl border border-gray-100/50">
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Tempat/Tgl Lahir</label>
+                                <p className="text-xs font-bold text-gray-900 mt-0.5">{pax.pob || '-'}/{pax.dob || '-'}</p>
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Jenis Kelamin</label>
+                                <p className="text-xs font-bold text-gray-900 mt-0.5">{pax.gender || '-'}</p>
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Telepon</label>
+                                <p className="text-xs font-bold text-gray-900 mt-0.5">{pax.phone || (idx === 0 ? registration.user?.phone : '-')}</p>
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Email</label>
+                                <p className="text-xs font-bold text-gray-900 mt-0.5" style={{ wordBreak: 'break-all' }}>{pax.email || (idx === 0 ? registration.user?.email : '-')}</p>
+                              </div>
+                              <div className="col-span-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Alamat Lengkap</label>
+                                <p className="text-xs font-bold text-gray-900 mt-0.5">{pax.address || '-'}</p>
+                              </div>
+                              <div className="col-span-2">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Status Pernikahan</label>
+                                <p className="text-xs font-bold text-gray-900 mt-0.5">{pax.maritalStatus || '-'}{pax.spouseName ? ` (${pax.spouseName})` : ''}</p>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                              <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mb-1 block">Data Paspor</label>
+                                <p className="text-xs font-bold text-gray-900 mb-1">{pax.passportNo || 'Belum Diisi'}</p>
+                                {pax.passportNo && (
+                                  <p className="text-[10px] text-gray-500 font-medium">Berlaku s/d: {pax.passportExpiryDate || '-'}</p>
+                                )}
+                              </div>
+                              <div className="p-3 bg-white rounded-xl border border-gray-100 shadow-sm">
+                                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mb-1 block">Kondisi Medis</label>
+                                <p className="text-xs font-bold text-gray-900 mb-1">{pax.medicalHistory === 'Lainnya' ? (pax.medicalHistoryDetails || 'Lainnya') : (pax.medicalHistory || 'Sehat / Tidak ada')}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center bg-gray-50 rounded-2xl border border-gray-100">
+                      <p className="text-sm font-bold text-gray-400">Belum ada data biodata jamaah yang diisi.</p>
+                    </div>
+                  )}
                 </section>
 
                 <section>
@@ -177,13 +247,19 @@ export const CRMDetailDrawer: React.FC<CRMDetailDrawerProps> = ({ registration, 
                   <div className="p-6 border-2 border-dashed border-gray-200 rounded-3xl space-y-4">
                     <p className="text-xs font-bold text-gray-500 italic">Gunakan kontrol di bawah ini untuk mengubah status jamaah secara manual jika diperlukan.</p>
                     {!isUpdatingStatus ? (
-                      <Button 
-                        onClick={() => setIsUpdatingStatus(true)}
-                        className="w-full bg-[#132019] hover:bg-black text-white font-bold h-12 rounded-2xl flex gap-2 items-center"
-                      >
-                        <AlertCircle className="w-4 h-4" />
-                        Ubah Status Manual
-                      </Button>
+                      registration?.id.startsWith('no-reg-') ? (
+                        <div className="p-4 bg-orange-50 text-orange-600 rounded-2xl font-bold text-sm flex items-center justify-center border border-orange-100 text-center">
+                          Jemaah ini belum memilih paket.<br/>Status tidak dapat diubah secara manual.
+                        </div>
+                      ) : (
+                        <Button 
+                          onClick={() => setIsUpdatingStatus(true)}
+                          className="w-full bg-[#132019] hover:bg-black text-white font-bold h-12 rounded-2xl flex gap-2 items-center"
+                        >
+                          <AlertCircle className="w-4 h-4" />
+                          Ubah Status Manual
+                        </Button>
+                      )
                     ) : (
                       <div className="space-y-4">
                         <Select 
@@ -227,92 +303,10 @@ export const CRMDetailDrawer: React.FC<CRMDetailDrawerProps> = ({ registration, 
                   </div>
                 </section>
               </ShadcnTabsContent>
-
-              <ShadcnTabsContent value="dokumen" className="mt-0 space-y-6">
-                <div className="grid grid-cols-1 gap-4">
-                  {['KTP', 'Paspor', 'Buku Nikah', 'Foto', 'Vaksin'].map(type => (
-                    <div key={type} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400">
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-black text-gray-900">{type}</p>
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Wajib Diunggah</p>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="text-gray-400 border-gray-200">Belum Ada</Badge>
-                    </div>
-                  ))}
-                </div>
-              </ShadcnTabsContent>
-
-              <ShadcnTabsContent value="pembayaran" className="mt-0 space-y-6">
-                {isLoadingPayments ? (
-                  <div className="text-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-gold-500 mb-2" />
-                    <p className="text-sm font-bold text-gray-400">Memuat riwayat bayar...</p>
-                  </div>
-                ) : !payments?.length ? (
-                  <div className="text-center py-12 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
-                    <CreditCard className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                    <p className="text-sm font-bold text-gray-500">Belum ada riwayat pembayaran</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {payments.map((p: any) => (
-                      <div key={p.id} className="p-4 border border-gray-100 rounded-2xl flex justify-between items-center bg-white shadow-sm">
-                        <div className="flex gap-3">
-                           <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center text-green-600">
-                             <CreditCard className="w-5 h-5" />
-                           </div>
-                           <div>
-                             <p className="text-sm font-black text-gray-900">Rp {Number(p.amount).toLocaleString('id-ID')}</p>
-                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{p.paymentType} • {new Date(p.createdAt).toLocaleDateString()}</p>
-                           </div>
-                        </div>
-                        <Badge className={p.status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}>
-                          {p.status}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ShadcnTabsContent>
-
-              <ShadcnTabsContent value="aktivitas" className="mt-0">
-                {isLoadingActivities ? (
-                  <div className="text-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-gold-500 mb-2" />
-                    <p className="text-sm font-bold text-gray-400">Memuat riwayat...</p>
-                  </div>
-                ) : !activities?.length ? (
-                  <div className="text-center py-12 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
-                    <History className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                    <p className="text-sm font-bold text-gray-500">Belum ada riwayat aktivitas</p>
-                  </div>
-                ) : (
-                  <div className="relative pl-6 space-y-8 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100">
-                    {activities.map((a) => (
-                      <div key={a.id} className="relative">
-                        <div className="absolute -left-5 top-1 w-2.5 h-2.5 rounded-full bg-gold-500 ring-4 ring-white"></div>
-                        <p className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">
-                          {new Date(a.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
-                        </p>
-                        <p className="text-sm font-black text-gray-900">{a.action.replace(/_/g, ' ')}</p>
-                        <p className="text-sm text-gray-500 font-medium mt-1 leading-relaxed bg-gray-50 p-3 rounded-xl border border-gray-100">{a.details}</p>
-                        <p className="text-[10px] font-bold text-gray-400 mt-2 italic flex items-center gap-1">
-                           Oleh: <span className="text-gray-900 not-italic">{a.user?.name || 'Sistem'}</span>
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ShadcnTabsContent>
             </ScrollArea>
           </div>
         </ShadcnTabs>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 };

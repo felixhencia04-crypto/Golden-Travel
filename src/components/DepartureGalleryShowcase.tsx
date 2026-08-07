@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Sparkles, 
   Camera, 
@@ -18,7 +18,8 @@ import {
   Heart,
   ShieldCheck,
   Building2,
-  Compass
+  Compass,
+  Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -160,23 +161,64 @@ export const GALLERY_ITEMS: GalleryItem[] = [
 ];
 
 export const DepartureGalleryShowcase: React.FC = () => {
+
+  const [items, setItems] = useState<GalleryItem[]>(GALLERY_ITEMS);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isError, setIsError] = useState<boolean>(false);
+
+  useEffect(() => {
+    const fetchGallery = async () => {
+      setIsLoading(true);
+      setIsError(false);
+      try {
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        const response = await fetch(`${baseUrl}/api/cms/gallery/photos`);
+        if (response.ok) {
+          const data = await response.json();
+          const mapped = data.map((p: any) => ({
+                id: p.id,
+                title: p.title || 'Momen Keberangkatan',
+                category: 'keberangkatan',
+                categoryLabel: 'Galeri',
+                imageUrl: p.imageUrl,
+                location: 'Bandara / Hotel / Tanah Suci',
+                hijriDate: '',
+                gregorianDate: p.createdAt ? new Date(p.createdAt).toLocaleDateString('id-ID', {month: 'long', year: 'numeric'}) : '',
+                batchName: 'Jemaah',
+                jemaahCount: 45,
+                description: p.description || '',
+                likesCount: Math.floor(Math.random() * 500) + 100
+             }));
+             setItems(mapped);
+        } else {
+          setIsError(true);
+        }
+      } catch (error) {
+        console.error('Failed to fetch gallery', error);
+        setIsError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchGallery();
+  }, []);
+
   const [activeTab, setActiveTab] = useState<string>('semua');
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
   const [likesState, setLikesState] = useState<Record<string, number>>({});
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
-  const [isVideoModalOpen, setIsVideoModalOpen] = useState<boolean>(false);
-
+  
   const filterTabs = [
-    { id: 'semua', label: '🌟 Semua Momen', count: GALLERY_ITEMS.length },
-    { id: 'makkah', label: '🕋 Makkah & Ka\'bah', count: GALLERY_ITEMS.filter(i => i.category === 'makkah').length },
-    { id: 'madinah', label: '🕌 Madinah & Nabawi', count: GALLERY_ITEMS.filter(i => i.category === 'madinah').length },
-    { id: 'keberangkatan', label: '✈️ Pelepasan Bandara', count: GALLERY_ITEMS.filter(i => i.category === 'keberangkatan').length },
-    { id: 'vip-transport', label: '🚆 Kereta Cepat & VIP', count: GALLERY_ITEMS.filter(i => i.category === 'vip-transport').length },
-    { id: 'ziarah', label: '🏔️ City Tour & Ziarah', count: GALLERY_ITEMS.filter(i => i.category === 'ziarah').length },
-    { id: 'video', label: '🎬 Video Sinematik', count: GALLERY_ITEMS.filter(i => i.isVideo).length },
+    { id: 'semua', label: '🌟 Semua Momen', count: items.length },
+    { id: 'makkah', label: '🕋 Makkah & Ka\'bah', count: items.filter(i => i.category === 'makkah').length },
+    { id: 'madinah', label: '🕌 Madinah & Nabawi', count: items.filter(i => i.category === 'madinah').length },
+    { id: 'keberangkatan', label: '✈️ Pelepasan Bandara', count: items.filter(i => i.category === 'keberangkatan').length },
+    { id: 'vip-transport', label: '🚆 Kereta Cepat & VIP', count: items.filter(i => i.category === 'vip-transport').length },
+    { id: 'ziarah', label: '🏔️ City Tour & Ziarah', count: items.filter(i => i.category === 'ziarah').length },
+    { id: 'video', label: '🎬 Video Sinematik', count: items.filter(i => i.isVideo).length },
   ];
 
-  const filteredItems = GALLERY_ITEMS.filter(item => {
+  const filteredItems = items.filter(item => {
     if (activeTab === 'semua') return true;
     if (activeTab === 'video') return item.isVideo;
     return item.category === activeTab;
@@ -277,8 +319,29 @@ export const DepartureGalleryShowcase: React.FC = () => {
           ))}
         </div>
 
-        {/* Gallery Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6 mb-16">
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-[#D4AF37]">
+            <div className="animate-spin w-12 h-12 border-4 border-[#D4AF37] border-t-transparent rounded-full mb-4"></div>
+            <p className="text-[#F3E5AB] text-lg font-medium">Memuat galeri...</p>
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+            <div className="w-16 h-16 bg-[#D4AF37]/20 rounded-full flex items-center justify-center mb-4">
+              <Info className="w-8 h-8 text-[#D4AF37]" />
+            </div>
+            <h3 className="text-xl font-bold text-[#F3E5AB] mb-2">Gagal Terhubung ke Server</h3>
+            <p className="text-[#D4AF37]/80 max-w-md">Mohon maaf, kami tidak dapat mengambil data galeri saat ini. Silakan periksa koneksi Anda atau coba lagi nanti.</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="mt-6 px-6 py-2.5 bg-[#D4AF37] hover:bg-[#B8860B] text-[#011E15] font-bold rounded-full transition-colors"
+            >
+              Coba Lagi
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Gallery Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6 mb-16">
           <AnimatePresence mode="popLayout">
             {filteredItems.map((item, index) => {
               const extraLikes = likesState[item.id] ?? 0;
@@ -375,67 +438,8 @@ export const DepartureGalleryShowcase: React.FC = () => {
             })}
           </AnimatePresence>
         </div>
-
-        {/* Featured Video Showcase Banner */}
-        <div className="relative rounded-3xl overflow-hidden border border-[#D4AF37]/40 bg-gradient-to-r from-[#022e23] via-[#01241b] to-[#011812] shadow-[0_20px_50px_rgba(0,0,0,0.7)] p-6 sm:p-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            
-            {/* Left Content */}
-            <div className="lg:col-span-7 space-y-4">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#F3E5AB] text-xs font-semibold">
-                <Video className="w-4 h-4 text-[#D4AF37]" />
-                <span>Video Profile & Dokumenter Khusus</span>
-              </div>
-
-              <h3 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-white leading-tight">
-                Kenyamanan & Khidmat Beribadah di <span className="text-[#D4AF37]">Tanah Suci</span>
-              </h3>
-
-              <p className="text-stone-300 text-xs sm:text-sm md:text-base font-light leading-relaxed">
-                Saksikan rangkuman momen haru, bimbingan manasik intensif, kemudahan transportasi kereta cepat, serta fasilitas hotel bintang 5 depan Masjidil Haram yang dinikmati para jemaah Golden Tour Haramain.
-              </p>
-
-              <div className="pt-2 flex flex-wrap items-center gap-4 text-xs text-stone-300">
-                <div className="flex items-center gap-1.5 bg-[#011710]/80 px-3 py-1.5 rounded-lg border border-[#D4AF37]/20">
-                  <ShieldCheck className="w-4 h-4 text-[#34D399]" />
-                  <span>Pendampingan Full 24 Jam</span>
-                </div>
-                <div className="flex items-center gap-1.5 bg-[#011710]/80 px-3 py-1.5 rounded-lg border border-[#D4AF37]/20">
-                  <Building2 className="w-4 h-4 text-[#D4AF37]" />
-                  <span>Hotel Ring 1 Masjidil Haram</span>
-                </div>
-                <div className="flex items-center gap-1.5 bg-[#011710]/80 px-3 py-1.5 rounded-lg border border-[#D4AF37]/20">
-                  <CheckCircle2 className="w-4 h-4 text-[#F3E5AB]" />
-                  <span>Muthawwif Kemenag / Alumni Madinah</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Video Preview Card */}
-            <div className="lg:col-span-5">
-              <div 
-                onClick={() => setIsVideoModalOpen(true)}
-                className="relative aspect-video rounded-2xl overflow-hidden border-2 border-[#D4AF37]/50 shadow-2xl group cursor-pointer"
-              >
-                <img 
-                  src="https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&w=1000&q=80" 
-                  alt="Video Trailer" 
-                  className="w-full h-full object-cover brightness-75 group-hover:brightness-50 group-hover:scale-105 transition-all duration-700"
-                />
-                <div className="absolute inset-0 bg-[#011710]/30 flex flex-col items-center justify-center p-4 text-center">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#D4AF37] text-[#011710] flex items-center justify-center shadow-xl shadow-[#D4AF37]/30 group-hover:scale-110 transition-transform">
-                    <Play className="w-8 h-8 ml-1 fill-[#011710]" />
-                  </div>
-                  <span className="mt-3 font-serif font-bold text-white text-sm sm:text-base drop-shadow-md">
-                    Putar Video Dokumenter (04:12 HD)
-                  </span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-
+        </>
+        )}
       </div>
 
       {/* Lightbox Photo / Detail Modal */}
@@ -533,45 +537,6 @@ export const DepartureGalleryShowcase: React.FC = () => {
                   </div>
                 </div>
 
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Video Player Modal */}
-      <AnimatePresence>
-        {isVideoModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-[#011710] border border-[#D4AF37]/50 rounded-3xl max-w-3xl w-full p-4 sm:p-6 shadow-2xl relative"
-            >
-              <button 
-                onClick={() => setIsVideoModalOpen(false)}
-                className="absolute top-3 right-3 z-10 p-2 rounded-full bg-black/80 text-white hover:text-[#D4AF37] transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-
-              <div className="mb-4 text-center">
-                <h3 className="font-serif font-bold text-lg sm:text-xl text-[#F3E5AB]">
-                  Dokumenter Perjalanan Ibadah Golden Tour Haramain
-                </h3>
-                <p className="text-stone-400 text-xs">Momen nyata kenyamanan ibadah di Makkah & Madinah</p>
-              </div>
-
-              {/* Responsive Video Container */}
-              <div className="relative aspect-video rounded-2xl overflow-hidden border border-[#D4AF37]/30 bg-black">
-                <iframe
-                  className="w-full h-full"
-                  src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1"
-                  title="Dokumenter Perjalanan Golden Tour Haramain"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                ></iframe>
               </div>
             </motion.div>
           </div>

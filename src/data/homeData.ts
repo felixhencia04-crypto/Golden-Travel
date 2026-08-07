@@ -148,12 +148,12 @@ export const schedules = [
 
 export const faqs = [
   {
-    q: 'Apakah PT Golden Tour Haramain memiliki izin resmi?',
-    a: 'Ya, PT Golden Tour Haramain adalah Penyelenggara Perjalanan Ibadah Umroh (PPIU) dan Penyelenggara Ibadah Haji Khusus (PIHK) yang terdaftar dan berizin resmi dari Kementerian Agama RI.'
+    q: 'Apakah PT. Golden Tour Haramain memiliki izin resmi?',
+    a: 'Ya, PT. Golden Tour Haramain adalah Penyelenggara Perjalanan Ibadah Umroh (PPIU) dan Penyelenggara Ibadah Haji Khusus (PIHK) yang terdaftar dan berizin resmi dari Kementerian Agama RI.'
   },
   {
     q: 'Bagaimana prosedur pendaftaran umroh?',
-    a: 'Pendaftaran dapat dilakukan secara online melalui website ini dengan menekan tombol "Daftar Umroh" atau "Akses Aplikasi", maupun secara langsung di kantor pusat dan cabang PT Golden Tour Haramain terdekat.'
+    a: 'Pendaftaran dapat dilakukan secara online melalui website ini dengan menekan tombol "Daftar Umroh" atau "Akses Aplikasi", maupun secara langsung di kantor pusat dan cabang PT. Golden Tour Haramain terdekat.'
   },
   {
     q: 'Apa saja dokumen yang harus disiapkan?',
@@ -194,7 +194,7 @@ export const testimonials = [
     id: 1,
     name: 'Bpk. H. Ahmad Sudirman',
     location: 'Batam',
-    text: 'Pelayanan PT Golden Tour Haramain sangat memuaskan. Mulai dari keberangkatan hingga kepulangan, semua diurus dengan profesional. Hotel sangat dekat dengan pelataran masjid.',
+    text: 'Pelayanan PT. Golden Tour Haramain sangat memuaskan. Mulai dari keberangkatan hingga kepulangan, semua diurus dengan profesional. Hotel sangat dekat dengan pelataran masjid.',
     rating: 5
   },
   {

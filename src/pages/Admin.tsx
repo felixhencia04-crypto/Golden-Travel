@@ -1,6 +1,6 @@
 import { useLogo } from '../utils/logo';
 import { toast } from 'sonner';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { updateLogo } from '../utils/logo';
 import { Package } from '../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -13,29 +13,81 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generateRegistrationFormPdf } from '../utils/generateRegistrationFormPdf';
 import { generateJamaahRecapPdf, generateDepartureManifestPdf } from '../utils/generateJamaahRecapPdf';
+import { generateJamaahBiodataPdf } from '../utils/generateJamaahBiodataPdf';
+import { generateProofPdf } from '../utils/generateProofPdf';
+import EquipmentManagement from '../components/admin/EquipmentManagement';
+import BroadcastManager from '../components/admin/BroadcastManager';
 import { useAdminData } from '../hooks/useAdminData';
+import CMSManager from '../components/admin/CMSManager';
 import { useSocket } from '../hooks/useSocket';
 import { api, getAdminToken } from '../lib/api';
 import { auth } from '../lib/firebase';
-import { openDataUrlInNewTab, downloadFile } from '../utils/file';
+import { openDataUrlInNewTab, downloadFile, isPdfUrl, isImageUrl, getBlobUrlFromDataUrl } from '../utils/file';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { CRMTable } from '../components/admin/CRMTable';
+import { RekapKeberangkatan } from '../components/admin/RekapKeberangkatan';
+import PdfViewer from '../components/PdfViewer';
+import { getDocPreviewDataUrl } from '../utils/docPreviewGenerator';
 
 import { 
   LayoutDashboard, Database, Briefcase, Calendar as CalendarIcon, Users, 
   CreditCard, Globe, Image as ImageIcon, FileText, Tag, Star, 
-  ShieldCheck, Download, UsersRound, Settings, BarChart3, LogOut, User, Building, Plane, Bus, UserCheck,
-  Plus, Edit2, Trash2, Search, Filter, MoreVertical, CheckCircle, X, MapPin, Printer, Smartphone,
+  ShieldCheck, Download, UsersRound, Settings, BarChart3, LogOut, User, Building, Plane, Bus, UserCheck, FileSpreadsheet,
+  Plus, Edit2, Trash2, Search, Filter, MoreVertical, CheckCircle, CheckCircle2, X, MapPin, Printer, Smartphone,
   Banknote, Bell, History, Clock, AlertCircle, ChevronRight, ChevronDown, Megaphone, Package as InventoryIcon, Scroll, Check, UserPlus,
   MessageCircle, Award, UserCircle, Send, MessageSquare, Eye, RefreshCw, AlertTriangle, ExternalLink, FileCheck, Video, Upload, UploadCloud,
-  LifeBuoy, Inbox, ShieldAlert, MousePointer2, Lock
+  LifeBuoy, Inbox, ShieldAlert, MousePointer2, Lock, BookOpen, Book, Menu, RotateCcw, Maximize2, ZoomIn, Wallet, Luggage
  } from 'lucide-react';
 import { updatePassword } from 'firebase/auth';
 
+import AdminKYCPanel from '../components/AdminKYCPanel';
+import AdminMitraManager from '../components/AdminMitraManager';
+import AdminMitraJamaahManager from '../components/admin/AdminMitraJamaahManager';
+import AdminMitraSertifikatKenangan from '../components/admin/AdminMitraSertifikatKenangan';
+import AdminMitraPencairanKomisi from '../components/admin/AdminMitraPencairanKomisi';
+
+export const matchDocumentCategory = (docTypeStr: string | null | undefined, catId: string, paxIdx: number = 0): boolean => {
+  if (!docTypeStr || !catId) return false;
+  const dt = String(docTypeStr).toLowerCase().trim();
+  const targetCat = catId.toLowerCase().trim();
+
+  const matchIdx = dt.match(/_(\d+)$/);
+  const docPaxIdx = matchIdx ? parseInt(matchIdx[1], 10) : null;
+
+  if (docPaxIdx !== null) {
+    if (docPaxIdx !== paxIdx) return false;
+  } else if (paxIdx !== 0) {
+    return false;
+  }
+
+  const cleanDt = dt.replace(/_\d+$/, '').trim();
+
+  if (targetCat.includes('ktp')) {
+    return ['ktp', 'ktp asli', 'ktp_asli', 'ktpasli', 'kartu tanda penduduk'].includes(cleanDt);
+  }
+  if (targetCat.includes('paspor') || targetCat.includes('passport')) {
+    return ['passport', 'paspor', 'paspor asli', 'paspor_asli', 'pasporasli'].includes(cleanDt);
+  }
+  if (targetCat.includes('kk') || targetCat.includes('keluarga')) {
+    return ['kk', 'kartu keluarga', 'kartu_keluarga', 'kartukeluarga', 'kartu keluarga (kk)'].includes(cleanDt);
+  }
+  if (targetCat.includes('foto') || targetCat.includes('photo')) {
+    return ['foto', 'pas foto', 'pas_foto', 'pas foto 4x6', 'foto 4x6', 'pasfoto', 'photo', 'pas foto 4 x 6'].includes(cleanDt);
+  }
+  if (targetCat.includes('vaksin') || targetCat.includes('vaccine')) {
+    return ['vaccine', 'vaksin', 'sertifikat vaksin', 'sertifikat_vaksin', 'sertifikatvaksin'].includes(cleanDt);
+  }
+  if (targetCat.includes('nikah')) {
+    return ['buku_nikah', 'buku nikah', 'nikah', 'bukunikah'].includes(cleanDt);
+  }
+
+  return cleanDt === targetCat;
+};
+
 export default function Admin() {
   const logoImg = useLogo();
-  const { users, registrations, packages, setPackages, schedules, dashboardStats, actionCenter, equipment: inventory, broadcast: announcements, manifest, loading, currentUser, refreshData } = useAdminData();
+  const { users, registrations, setRegistrations, packages, setPackages, schedules, dashboardStats, actionCenter, equipment: inventory, broadcast: announcements, manifest, loading, currentUser, refreshData } = useAdminData();
   const onDataUpdated = React.useCallback(() => {
     console.log("Admin: Received real-time update signal.");
     refreshData(true);
@@ -81,8 +133,9 @@ export default function Admin() {
   };
 
   const getConsultations = (uList: any[], rList: any[]) => {
+    if (!Array.isArray(uList) || !Array.isArray(rList)) return [];
     return uList
-      .filter(u => u.role === 'jamaah')
+      .filter(u => u && u.role === 'jamaah')
       .flatMap(u => {
         const uEmail = u.email?.toLowerCase();
         const userRegs = rList.filter(r => 
@@ -108,12 +161,13 @@ export default function Admin() {
         }
         return userRegs.map(r => {
           const paxCount = (parseInt(r.adultCount) || 0) + (parseInt(r.childCount) || 0) + (parseInt(r.infantCount) || 0);
+          const paxData = Array.isArray(r.paxData) ? r.paxData : [];
           return {
             ...r,
-            name: r.ordererName || u.name,
-            email: r.ordererEmail || u.email,
+            name: r.ordererName || paxData[0]?.fullName || paxData[0]?.name || u.name,
+            email: r.ordererEmail || paxData[0]?.email || u.email,
             accountEmail: u.email,
-            phone: r.ordererPhone || u.phone,
+            phone: r.ordererPhone || paxData[0]?.phone || u.phone,
             notes: r.ordererNotes,
             status: u.status,
             paxCount: paxCount || 1,
@@ -124,7 +178,7 @@ export default function Admin() {
       });
   };
 
-  const consultations = getConsultations(users, registrations);
+  const consultations = useMemo(() => getConsultations(users, registrations), [users, registrations]);
 
   
   
@@ -224,6 +278,8 @@ export default function Admin() {
         dataToSend.imageUrl = dataToSend.image;
         delete dataToSend.image;
       }
+      dataToSend.price = Number(dataToSend.price || 0);
+      dataToSend.quota = Number(dataToSend.quota || 45);
 
       // Ensure description is clean array
       const descList = Array.isArray(dataToSend.description) 
@@ -241,11 +297,21 @@ export default function Admin() {
         imageUrl: dataToSend.imageUrl || p.imageUrl 
       } : p));
 
+      const notifyRealtimeCatalogChange = () => {
+        try {
+          localStorage.setItem('mitra_catalog_mutated', Date.now().toString());
+          const bc = new BroadcastChannel('mitra_catalog_realtime');
+          bc.postMessage({ type: 'MUTATED', timestamp: Date.now() });
+          bc.close();
+        } catch (e) {}
+      };
+
       const updated = await api.put(`/admin/packages/${data.id}`, dataToSend);
       if (updated && updated.id) {
         setPackages((prev: any[]) => prev.map(p => p.id === data.id ? updated : p));
       }
       toast.success('Paket berhasil diperbarui.');
+      notifyRealtimeCatalogChange();
       refreshData(true);
     } catch (error: any) {
       console.error('Error updating package:', error);
@@ -261,6 +327,8 @@ export default function Admin() {
         dataToSend.imageUrl = dataToSend.image;
         delete dataToSend.image;
       }
+      dataToSend.price = Number(dataToSend.price || 0);
+      dataToSend.quota = Number(dataToSend.quota || 45);
 
       const descList = Array.isArray(dataToSend.description) 
         ? dataToSend.description.filter((d: string) => d && d.trim() !== '')
@@ -273,13 +341,13 @@ export default function Admin() {
         id: tempId,
         name: dataToSend.name || 'Paket Baru',
         description: dataToSend.description,
-        price: Number(dataToSend.price || 0),
+        price: dataToSend.price,
         duration: dataToSend.duration || '9 Hari',
         type: dataToSend.type || activePackageTab || 'umroh',
         imageUrl: dataToSend.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80',
         isAvailable: dataToSend.isAvailable !== false,
-        quota: Number(dataToSend.quota || 45),
-        remainingSeats: Number(dataToSend.quota || 45),
+        quota: dataToSend.quota,
+        remainingSeats: dataToSend.quota,
         takenSeats: 0,
         createdAt: new Date().toISOString()
       };
@@ -291,6 +359,12 @@ export default function Admin() {
       if (created && created.id) {
         setPackages((prev: any[]) => prev.map(p => p.id === tempId ? created : p));
       }
+      try {
+        localStorage.setItem('mitra_catalog_mutated', Date.now().toString());
+        const bc = new BroadcastChannel('mitra_catalog_realtime');
+        bc.postMessage({ type: 'MUTATED', timestamp: Date.now() });
+        bc.close();
+      } catch (e) {}
       refreshData(true);
     } catch (error: any) {
       console.error('Error adding package:', error);
@@ -301,10 +375,19 @@ export default function Admin() {
   const deletePackage = async (id: string) => {
     try {
       await api.delete(`/admin/packages/${id}`);
+      setPackages((prev: any[]) => prev.filter(p => p.id !== id));
       toast.success('Paket berhasil dihapus.');
+      try {
+        localStorage.setItem('mitra_catalog_mutated', Date.now().toString());
+        const bc = new BroadcastChannel('mitra_catalog_realtime');
+        bc.postMessage({ type: 'MUTATED', timestamp: Date.now() });
+        bc.close();
+      } catch (e) {}
       refreshData(true);
     } catch (error: any) {
+      console.error('Error deleting package:', error);
       toast.error(error.message || 'Gagal menghapus paket.');
+      refreshData(true);
     }
   };
   
@@ -336,6 +419,10 @@ export default function Admin() {
     }
   };
   const updateInventory = async (jamaahId: string, item: 'koper' | 'ihram' | 'mukena', currentStatus: any) => {
+    if (!jamaahId || jamaahId === '.') {
+      toast.error('ID Jamaah tidak valid');
+      return;
+    }
     const payload = {
       koper: currentStatus?.koper || false,
       ihram: currentStatus?.ihram || false,
@@ -353,6 +440,10 @@ export default function Admin() {
   };
 
   const handleUpdateAssignee = async (jamaahId: string, currentStatus: any, newAssignee: string) => {
+    if (!jamaahId || jamaahId === '.') {
+      toast.error('ID Jamaah tidak valid');
+      return;
+    }
     const payload = {
       koper: currentStatus?.koper || false,
       ihram: currentStatus?.ihram || false,
@@ -389,6 +480,11 @@ export default function Admin() {
     });
   };
 
+  // Notification Center Dropdown state
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
+  const [readNotifIds, setReadNotifIds] = useState<string[]>([]);
+
   const [rejectDocModal, setRejectDocModal] = useState<{
     isOpen: boolean;
     docId: string;
@@ -420,6 +516,263 @@ export default function Admin() {
   const [isDownloadingZip, setIsDownloadingZip] = useState(false);
   const [reviewingDocId, setReviewingDocId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // Auto-select first available document or first category when modal opens or active pax changes
+  useEffect(() => {
+    if (isReviewModalOpen && reviewingJamaah) {
+      const docs = Array.isArray(reviewingJamaah.documents) ? reviewingJamaah.documents : [];
+      const currentPaxData = Array.isArray(reviewingJamaah.paxData) ? reviewingJamaah.paxData[activePaxIdx] : null;
+      const isMarried = currentPaxData?.maritalStatus === 'Menikah';
+      const categories = ['KTP Asli', 'Paspor Asli', 'Kartu Keluarga (KK)', 'Pas Foto 4x6', 'Sertifikat Vaksin', ...(isMarried ? ['Buku Nikah'] : [])];
+      
+      let foundCat: string | null = null;
+      for (const catName of categories) {
+        const doc = docs.find((d: any) => matchDocumentCategory(d?.docType, catName, activePaxIdx));
+        if (doc) {
+          foundCat = catName;
+          break;
+        }
+      }
+      setReviewingDocId(foundCat || categories[0]);
+    }
+  }, [isReviewModalOpen, activePaxIdx, reviewingJamaah?.id]);
+
+  const handleApproveDoc = async (jamaahId: string, categoryIdOrDocType: string | null) => {
+    if (!reviewingJamaah || !categoryIdOrDocType) return;
+    setIsVerifying(true);
+    try {
+      const allDocs = Array.isArray(reviewingJamaah.documents) ? reviewingJamaah.documents : [];
+      const targetDoc = allDocs.find((d: any) => matchDocumentCategory(d?.docType, categoryIdOrDocType, activePaxIdx));
+      
+      const docIdToVerify = targetDoc?.id || targetDoc?.docType || categoryIdOrDocType;
+
+      await api.patch('/admin/documents/verify', {
+        registrationId: jamaahId,
+        docId: docIdToVerify,
+        docType: targetDoc?.docType || categoryIdOrDocType,
+        status: 'approved',
+        rejectionReason: ''
+      });
+
+      toast.success(`Dokumen ${categoryIdOrDocType.split('_')[0]} berhasil disetujui!`);
+      setRejectionReason('');
+      
+      setReviewingJamaah((prev: any) => {
+        if (!prev) return prev;
+        const updatedDocs = (prev.documents || []).map((d: any) => {
+          if (d === targetDoc || d.docType === targetDoc?.docType) {
+            return { ...d, status: 'approved', rejectionReason: '' };
+          }
+          return d;
+        });
+        return { ...prev, documents: updatedDocs };
+      });
+
+      refreshData(true);
+    } catch (err: any) {
+      console.error('Approve doc error:', err);
+      toast.error('Gagal menyetujui dokumen: ' + (err.message || 'Server error'));
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleRejectDoc = async (jamaahId: string, categoryIdOrDocType: string | null, reason: string) => {
+    if (!reviewingJamaah || !categoryIdOrDocType) return;
+    if (!reason.trim()) {
+      toast.error('Mohon isi alasan penolakan dokumen.');
+      return;
+    }
+    setIsVerifying(true);
+    try {
+      const allDocs = Array.isArray(reviewingJamaah.documents) ? reviewingJamaah.documents : [];
+      const targetDoc = allDocs.find((d: any) => matchDocumentCategory(d?.docType, categoryIdOrDocType, activePaxIdx));
+      
+      const docIdToVerify = targetDoc?.id || targetDoc?.docType || categoryIdOrDocType;
+
+      await api.patch('/admin/documents/verify', {
+        registrationId: jamaahId,
+        docId: docIdToVerify,
+        docType: targetDoc?.docType || categoryIdOrDocType,
+        status: 'rejected',
+        rejectionReason: reason.trim(),
+        adminNotes: reason.trim(),
+        notes: reason.trim()
+      });
+
+      toast.success(`Dokumen ${categoryIdOrDocType.split('_')[0]} telah ditolak.`);
+      setRejectionReason('');
+      
+      setReviewingJamaah((prev: any) => {
+        if (!prev) return prev;
+        const updatedDocs = (prev.documents || []).map((d: any) => {
+          if (d === targetDoc || d.docType === targetDoc?.docType) {
+            return { ...d, status: 'rejected', rejectionReason: reason.trim(), adminNotes: reason.trim(), notes: reason.trim() };
+          }
+          return d;
+        });
+        return { ...prev, documents: updatedDocs };
+      });
+
+      refreshData(true);
+    } catch (err: any) {
+      console.error('Reject doc error:', err);
+      toast.error('Gagal menolak dokumen: ' + (err.message || 'Server error'));
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResetDoc = async (jamaahId: string, categoryIdOrDocType: string | null) => {
+    if (!reviewingJamaah || !categoryIdOrDocType) return;
+    setIsVerifying(true);
+    try {
+      const allDocs = Array.isArray(reviewingJamaah.documents) ? reviewingJamaah.documents : [];
+      const targetDoc = allDocs.find((d: any) => matchDocumentCategory(d?.docType, categoryIdOrDocType, activePaxIdx));
+      
+      const docIdToVerify = targetDoc?.id || targetDoc?.docType || categoryIdOrDocType;
+
+      await api.patch('/admin/documents/verify', {
+        registrationId: jamaahId,
+        docId: docIdToVerify,
+        docType: targetDoc?.docType || categoryIdOrDocType,
+        status: 'pending',
+        rejectionReason: ''
+      });
+
+      toast.success(`Status verifikasi dokumen ${categoryIdOrDocType.split('_')[0]} dikembalikan ke pending.`);
+      
+      setReviewingJamaah((prev: any) => {
+        if (!prev) return prev;
+        const updatedDocs = (prev.documents || []).map((d: any) => {
+          if (d === targetDoc || d.docType === targetDoc?.docType) {
+            return { ...d, status: 'pending', rejectionReason: '' };
+          }
+          return d;
+        });
+        return { ...prev, documents: updatedDocs };
+      });
+
+      refreshData(true);
+    } catch (err: any) {
+      console.error('Reset doc error:', err);
+      toast.error('Gagal mengubah status dokumen: ' + (err.message || 'Server error'));
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleDownloadDoc = async (jamaahName: string, categoryIdOrDocType: string | null, fileUrl: string | undefined) => {
+    if (!fileUrl) {
+      toast.error('URL berkas tidak tersedia untuk diunduh.');
+      return;
+    }
+    const cleanDocName = categoryIdOrDocType ? categoryIdOrDocType.split('_')[0].replace(/[^a-zA-Z0-9]/g, '_') : 'Dokumen';
+    const cleanJamaahName = (jamaahName || 'Jamaah').replace(/[^a-zA-Z0-9]/g, '_');
+    
+    let ext = '.png';
+    if (isPdfUrl(fileUrl) || fileUrl.includes('application/pdf') || fileUrl.includes('ext=.pdf')) {
+      ext = '.pdf';
+    } else if (fileUrl.includes('image/jpeg') || fileUrl.includes('ext=.jpg')) {
+      ext = '.jpg';
+    }
+
+    const filename = `${cleanDocName}_${cleanJamaahName}_Pax${activePaxIdx + 1}${ext}`;
+    toast.info(`Mengunduh berkas ${cleanDocName}...`);
+    await downloadFile(fileUrl, filename);
+  };
+
+  const handleDownloadAllDocs = async (jamaahName: string) => {
+    if (!reviewingJamaah) return;
+    setIsDownloadingZip(true);
+    try {
+      const zip = new JSZip();
+      const folderName = `Dokumen_${(jamaahName || 'Jamaah').replace(/\s+/g, '_')}_Pax_${activePaxIdx + 1}`;
+      const folder = zip.folder(folderName) || zip;
+
+      const allDocs = Array.isArray(reviewingJamaah.documents) ? reviewingJamaah.documents : [];
+      const currentPaxData = Array.isArray(reviewingJamaah.paxData) ? reviewingJamaah.paxData[activePaxIdx] : null;
+      const isMarried = currentPaxData?.maritalStatus === 'Menikah';
+      const categories = [
+        { id: 'KTP Asli', label: 'KTP_Asli' },
+        { id: 'Paspor Asli', label: 'Paspor_Asli' },
+        { id: 'Kartu Keluarga (KK)', label: 'Kartu_Keluarga' },
+        { id: 'Pas Foto 4x6', label: 'Pas_Foto_4x6' },
+        { id: 'Sertifikat Vaksin', label: 'Sertifikat_Vaksin' },
+        ...(isMarried ? [{ id: 'Buku Nikah', label: 'Buku_Nikah' }] : [])
+      ];
+
+      let filesAdded = 0;
+      const token = localStorage.getItem('token');
+
+      for (const cat of categories) {
+        const doc = allDocs.find((d: any) => matchDocumentCategory(d?.docType, cat.id, activePaxIdx));
+        if (!doc) continue;
+
+        let docUrl = doc.fileUrl;
+        if (!docUrl && doc.id) {
+          const isPdf = doc.isPdf || (doc.docType && doc.docType.toLowerCase().includes('pdf'));
+          docUrl = `/api/documents/${doc.id}/file?token=${token}&ext=${isPdf ? '.pdf' : '.png'}`;
+        }
+        if (!docUrl) continue;
+
+        let fileData: ArrayBuffer | null = null;
+        let extension = 'png';
+
+        if (docUrl.startsWith('data:')) {
+          const parts = docUrl.split(',');
+          const mimeMatch = parts[0].match(/:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : 'image/png';
+          if (mime.includes('pdf')) extension = 'pdf';
+          else if (mime.includes('jpeg') || mime.includes('jpg')) extension = 'jpg';
+          
+          const bstr = atob(parts[1] || '');
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          fileData = u8arr.buffer;
+        } else if (docUrl.startsWith('/') || docUrl.startsWith('http')) {
+          try {
+            const resp = await fetch(docUrl, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
+            if (resp.ok) {
+              const blob = await resp.blob();
+              if (!blob.type.includes('html') && !blob.type.includes('json')) {
+                fileData = await blob.arrayBuffer();
+                if (blob.type.includes('pdf') || docUrl.includes('.pdf')) extension = 'pdf';
+                else if (blob.type.includes('jpeg') || docUrl.includes('.jpg')) extension = 'jpg';
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to fetch doc for zip:', docUrl, e);
+          }
+        }
+
+        if (fileData) {
+          folder.file(`${cat.label}_Pax${activePaxIdx + 1}.${extension}`, fileData);
+          filesAdded++;
+        }
+      }
+
+      if (filesAdded === 0) {
+        toast.error('Tidak ada berkas terunggah yang dapat diunduh.');
+        return;
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      saveAs(zipBlob, `${folderName}.zip`);
+      toast.success(`Berhasil mengunduh ${filesAdded} berkas dokumen (ZIP).`);
+    } catch (error: any) {
+      console.error('Download Zip error:', error);
+      toast.error('Gagal membuat file ZIP unduhan.');
+    } finally {
+      setIsDownloadingZip(false);
+    }
+  };
 
   // Financial Verification States
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -538,6 +891,11 @@ export default function Admin() {
   const [expandedRekapRows, setExpandedRekapRows] = useState<Record<string, boolean>>({});
   
   // Kelola Paket States
+  // Sidebar Accordion State
+  const [isPortalJemaahOpen, setIsPortalJemaahOpen] = useState(true);
+  const [isPortalMitraOpen, setIsPortalMitraOpen] = useState(false);
+  const [isCMSOpen, setIsCMSOpen] = useState(false);
+
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
   const [editingPackage, setEditingPackage] = useState<any>(null);
   const [deletePackageId, setDeletePackageId] = useState<string | null>(null);
@@ -560,6 +918,77 @@ export default function Admin() {
   const [manifestFilter, setManifestFilter] = useState('');
   const [selectedManifestReg, setSelectedManifestReg] = useState<any>(null);
 
+  // Buku Panduan Manasik Feature States
+  const [manasikSearchQuery, setManasikSearchQuery] = useState('');
+  const [manasikCategoryFilter, setManasikCategoryFilter] = useState<'all' | 'umroh' | 'haji'>('all');
+  const [uploadingPkgId, setUploadingPkgId] = useState<string | null>(null);
+  const [uploadingProgress, setUploadingProgress] = useState<number | null>(null);
+  const [uploadingFileName, setUploadingFileName] = useState('');
+
+  const handleDirectManasikUpload = (pkg: any, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 150 * 1024 * 1024) {
+      toast.error('Ukuran file PDF terlalu besar. Maksimal 150MB.');
+      e.target.value = '';
+      return;
+    }
+    if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('Hanya file PDF yang diperbolehkan!');
+      e.target.value = '';
+      return;
+    }
+
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    setUploadingPkgId(pkg.id);
+    setUploadingFileName(`${file.name} (${sizeMB} MB)`);
+    setUploadingProgress(0);
+
+    const reader = new FileReader();
+    reader.onprogress = (evt) => {
+      if (evt.lengthComputable) {
+        const percent = Math.round((evt.loaded / evt.total) * 100);
+        setUploadingProgress(percent);
+      }
+    };
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      try {
+        await updatePackage({ ...pkg, manasikPdfUrl: base64 });
+        toast.success(`Buku Panduan Manasik untuk "${pkg.name}" berhasil diunggah.`);
+      } catch (err: any) {
+        toast.error('Gagal memperbarui paket.');
+      } finally {
+        setUploadingPkgId(null);
+        setUploadingProgress(null);
+        setUploadingFileName('');
+      }
+    };
+    reader.onerror = () => {
+      setUploadingPkgId(null);
+      setUploadingProgress(null);
+      setUploadingFileName('');
+      toast.error('Gagal membaca file PDF.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveManasikPdf = async (pkg: any) => {
+    showConfirm(
+      'Hapus Buku Manasik',
+      `Apakah Anda yakin ingin menghapus Buku Panduan Manasik untuk paket "${pkg.name}"?`,
+      async () => {
+        try {
+          await updatePackage({ ...pkg, manasikPdfUrl: null });
+          toast.success(`Buku Manasik untuk "${pkg.name}" berhasil dihapus.`);
+        } catch (err: any) {
+          toast.error('Gagal menghapus file.');
+        }
+      }
+    );
+  };
+
   const generatePDF = (jamaah: any) => {
     const doc = new jsPDF();
     const bio = jamaah.paxData?.[0] || {};
@@ -567,7 +996,7 @@ export default function Admin() {
     // Header
     doc.setFontSize(22);
     doc.setTextColor(76, 124, 89); // Matcha green
-    doc.text('GOLDEN TRAVEL', 105, 20, { align: 'center' });
+    doc.text('PT. GOLDEN TOUR HARAMAIN', 105, 20, { align: 'center' });
     
     doc.setFontSize(10);
     doc.setTextColor(100);
@@ -644,7 +1073,7 @@ export default function Admin() {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text('Batam, ' + new Date().toLocaleDateString('id-ID'), 140, signatureY + 10);
-    doc.text('Admin PT Golden Tour Haramain', 140, signatureY + 20);
+    doc.text('Admin PT. Golden Tour Haramain', 140, signatureY + 20);
     doc.text('( ____________________ )', 140, signatureY + 45);
 
     doc.save(`Biodata_${jamaah.name.replace(/\s+/g, '_')}.pdf`);
@@ -660,38 +1089,64 @@ export default function Admin() {
     { name: 'Jul', jamaah: 92, pendapatan: 2.80 },
   ];
 
+  // Count jamaah who have active registrations and are scheduled to depart
+  const activeJamaahDepartingCount = React.useMemo(() => {
+    if (!registrations || registrations.length === 0) {
+      return dashboardStats?.totalJamaah || 0;
+    }
+    const validRegs = registrations.filter((r: any) => 
+      r.status !== 'CANCELLED' && r.status !== 'PILIH_PAKET' && r.status !== 'none'
+    );
+    const paxTotal = validRegs.reduce((acc: number, r: any) => {
+      const paxCount = (parseInt(r.adultCount) || 0) + (parseInt(r.childCount) || 0) + (parseInt(r.infantCount) || 0);
+      const paxData = Array.isArray(r.paxData) ? r.paxData.length : 0;
+      return acc + Math.max(paxCount, paxData, 1);
+    }, 0);
+    return paxTotal > 0 ? paxTotal : (dashboardStats?.totalJamaah || 0);
+  }, [registrations, dashboardStats]);
+
   const stats = [
     { 
       title: 'Jamaah Aktif', 
-      value: (dashboardStats?.totalJamaah || 0).toLocaleString('id-ID'), 
-      icon: <Users className="text-blue-500 w-6 h-6" />, 
+      value: activeJamaahDepartingCount.toLocaleString('id-ID'), 
+      icon: <Users className="text-blue-500 w-6 h-6 group-hover:scale-110 transition-transform" />, 
       bg: 'bg-blue-50', 
-      trend: 'Total Keseluruhan' 
+      trend: 'Akan Berangkat',
+      tab: 'crm_jamaah'
+    },
+    { 
+      title: 'Mitra Jemaah Aktif', 
+      value: (dashboardStats?.totalMitraAktif || 0).toLocaleString('id-ID'), 
+      icon: <UserCheck className="text-amber-600 w-6 h-6 group-hover:scale-110 transition-transform" />, 
+      bg: 'bg-amber-50', 
+      trend: 'Mitra Terverifikasi',
+      tab: 'daftar_mitra'
     },
     { 
       title: 'Arus Kas (Bulan Ini)', 
-      value: (dashboardStats?.monthlyCashFlow || 0) >= 1000000000 
-        ? `Rp ${(dashboardStats.monthlyCashFlow / 1000000000).toFixed(1)}M` 
-        : `Rp ${(dashboardStats?.monthlyCashFlow || 0).toLocaleString('id-ID')}`, 
-      icon: <Banknote className="text-green-500 w-6 h-6" />, 
+      value: `Rp ${(dashboardStats?.monthlyCashFlow || 0).toLocaleString('id-ID')}`, 
+      icon: <Banknote className="text-green-500 w-6 h-6 group-hover:scale-110 transition-transform" />, 
       bg: 'bg-green-50', 
-      trend: 'Pemasukan Terverifikasi' 
+      trend: 'Pemasukan Terverifikasi',
+      tab: 'verifikasi_keuangan'
     },
     { 
       title: 'Persiapan Dokumen', 
       value: `${dashboardStats?.docProgress || 0}%`, 
-      icon: <FileText className="text-orange-500 w-6 h-6" />, 
+      icon: <FileText className="text-orange-500 w-6 h-6 group-hover:scale-110 transition-transform" />, 
       bg: 'bg-orange-50', 
-      trend: 'Dokumen Terverifikasi' 
+      trend: 'Dokumen Terverifikasi',
+      tab: 'verifikasi_dokumen'
     },
     { 
       title: 'Batch Terdekat', 
       value: dashboardStats?.nextBatch 
         ? (dashboardStats.nextBatch ? new Date(dashboardStats.nextBatch).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-') 
         : (dashboardStats?.nextBatchName || '-'), 
-      icon: <Plane className="text-indigo-500 w-6 h-6" />, 
+      icon: <Plane className="text-indigo-500 w-6 h-6 group-hover:scale-110 transition-transform" />, 
       bg: 'bg-indigo-50', 
-      trend: dashboardStats?.nextBatchRegs !== undefined ? `${dashboardStats.nextBatchRegs} Jamaah` : 'Belum ada jadwal' 
+      trend: dashboardStats?.nextBatchRegs !== undefined ? `${dashboardStats.nextBatchRegs} Jamaah` : 'Belum ada jadwal',
+      tab: 'ops_keberangkatan'
     },
   ];
 
@@ -705,29 +1160,46 @@ export default function Admin() {
     { day: 'Keberangkatan', target: 100, actual: null },
   ];
 
-  const menuGroups: { title: string; items: { id: string; label: string; icon: React.ReactNode }[] }[] = [
+  const portalJemaahSubItems = [
+    { id: 'master_data', label: 'Master Data Travel', icon: <Database className="w-4 h-4" /> },
+    { id: 'crm_jamaah', label: 'CRM Jamaah', icon: <UserCheck className="w-4 h-4" /> },
+    { id: 'rekap_keberangkatan', label: 'Rekap Keberangkatan', icon: <FileSpreadsheet className="w-4 h-4" /> },
+    { id: 'verifikasi_dokumen', label: 'Verifikasi Dokumen', icon: <ShieldCheck className="w-4 h-4" /> },
+    { id: 'verifikasi_keuangan', label: 'Verifikasi Keuangan', icon: <Banknote className="w-4 h-4" /> },
+    { id: 'ops_keberangkatan', label: 'Operasional Keberangkatan', icon: <Plane className="w-4 h-4" /> },
+    { id: 'buku_manasik', label: 'Buku Panduan Manasik', icon: <BookOpen className="w-4 h-4" /> },
+    { id: 'helpdesk', label: 'Helpdesk Jamaah', icon: <MessageSquare className="w-4 h-4" /> },
+    { id: 'sertifikat', label: 'Manajemen Sertifikat', icon: <Award className="w-4 h-4" /> },
+  ];
+
+  const kemitraanSubItems = [
+    { id: 'verifikasi_mitra', label: 'Verifikasi Mitra', icon: <UserPlus className="w-4 h-4" /> },
+    { id: 'daftar_mitra', label: 'Daftar Mitra', icon: <Users className="w-4 h-4" /> },
+    { id: 'mitra_calon_jamaah', label: 'Daftar Calon Jamaah', icon: <Users className="w-4 h-4" /> },
+    { id: 'mitra_sertifikat_kenangan', label: 'Manajemen Sertifikat & Kenangan', icon: <Award className="w-4 h-4" /> },
+    { id: 'mitra_pencairan_komisi', label: 'Verifikasi Komisi', icon: <Wallet className="w-4 h-4" /> },
+  ];
+
+  const cmsSubItems = [
+    { id: 'cms_packages', label: 'Kelola Paket', icon: <InventoryIcon className="w-4 h-4" /> },
+    { id: 'cms_gallery', label: 'Galeri Foto', icon: <ImageIcon className="w-4 h-4" /> },
+    { id: 'cms_videos', label: 'Galeri Video', icon: <Video className="w-4 h-4" /> },
+  ];
+
+  const menuGroups = [
     {
       title: 'Utama',
       items: [
         { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-        { id: 'master_data', label: 'Master Data Travel', icon: <Database className="w-5 h-5" /> },
-        { id: 'crm_jamaah', label: 'CRM Jamaah', icon: <UserCheck className="w-5 h-5" /> },
-        { id: 'verifikasi_dokumen', label: 'Verifikasi Dokumen', icon: <ShieldCheck className="w-5 h-5" /> },
-        { id: 'verifikasi_keuangan', label: 'Verifikasi Keuangan', icon: <Banknote className="w-5 h-5" /> },
       ]
     },
     {
-      title: 'Operasional',
-      items: [
-        { id: 'ops_keberangkatan', label: 'Operasional Keberangkatan', icon: <Plane className="w-5 h-5" /> },
-      ]
+      title: 'Jemaah Portal',
+      items: portalJemaahSubItems
     },
     {
-      title: 'Layanan & Support',
-      items: [
-        { id: 'helpdesk', label: 'Helpdesk Jamaah', icon: <MessageSquare className="w-5 h-5" /> },
-        { id: 'sertifikat', label: 'Manajemen Sertifikat', icon: <Award className="w-5 h-5" /> },
-      ]
+      title: 'Kemitraan',
+      items: kemitraanSubItems
     },
     {
       title: 'Sistem',
@@ -742,109 +1214,33 @@ export default function Admin() {
     { id: '2', title: 'Verifikasi Dokumen', message: 'Semua dokumen telah diperiksa.', type: 'info', time: 'Hari ini' },
   ];
 
-  const menuItems = menuGroups.flatMap(group => group.items);
-
-
-  const [isVerifying, setIsVerifying] = useState(false);
-
-  const handleApproveDoc = async (jamaahId: string, docType: string) => {
-    const jamaah = consultations.find(c => c.id === jamaahId);
-    const docItem = Array.isArray(jamaah?.documents) ? jamaah.documents.find((d: any) => d.docType === docType) : null;
-    
-    if (!docItem) {
-      toast.error("Data dokumen tidak ditemukan");
-      return;
-    }
-
-    setIsVerifying(true);
-    try {
-      await api.patch(`/admin/documents/${docItem.id}/verify`, { status: 'approved' });
-      toast.success(`Dokumen ${docType.split('_')[0]} milik ${jamaah?.name} telah disetujui.`);
-      
-      const freshData = await refreshData(true);
-      if (freshData && reviewingJamaah?.id === jamaahId) {
-        const freshConsultations = getConsultations(freshData.users, freshData.registrations);
-        const refreshedJamaah = freshConsultations.find((c: any) => c.id === jamaahId);
-        if (refreshedJamaah) {
-          setReviewingJamaah(refreshedJamaah);
-        }
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Gagal menyetujui dokumen");
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  const handleRejectDoc = async (jamaahId: string, docType: string, reason: string) => {
-    if (!reason.trim()) {
-      toast.error("Mohon isi alasan penolakan!");
-      return;
-    }
-    
-    const jamaah = consultations.find(c => c.id === jamaahId);
-    const docItem = Array.isArray(jamaah?.documents) ? jamaah.documents.find((d: any) => d.docType === docType) : null;
-    
-    if (!docItem) {
-      toast.error("Data dokumen tidak ditemukan");
-      return;
-    }
-
-    setIsVerifying(true);
-    try {
-      await api.patch(`/admin/documents/${docItem.id}/verify`, { status: 'rejected', reason });
-      toast.error(`Dokumen ${docType.split('_')[0]} milik ${jamaah?.name} telah ditolak.`);
-      setRejectionReason('');
-      
-      const freshData = await refreshData(true);
-      if (freshData && reviewingJamaah?.id === jamaahId) {
-        const freshConsultations = getConsultations(freshData.users, freshData.registrations);
-        const refreshedJamaah = freshConsultations.find((c: any) => c.id === jamaahId);
-        if (refreshedJamaah) {
-          setReviewingJamaah(refreshedJamaah);
-        }
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Gagal menolak dokumen");
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  const handleDownloadDoc = (jamaahName: string, docId: string, fileUrl?: string) => {
-    toast.success(`📥 Membuka/Mengunduh berkas: ${docId}_${jamaahName.replace(/\s+/g, '_')}`);
-    if (fileUrl) openDataUrlInNewTab(fileUrl);
-  };
-
-  const handleDownloadAllDocs = async (jamaahName: string) => {
-    if (!reviewingJamaah?.id) {
-      toast.error("Data pendaftaran tidak ditemukan.");
-      return;
-    }
-
-    setIsDownloadingZip(true);
-    toast.info(`Menyiapkan unduhan untuk Jamaah ${activePaxIdx + 1}...`);
-
-    try {
-      const blob = await api.download(`/admin/registrations/${reviewingJamaah.id}/documents/zip/${activePaxIdx}`);
-      const zipName = `Dokumen_${jamaahName.replace(/\s+/g, '_')}_Jamaah_${activePaxIdx + 1}.zip`;
-      saveAs(blob, zipName);
-      toast.success(`Berhasil mengunduh berkas Jamaah ${activePaxIdx + 1}!`);
-    } catch (error: any) {
-      console.error("Gagal mengunduh berkas:", error);
-      toast.error(error.message || "Gagal mengunduh berkas. Silakan coba lagi.");
-    } finally {
-      setIsDownloadingZip(false);
-    }
-  };
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+    ...portalJemaahSubItems,
+    ...kemitraanSubItems,
+    ...cmsSubItems,
+    { id: 'pengaturan', label: 'Pengaturan Admin', icon: <Settings className="w-5 h-5" /> }
+  ];
 
   const handleApproveFinancialPayment = async (jamaahId: string, transactionId: string) => {
+    setIsVerifying(true);
     try {
-      await api.patch(`/admin/payments/${transactionId}/verify`, { status: 'approved' });
+      await api.patch(`/admin/payments/${transactionId}/verify`, { status: 'VERIFIED' });
       toast.success(`Pembayaran berhasil diverifikasi!`);
-      await refreshData(true);
+      setRegistrations((prev: any[]) => prev.map((r: any) => {
+        if (r.id === jamaahId) {
+          const updatedPayments = (r.payments || []).map((p: any) => 
+            p.id === transactionId ? { ...p, status: 'VERIFIED' } : p
+          );
+          return { ...r, payments: updatedPayments };
+        }
+        return r;
+      }));
+      refreshData(true);
     } catch (error: any) {
       toast.error(error.message || 'Gagal memverifikasi pembayaran');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -853,13 +1249,25 @@ export default function Admin() {
       toast.error("Mohon isi alasan penolakan!");
       return;
     }
+    setIsVerifying(true);
     try {
-      await api.patch(`/admin/payments/${transactionId}/verify`, { status: 'rejected', reason });
-      toast.error(`Pembayaran telah ditolak.`);
-      await refreshData(true);
+      await api.patch(`/admin/payments/${transactionId}/verify`, { status: 'REJECTED', reason });
+      toast.info(`Pembayaran telah ditolak.`);
+      setRegistrations((prev: any[]) => prev.map((r: any) => {
+        if (r.id === jamaahId) {
+          const updatedPayments = (r.payments || []).map((p: any) => 
+            p.id === transactionId ? { ...p, status: 'REJECTED', adminNotes: reason } : p
+          );
+          return { ...r, payments: updatedPayments };
+        }
+        return r;
+      }));
       setPaymentRejectionReason('');
+      refreshData(true);
     } catch (error: any) {
       toast.error(error.message || 'Gagal menolak pembayaran');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -921,7 +1329,7 @@ export default function Admin() {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
       doc.setTextColor(255, 255, 255);
-      doc.text('PT GOLDEN TOUR HARAMAIN', 14, 15);
+      doc.text('PT. GOLDEN TOUR HARAMAIN', 14, 15);
 
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
@@ -1024,29 +1432,29 @@ export default function Admin() {
       doc.text(formatTerbilang(amountNumber), 42, currentY + 14);
 
       // 5. Signature Section
-      const signRightX = pageWidth - 65;
+      const signRightX = pageWidth - 45;
       const startSignY = currentY + 28;
 
       doc.setFontSize(8.5);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(50, 50, 50);
-      doc.text(`Batam, ${txDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, signRightX, startSignY);
-      doc.text('Disetujui & Disahkan oleh,', signRightX, startSignY + 5);
+      doc.text(`Batam, ${txDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, signRightX, startSignY, { align: 'center' });
+      doc.text('Disetujui & Disahkan oleh,', signRightX, startSignY + 5, { align: 'center' });
 
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(31, 58, 43);
-      doc.text('Departemen Keuangan & Akuntansi', signRightX, startSignY + 10);
+      doc.text('Departemen Keuangan & Akuntansi', signRightX, startSignY + 10, { align: 'center' });
 
       // Signature Name & Role (without stamp box, clean)
       doc.setFontSize(9.5);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(31, 58, 43);
-      doc.text('AHMAD DAUD', signRightX, startSignY + 32);
+      doc.text('AHMAD DAUD', signRightX, startSignY + 32, { align: 'center' });
 
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(80, 80, 80);
-      doc.text('Head of Finance & Treasury', signRightX, startSignY + 37);
+      doc.text('Head of Finance & Treasury', signRightX, startSignY + 37, { align: 'center' });
 
       // Page Footer Line
       doc.setDrawColor(220, 220, 220);
@@ -1055,7 +1463,7 @@ export default function Admin() {
       doc.setFontSize(7.5);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(120, 120, 120);
-      doc.text('PT Golden Tour Haramain — Bukti Sah Kuitansi Pembayaran Digital', 14, pageHeight - 7);
+      doc.text('PT. Golden Tour Haramain — Bukti Sah Kuitansi Pembayaran Digital', 14, pageHeight - 7);
       doc.text('Halaman 1 dari 1', pageWidth - 14, pageHeight - 7, { align: 'right' });
 
       doc.save(`Kuitansi_${jamaah.name.replace(/\s+/g, '_')}_${receiptNo.replace(/\//g, '_')}.pdf`);
@@ -1096,6 +1504,12 @@ export default function Admin() {
     } else if (pkg && !Array.isArray(pkg.description)) {
       editPkg.description = [pkg.description];
     }
+    if (pkg && pkg.price !== undefined) {
+      editPkg.price = Number(pkg.price);
+    }
+    if (pkg && pkg.quota !== undefined) {
+      editPkg.quota = Number(pkg.quota);
+    }
     setEditingPackage(editPkg);
     setIsPackageModalOpen(true);
   };
@@ -1115,7 +1529,14 @@ export default function Admin() {
   };
 
   const handleOpenScheduleModal = (sch: any = null) => {
-    setEditingSchedule(sch || {
+    setEditingSchedule(sch ? {
+      ...sch,
+      muthawwifName: sch.muthawwifName || 'Ustadz Hanan Attaki',
+      muthawwifRole: sch.muthawwifRole || 'Muthawwif Utama & Pembimbing Syariah',
+      muthawwifPhone: sch.muthawwifPhone || '081234567890',
+      muthawwifAvatarUrl: sch.muthawwifAvatarUrl || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+      muthawwifNotes: sch.muthawwifNotes || "Assalamu'alaikum jemaah. Diharapkan hadir manasik H-3 sebelum keberangkatan di Asrama Haji. Pastikan fisik dan dokumen paspor telah siap.",
+    } : {
       id: Date.now().toString(),
       packageId: packages[0]?.id || '',
       departureDate: '',
@@ -1123,7 +1544,12 @@ export default function Admin() {
       airline: '',
       itineraryPdfUrl: '',
       availableSeats: 45,
-      totalSeats: 45
+      totalSeats: 45,
+      muthawwifName: 'Ustadz Hanan Attaki',
+      muthawwifRole: 'Muthawwif Utama & Pembimbing Syariah',
+      muthawwifPhone: '081234567890',
+      muthawwifAvatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80',
+      muthawwifNotes: "Assalamu'alaikum jemaah. Diharapkan hadir manasik H-3 sebelum keberangkatan di Asrama Haji. Pastikan fisik dan dokumen paspor telah siap."
     });
     setIsScheduleModalOpen(true);
   };
@@ -1207,7 +1633,7 @@ export default function Admin() {
 
   const generateManifestPDF = () => {
     const doc = new jsPDF();
-    const paidJamaah = consultations.filter(c => c.status === 'payment' || c.paymentStep === 'lunas');
+    const paidJamaah = consultations.filter(c => c.status !== 'none' && c.status !== 'cancelled' && c.packageName !== 'Belum Memilih Paket');
     
     doc.setFontSize(16);
     doc.setTextColor(20, 83, 45); // Emerald-900
@@ -1215,7 +1641,7 @@ export default function Admin() {
     
     doc.setFontSize(9);
     doc.setTextColor(100);
-    doc.text('GOLDEN TRAVEL - PT GOLDEN UTAMA TOURS & TRAVEL', 105, 24, { align: 'center' });
+    doc.text('PT. GOLDEN TOUR HARAMAIN', 105, 24, { align: 'center' });
     doc.setLineWidth(0.5);
     doc.line(15, 28, 195, 28);
 
@@ -1455,47 +1881,256 @@ export default function Admin() {
         </div>
       )}
       {/* Sidebar */}
-      <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-[#132019] text-white flex flex-col shadow-2xl transition-all duration-300 z-20 shrink-0 h-screen sticky top-0 overflow-y-auto`}>
-        <div className="p-4 flex items-center justify-between border-b border-white/10 sticky top-0 bg-[#132019] z-10">
+      <aside className={`${isSidebarOpen ? 'w-64 opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-full'} bg-[#132019] text-white flex flex-col shadow-2xl transition-all duration-300 z-20 shrink-0 h-screen sticky top-0 overflow-y-auto overflow-x-hidden`}>
+        <div className="p-4 flex items-center justify-between border-b border-white/10 sticky top-0 bg-[#132019] z-10 w-64">
           {isSidebarOpen && (
-            <Link to="/" className="flex items-center space-x-3 group">
-              <div className="w-8 h-8 bg-white shadow-md rounded-full flex items-center justify-center p-1">
+            <Link to="/" className="flex items-center space-x-3 group min-w-0">
+              <div className="w-8 h-8 bg-white shadow-md rounded-full flex items-center justify-center p-1 shrink-0">
                 <img src={logoImg} alt="Logo" className="w-full h-full object-contain rounded-full" />
               </div>
               <span className="font-bold text-sm tracking-wider text-gold-400 uppercase truncate">Admin Panel</span>
             </Link>
           )}
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-white/10 rounded-lg">
-            <LayoutDashboard className="w-5 h-5 text-white/70" />
+          <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-white/10 rounded-lg shrink-0" title="Tutup Menu">
+            <Menu className="w-5 h-5 text-white/70" />
           </button>
         </div>
         
-        <div className="py-4 flex-1">
+        <div className="py-4 flex-1 w-64 overflow-y-auto custom-scrollbar">
           <nav className="space-y-4 px-3 pb-4">
-            {menuGroups.map((group, groupIdx) => (
-              <div key={groupIdx} className="space-y-1">
-                {isSidebarOpen && (
-                  <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-wider px-3 pb-1">{group.title}</h3>
-                )}
-                {group.items.map(item => (
-                  <button 
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all ${activeTab === item.id ? 'bg-gold-500 text-gray-900 font-semibold shadow-lg' : 'text-slate-300 hover:bg-white/10 hover:text-white'}`}
-                    title={!isSidebarOpen ? item.label : ''}
-                  >
-                    <div className={`${activeTab === item.id ? 'text-gray-900' : 'text-slate-400'}`}>
-                      {item.icon}
+            {/* UTAMA */}
+            <div className="space-y-1">
+              {isSidebarOpen && (
+                <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-wider px-3 pb-1">Utama</h3>
+              )}
+              <button 
+                type="button"
+                onClick={() => setActiveTab('dashboard')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+                  activeTab === 'dashboard' 
+                    ? 'bg-gold-500 text-gray-900 font-bold shadow-lg' 
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+                title={!isSidebarOpen ? 'Dashboard' : ''}
+              >
+                <div className={activeTab === 'dashboard' ? 'text-gray-900' : 'text-slate-400'}>
+                  <LayoutDashboard className="w-5 h-5" />
+                </div>
+                {isSidebarOpen && <span className="text-sm truncate">Dashboard</span>}
+              </button>
+            </div>
+
+            {/* PORTAL JEMAAH (SINGLE PARENT ITEM WITH SUBTITLE & SUB-ITEMS) */}
+            <div className="space-y-1">
+              {isSidebarOpen && (
+                <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-wider px-3 pb-1">Layanan Utama</h3>
+              )}
+              
+              {/* Parent Accordion Button */}
+              <button 
+                type="button"
+                onClick={() => setIsPortalJemaahOpen(!isPortalJemaahOpen)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-2xl transition-all cursor-pointer ${
+                  portalJemaahSubItems.some(item => item.id === activeTab)
+                    ? 'bg-white/15 text-white font-bold border border-gold-400/40 shadow-md' 
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+                title={!isSidebarOpen ? 'Portal Jemaah' : ''}
+              >
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className={`p-1.5 rounded-xl shrink-0 ${
+                    portalJemaahSubItems.some(item => item.id === activeTab)
+                      ? 'bg-gold-500 text-gray-900 shadow-sm' 
+                      : 'bg-white/10 text-gold-400'
+                  }`}>
+                    <Users className="w-5 h-5" />
+                  </div>
+                  {isSidebarOpen && (
+                    <div className="text-left truncate">
+                      <div className="text-sm font-bold leading-tight">Portal Jemaah</div>
+                      <div className="text-[10px] text-gold-400 font-bold tracking-wide">Jemaah Portal</div>
                     </div>
-                    {isSidebarOpen && <span className="text-sm truncate">{item.label}</span>}
-                  </button>
-                ))}
-              </div>
-            ))}
+                  )}
+                </div>
+                {isSidebarOpen && (
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 shrink-0 ${
+                    isPortalJemaahOpen ? 'rotate-180 text-gold-400' : 'text-slate-400'
+                  }`} />
+                )}
+              </button>
+
+              {/* Sub-items Container */}
+              {(isPortalJemaahOpen || !isSidebarOpen) && (
+                <div className={`${isSidebarOpen ? 'pl-3 pr-1 py-1 space-y-1 border-l-2 border-gold-500/40 ml-4 my-1' : 'space-y-1'}`}>
+                  {portalJemaahSubItems.map((subItem) => (
+                    <button
+                      type="button"
+                      key={subItem.id}
+                      onClick={() => setActiveTab(subItem.id)}
+                      className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        activeTab === subItem.id
+                          ? 'bg-gold-500 text-gray-900 font-extrabold shadow-md'
+                          : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                      }`}
+                      title={!isSidebarOpen ? subItem.label : ''}
+                    >
+                      <div className={`shrink-0 ${activeTab === subItem.id ? 'text-gray-900' : 'text-slate-400'}`}>
+                        {subItem.icon}
+                      </div>
+                      {isSidebarOpen && <span className="truncate">{subItem.label}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* PORTAL MITRA */}
+            <div className="space-y-1">
+              {/* Parent Accordion Button */}
+              <button 
+                type="button"
+                onClick={() => setIsPortalMitraOpen(!isPortalMitraOpen)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-2xl transition-all cursor-pointer ${
+                  kemitraanSubItems.some(item => item.id === activeTab)
+                    ? 'bg-white/15 text-white font-bold border border-gold-400/40 shadow-md' 
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+                title={!isSidebarOpen ? 'Portal Mitra' : ''}
+              >
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className={`p-1.5 rounded-xl shrink-0 ${
+                    kemitraanSubItems.some(item => item.id === activeTab)
+                      ? 'bg-gold-500 text-gray-900 shadow-sm' 
+                      : 'bg-white/10 text-gold-400'
+                  }`}>
+                    <Briefcase className="w-5 h-5" />
+                  </div>
+                  {isSidebarOpen && (
+                    <div className="text-left truncate">
+                      <div className="text-sm font-bold leading-tight">Portal Mitra</div>
+                      <div className="text-[10px] text-gold-400 font-bold tracking-wide">Partner Portal</div>
+                    </div>
+                  )}
+                </div>
+                {isSidebarOpen && (
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 shrink-0 ${
+                    isPortalMitraOpen ? 'rotate-180 text-gold-400' : 'text-slate-400'
+                  }`} />
+                )}
+              </button>
+
+              {/* Sub-items Container */}
+              {(isPortalMitraOpen || !isSidebarOpen) && (
+                <div className={`${isSidebarOpen ? 'pl-3 pr-1 py-1 space-y-1 border-l-2 border-gold-500/40 ml-4 my-1' : 'space-y-1'}`}>
+                  {kemitraanSubItems.map((subItem) => (
+                    <button
+                      type="button"
+                      key={subItem.id}
+                      onClick={() => setActiveTab(subItem.id)}
+                      className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        activeTab === subItem.id
+                          ? 'bg-gold-500 text-gray-900 font-extrabold shadow-md'
+                          : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                      }`}
+                      title={!isSidebarOpen ? subItem.label : ''}
+                    >
+                      <div className={`shrink-0 ${activeTab === subItem.id ? 'text-gray-900' : 'text-slate-400'}`}>
+                        {subItem.icon}
+                      </div>
+                      {isSidebarOpen && <span className="truncate">{subItem.label}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* KELOLA WEBSITE CMS */}
+            <div className="space-y-1">
+              {isSidebarOpen && (
+                <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-wider px-3 pb-1">Konten Website</h3>
+              )}
+              
+              <button 
+                type="button"
+                onClick={() => setIsCMSOpen(!isCMSOpen)}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-2xl transition-all cursor-pointer ${
+                  cmsSubItems.some(item => item.id === activeTab)
+                    ? 'bg-white/15 text-white font-bold border border-gold-400/40 shadow-md' 
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+                title={!isSidebarOpen ? 'Kelola Website' : ''}
+              >
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div className={`p-1.5 rounded-xl shrink-0 ${
+                    cmsSubItems.some(item => item.id === activeTab)
+                      ? 'bg-gold-500 text-gray-900 shadow-sm' 
+                      : 'bg-white/10 text-gold-400'
+                  }`}>
+                    <Globe className="w-5 h-5" />
+                  </div>
+                  {isSidebarOpen && (
+                    <div className="text-left truncate">
+                      <div className="text-sm font-bold leading-tight">Kelola Website</div>
+                      <div className="text-[10px] text-gold-400 font-bold tracking-wide">CMS Manager</div>
+                    </div>
+                  )}
+                </div>
+                {isSidebarOpen && (
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 shrink-0 ${
+                    isCMSOpen ? 'rotate-180 text-gold-400' : 'text-slate-400'
+                  }`} />
+                )}
+              </button>
+
+              {(isCMSOpen || !isSidebarOpen) && (
+                <div className={`${isSidebarOpen ? 'pl-3 pr-1 py-1 space-y-1 border-l-2 border-gold-500/40 ml-4 my-1' : 'space-y-1'}`}>
+                  {cmsSubItems.map((subItem) => (
+                    <button
+                      type="button"
+                      key={subItem.id}
+                      onClick={() => setActiveTab(subItem.id)}
+                      className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        activeTab === subItem.id
+                          ? 'bg-gold-500 text-gray-900 font-extrabold shadow-md'
+                          : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                      }`}
+                      title={!isSidebarOpen ? subItem.label : ''}
+                    >
+                      <div className={`shrink-0 ${activeTab === subItem.id ? 'text-gray-900' : 'text-slate-400'}`}>
+                        {subItem.icon}
+                      </div>
+                      {isSidebarOpen && <span className="truncate">{subItem.label}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* SISTEM */}
+            <div className="space-y-1 pt-1">
+              {isSidebarOpen && (
+                <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-wider px-3 pb-1">Sistem</h3>
+              )}
+              <button 
+                type="button"
+                onClick={() => setActiveTab('pengaturan')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all cursor-pointer ${
+                  activeTab === 'pengaturan' 
+                    ? 'bg-gold-500 text-gray-900 font-bold shadow-lg' 
+                    : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+                title={!isSidebarOpen ? 'Pengaturan Admin' : ''}
+              >
+                <div className={activeTab === 'pengaturan' ? 'text-gray-900' : 'text-slate-400'}>
+                  <Settings className="w-5 h-5" />
+                </div>
+                {isSidebarOpen && <span className="text-sm truncate">Pengaturan Admin</span>}
+              </button>
+            </div>
           </nav>
         </div>
         
-        <div className="p-4 border-t border-white/10 sticky bottom-0 bg-[#132019]">
+        <div className="p-4 border-t border-white/10 sticky bottom-0 bg-[#132019] w-64">
           <button onClick={handleLogout} className="w-full flex items-center justify-center space-x-3 px-4 py-2 text-red-400 hover:text-white hover:bg-red-500/20 rounded-lg transition-colors">
             <LogOut className="w-5 h-5" />
             {isSidebarOpen && <span>Logout</span>}
@@ -1505,16 +2140,188 @@ export default function Admin() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-x-hidden bg-gray-100">
-        <header className="bg-white border-b border-gray-200 px-8 py-4 flex justify-between items-center sticky top-0 z-10">
-          <h1 className="text-2xl font-bold text-gray-900 capitalize">
-            {menuItems.find(m => m.id === activeTab)?.label || 'Dashboard'}
-          </h1>
-          <div className="flex items-center space-x-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-gray-900">Administrator</p>
-              <p className="text-xs text-gray-500">Admin Workspace</p>
+        <header className="bg-gradient-to-r from-[#0d281e] via-[#132019] to-[#0b2219] border-b border-emerald-900/60 px-8 py-4 flex justify-between items-center sticky top-0 z-10 shadow-md">
+          <div className="flex items-center space-x-3">
+            {!isSidebarOpen && (
+              <button 
+                type="button"
+                onClick={() => setIsSidebarOpen(true)}
+                className="p-2 bg-white/10 hover:bg-white/20 rounded-xl text-white transition-all flex items-center justify-center border border-white/20 shadow-sm cursor-pointer active:scale-95"
+                title="Buka Menu Sidebar"
+              >
+                <Menu className="w-5 h-5 text-emerald-100" />
+              </button>
+            )}
+            <div>
+              <h1 className="text-2xl font-black text-white capitalize tracking-wide flex items-center gap-2">
+                {menuItems.find(m => m.id === activeTab)?.label || 'Dashboard'}
+              </h1>
+              <p className="text-[11px] text-emerald-300/80 font-medium">Sistem Manajemen Golden Travel Haramain</p>
             </div>
-            <div className="w-10 h-10 bg-gray-100 border border-gray-200 rounded-full flex items-center justify-center text-gray-600 font-bold">
+          </div>
+          <div className="flex items-center space-x-3 sm:space-x-4 relative">
+            {/* IN-APP NOTIFICATION BELL */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                className={`relative p-2.5 rounded-2xl transition-all cursor-pointer flex items-center justify-center border ${
+                  showNotifDropdown
+                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-lg scale-105'
+                    : 'bg-white/10 text-emerald-100 hover:bg-white/20 border-white/20 hover:text-white'
+                }`}
+                title="Pusat Notifikasi Aplikasi"
+              >
+                <Bell className="w-5 h-5" />
+                {adminNotifications.filter(n => !readNotifIds.includes(n.id)).length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-500 text-white font-black text-[10px] flex items-center justify-center border-2 border-[#0d281e] animate-pulse shadow-md">
+                    {adminNotifications.filter(n => !readNotifIds.includes(n.id)).length}
+                  </span>
+                )}
+              </button>
+
+              {/* NOTIFICATION CENTER DROPDOWN */}
+              {showNotifDropdown && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-[100]" 
+                    onClick={() => setShowNotifDropdown(false)}
+                  />
+                  <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-3xl shadow-[0_24px_48px_-12px_rgba(0,0,0,0.25)] border border-slate-100 z-[101] overflow-hidden animate-in zoom-in-95 duration-200">
+                    {/* Dropdown Header */}
+                    <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-950 p-5 text-white flex items-center justify-between border-b border-emerald-800">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center text-amber-300">
+                          <Bell className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="font-playfair font-bold text-sm text-white">Notifikasi Aplikasi</h4>
+                          <p className="text-[10px] text-emerald-300 font-medium">
+                            {adminNotifications.filter(n => !readNotifIds.includes(n.id)).length} pemberitahuan belum dibaca
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {adminNotifications.filter(n => !readNotifIds.includes(n.id)).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setReadNotifIds(adminNotifications.map(n => n.id))}
+                          className="text-[10px] font-bold text-amber-300 hover:text-amber-200 hover:underline cursor-pointer"
+                        >
+                          Tandai Semua Dibaca
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Filter Tabs */}
+                    <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setNotifFilter('all')}
+                          className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                            notifFilter === 'all'
+                              ? 'bg-emerald-900 text-amber-300 shadow-sm'
+                              : 'text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          Semua ({adminNotifications.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNotifFilter('unread')}
+                          className={`px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                            notifFilter === 'unread'
+                              ? 'bg-emerald-900 text-amber-300 shadow-sm'
+                              : 'text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          Belum Dibaca ({adminNotifications.filter(n => !readNotifIds.includes(n.id)).length})
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Notification Items List */}
+                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                      {adminNotifications
+                        .filter(n => notifFilter === 'all' || !readNotifIds.includes(n.id))
+                        .length === 0 ? (
+                        <div className="p-8 text-center space-y-2">
+                          <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto opacity-40" />
+                          <p className="text-xs font-bold text-slate-600">Tidak ada notifikasi saat ini</p>
+                          <p className="text-[11px] text-slate-400">Semua aktivitas dan permohonan telah selesai diproses.</p>
+                        </div>
+                      ) : (
+                        adminNotifications
+                          .filter(n => notifFilter === 'all' || !readNotifIds.includes(n.id))
+                          .map((notif) => {
+                            const isRead = readNotifIds.includes(notif.id);
+                            return (
+                              <div
+                                key={notif.id}
+                                onClick={() => {
+                                  if (!isRead) setReadNotifIds([...readNotifIds, notif.id]);
+                                  if (notif.target === 'jamaah' || notif.target === 'mitra_calon_jamaah') setActiveTab('mitra_calon_jamaah');
+                                  else if (notif.target === 'mitra' || notif.target === 'verifikasi_mitra') setActiveTab('verifikasi_mitra');
+                                  else if (notif.target === 'pembayaran' || notif.target === 'verifikasi_keuangan') setActiveTab('verifikasi_keuangan');
+                                  setShowNotifDropdown(false);
+                                }}
+                                className={`p-4 transition-all hover:bg-slate-50 cursor-pointer relative group flex gap-3 ${
+                                  !isRead ? 'bg-amber-50/40' : ''
+                                }`}
+                              >
+                                {!isRead && (
+                                  <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 mt-1.5 animate-pulse" />
+                                )}
+
+                                <div className="flex-1 space-y-1">
+                                  <div className="flex items-center justify-between">
+                                    <h5 className="font-bold text-xs text-slate-900 group-hover:text-emerald-900 transition-colors">
+                                      {notif.title}
+                                    </h5>
+                                    <span className="text-[10px] text-slate-400 font-medium">
+                                      {notif.time || 'Baru'}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-600 leading-snug font-medium line-clamp-2">
+                                    {notif.message}
+                                  </p>
+
+                                  <div className="pt-1 flex items-center gap-2">
+                                    <span className="text-[10px] font-bold text-emerald-800 hover:underline flex items-center gap-1">
+                                      Proses Sekarang &rarr;
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
+
+                    {/* Dropdown Footer */}
+                    <div className="bg-slate-50 p-3 border-t border-slate-100 text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('dashboard');
+                          setShowNotifDropdown(false);
+                        }}
+                        className="text-[11px] font-bold text-slate-600 hover:text-emerald-900 transition-colors cursor-pointer"
+                      >
+                        Buka Action Center Lengkap
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-extrabold text-white">Administrator</p>
+              <p className="text-xs text-gold-400 font-semibold">Admin Workspace</p>
+            </div>
+            <div className="w-10 h-10 bg-gold-500 text-gray-950 border-2 border-gold-300 rounded-full flex items-center justify-center font-black shadow-md">
               SA
             </div>
           </div>
@@ -1565,8 +2372,8 @@ export default function Admin() {
                     </thead>
                     <tbody className="divide-y divide-gray-50">
                       {[...consultations].sort((a, b) => {
-                        const aPending = (a.payments || []).some((p: any) => p.status === 'pending') ? 1 : 0;
-                        const bPending = (b.payments || []).some((p: any) => p.status === 'pending') ? 1 : 0;
+                        const aPending = (a.payments || []).some((p: any) => ['pending', 'PENDING'].includes(p.status)) ? 1 : 0;
+                        const bPending = (b.payments || []).some((p: any) => ['pending', 'PENDING'].includes(p.status)) ? 1 : 0;
                         return bPending - aPending;
                       }).map((c) => {
                         const pkg = packages.find(p => p.id === c.packageId) || packages.find(p => p.name === c.packageName);
@@ -1574,8 +2381,8 @@ export default function Admin() {
                         const paxCount = c.paxCount || 1;
                         const packagePrice = basePrice * paxCount;
                         const payments = c.payments || [];
-                        const totalPaid = payments.filter((t: any) => t.status === 'approved').reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
-                        const pendingTx = payments.filter((t: any) => t.status === 'pending');
+                        const totalPaid = payments.filter((t: any) => ['approved', 'VERIFIED'].includes(t.status)).reduce((sum: number, t: any) => sum + Number(t.amount || 0), 0);
+                        const pendingTx = payments.filter((t: any) => ['pending', 'PENDING'].includes(t.status));
                         const remaining = Math.max(0, packagePrice - totalPaid);
 
                         return (
@@ -1660,26 +2467,29 @@ export default function Admin() {
                 }).sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
                 // Aggregates
-                const dp1List = allPaymentsList.filter(p => p.paymentType === 'dp1' || p.paymentType === 'dp');
-                const dp1Total = dp1List.filter(p => p.status === 'approved').reduce((sum, p) => sum + Number(p.amount || 0), 0);
+                const dp1List = allPaymentsList.filter(p => ['dp1', 'dp', 'dp_1'].includes(String(p.paymentType || '').toLowerCase()));
+                const dp1Total = dp1List.filter(p => ['approved', 'VERIFIED'].includes(p.status)).reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
-                const dp2List = allPaymentsList.filter(p => p.paymentType === 'dp2' || p.paymentType === 'cicilan');
-                const dp2Total = dp2List.filter(p => p.status === 'approved').reduce((sum, p) => sum + Number(p.amount || 0), 0);
+                const dp2List = allPaymentsList.filter(p => ['dp2', 'cicilan', 'dp_2'].includes(String(p.paymentType || '').toLowerCase()));
+                const dp2Total = dp2List.filter(p => ['approved', 'VERIFIED'].includes(p.status)).reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
-                const pelunasanList = allPaymentsList.filter(p => p.paymentType === 'pelunasan');
-                const pelunasanTotal = pelunasanList.filter(p => p.status === 'approved').reduce((sum, p) => sum + Number(p.amount || 0), 0);
+                const pelunasanList = allPaymentsList.filter(p => ['pelunasan', 'pelunasan_sisa', 'pelunasan sisa', 'sisa', 'pelunasan_dp3'].includes(String(p.paymentType || '').toLowerCase()));
+                const pelunasanTotal = pelunasanList.filter(p => ['approved', 'VERIFIED'].includes(p.status)).reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
-                const fullList = allPaymentsList.filter(p => p.paymentType === 'full' || p.paymentType === 'pelunasan_full');
-                const fullTotal = fullList.filter(p => p.status === 'approved').reduce((sum, p) => sum + Number(p.amount || 0), 0);
+                const fullList = allPaymentsList.filter(p => ['full', 'pelunasan_full', 'pelunasan full', 'lunas'].includes(String(p.paymentType || '').toLowerCase()));
+                const fullTotal = fullList.filter(p => ['approved', 'VERIFIED'].includes(p.status)).reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
                 // Filter list
                 const filteredPaymentsList = allPaymentsList.filter(p => {
-                  if (rekapStageFilter === 'dp1' && !(p.paymentType === 'dp1' || p.paymentType === 'dp')) return false;
-                  if (rekapStageFilter === 'dp2' && !(p.paymentType === 'dp2' || p.paymentType === 'cicilan')) return false;
-                  if (rekapStageFilter === 'pelunasan' && p.paymentType !== 'pelunasan') return false;
-                  if (rekapStageFilter === 'full' && !(p.paymentType === 'full' || p.paymentType === 'pelunasan_full')) return false;
+                  const pt = String(p.paymentType || '').toLowerCase();
+                  if (rekapStageFilter === 'dp1' && !['dp1', 'dp', 'dp_1'].includes(pt)) return false;
+                  if (rekapStageFilter === 'dp2' && !['dp2', 'cicilan', 'dp_2'].includes(pt)) return false;
+                  if (rekapStageFilter === 'pelunasan' && !['pelunasan', 'pelunasan_sisa', 'pelunasan sisa', 'sisa', 'pelunasan_dp3'].includes(pt)) return false;
+                  if (rekapStageFilter === 'full' && !['full', 'pelunasan_full', 'pelunasan full', 'lunas'].includes(pt)) return false;
 
-                  if (rekapStatusFilter !== 'all' && p.status !== rekapStatusFilter) return false;
+                  if (rekapStatusFilter === 'approved' && !['approved', 'VERIFIED'].includes(p.status)) return false;
+                  if (rekapStatusFilter === 'rejected' && !['rejected', 'REJECTED'].includes(p.status)) return false;
+                  if (rekapStatusFilter === 'pending' && !['pending', 'PENDING'].includes(p.status)) return false;
 
                   // Date Filter
                   if (rekapDateMode === 'month') {
@@ -1904,13 +2714,15 @@ export default function Admin() {
                             filteredPaymentsList.map((t: any) => {
                               let stageLabel = 'DP 1';
                               let stageColor = 'bg-blue-50 text-blue-700 border-blue-100';
-                              if (t.paymentType === 'dp2' || t.paymentType === 'cicilan') {
+                              const pType = String(t.paymentType || '').toLowerCase().trim();
+
+                              if (['dp2', 'cicilan', 'dp_2'].includes(pType)) {
                                 stageLabel = 'DP 2';
                                 stageColor = 'bg-indigo-50 text-indigo-700 border-indigo-100';
-                              } else if (t.paymentType === 'pelunasan') {
+                              } else if (['pelunasan', 'pelunasan_sisa', 'pelunasan sisa', 'sisa', 'pelunasan_dp3'].includes(pType)) {
                                 stageLabel = 'Pelunasan Sisa';
                                 stageColor = 'bg-emerald-50 text-emerald-700 border-emerald-100';
-                              } else if (t.paymentType === 'full' || t.paymentType === 'pelunasan_full') {
+                              } else if (['full', 'pelunasan_full', 'pelunasan full', 'lunas'].includes(pType)) {
                                 stageLabel = 'Pelunasan Full';
                                 stageColor = 'bg-green-50 text-green-700 border-green-100';
                               }
@@ -1939,11 +2751,11 @@ export default function Admin() {
                                     </p>
                                   </td>
                                   <td className="p-5">
-                                    {t.status === 'approved' ? (
+                                    {['approved', 'VERIFIED'].includes(t.status) ? (
                                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 uppercase border border-green-100">
                                         <CheckCircle className="w-3 h-3 mr-1" /> Disetujui
                                       </span>
-                                    ) : t.status === 'rejected' ? (
+                                    ) : ['rejected', 'REJECTED'].includes(t.status) ? (
                                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 uppercase border border-red-100">
                                         Ditolak
                                       </span>
@@ -1964,7 +2776,14 @@ export default function Admin() {
                                     >
                                       Lihat Bukti
                                     </button>
-                                    {t.status === 'approved' && (
+                                    <button 
+                                      onClick={() => generateProofPdf(t.consultationObj || { name: t.jamaahName, email: t.email, phone: t.phone, packageName: t.packageName }, t)}
+                                      className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                                      title="Unduh Bukti Transfer (PDF)"
+                                    >
+                                      <Download className="w-3 h-3 text-emerald-200" /> Bukti PDF
+                                    </button>
+                                    {['approved', 'VERIFIED'].includes(t.status) && (
                                       <button 
                                         onClick={() => handleGenerateInvoice(t.consultationObj, t.id)}
                                         className="px-3 py-1.5 bg-matcha-600 hover:bg-matcha-700 text-white rounded-xl text-xs font-bold transition-all inline-flex items-center"
@@ -2001,22 +2820,40 @@ export default function Admin() {
 
           {activeTab === 'master_data' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white shadow-md p-6 rounded-3xl ">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Master Data Travel</h2>
-                  <p className="text-sm text-gray-600 mt-1">Kelola data paket perjalanan dan jadwal itinerary secara terpusat.</p>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-[#12291C] via-[#1c3e2b] to-[#12291C] text-white shadow-xl p-6 rounded-3xl border border-matcha-700/50 relative overflow-hidden">
+                <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 pointer-events-none rounded-r-3xl blur-xl"></div>
+                <div className="relative z-10 flex items-center gap-3.5">
+                  <div className="p-3 bg-matcha-800/80 backdrop-blur-md rounded-2xl border border-matcha-600/40 text-gold-400 shadow-md">
+                    <Database className="w-6 h-6 text-gold-400" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide">Master Data Travel</h2>
+                    <p className="text-xs sm:text-sm text-matcha-200/90 mt-0.5 font-medium">Kelola data paket perjalanan dan jadwal itinerary secara terpusat.</p>
+                  </div>
                 </div>
-                <div className="flex bg-gray-100 p-1.5 rounded-2xl">
+                <div className="flex bg-black/35 backdrop-blur-md p-1.5 rounded-2xl border border-white/10 shadow-inner relative z-10 shrink-0">
                   <button 
+                    type="button"
                     onClick={() => setActiveMasterDataTab('paket')}
-                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeMasterDataTab === 'paket' ? 'bg-white shadow-md text-gray-900' : 'text-gray-600 hover:text-white'}`}
+                    className={`px-5 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 ${
+                      activeMasterDataTab === 'paket' 
+                        ? 'bg-gradient-to-r from-matcha-600 to-matcha-700 text-white shadow-lg border border-matcha-400/50 ring-2 ring-matcha-400/30' 
+                        : 'text-matcha-200/80 hover:text-white hover:bg-white/10 font-bold'
+                    }`}
                   >
+                    <InventoryIcon className="w-4 h-4 text-gold-400" />
                     Kelola Paket
                   </button>
                   <button 
+                    type="button"
                     onClick={() => setActiveMasterDataTab('jadwal')}
-                    className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeMasterDataTab === 'jadwal' ? 'bg-white shadow-md text-gray-900' : 'text-gray-600 hover:text-white'}`}
+                    className={`px-5 sm:px-6 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer flex items-center gap-2 ${
+                      activeMasterDataTab === 'jadwal' 
+                        ? 'bg-gradient-to-r from-matcha-600 to-matcha-700 text-white shadow-lg border border-matcha-400/50 ring-2 ring-matcha-400/30' 
+                        : 'text-matcha-200/80 hover:text-white hover:bg-white/10 font-bold'
+                    }`}
                   >
+                    <CalendarIcon className="w-4 h-4 text-gold-400" />
                     Kelola Jadwal & Itinerary
                   </button>
                 </div>
@@ -2027,14 +2864,24 @@ export default function Admin() {
                   <div className="flex items-center justify-between">
                     <div className="flex space-x-3">
                       <button 
+                        type="button"
                         onClick={() => setActivePackageTab('umroh')}
-                        className={`px-6 py-2.5 rounded-2xl font-bold text-sm transition-all ${activePackageTab === 'umroh' ? 'bg-gray-900 text-white shadow-lg' : 'bg-white shadow-md text-gray-600 hover:bg-gray-50 border border-gray-100'}`}
+                        className={`px-6 py-2.5 rounded-2xl font-black text-sm transition-all cursor-pointer ${
+                          activePackageTab === 'umroh' 
+                            ? 'bg-matcha-900 text-gold-400 shadow-lg border border-matcha-700' 
+                            : 'bg-white shadow-sm text-matcha-900 hover:bg-matcha-50 border border-matcha-200/80'
+                        }`}
                       >
                         Paket Umroh
                       </button>
                       <button 
+                        type="button"
                         onClick={() => setActivePackageTab('haji')}
-                        className={`px-6 py-2.5 rounded-2xl font-bold text-sm transition-all ${activePackageTab === 'haji' ? 'bg-gray-900 text-white shadow-lg' : 'bg-white shadow-md text-gray-600 hover:bg-gray-50 border border-gray-100'}`}
+                        className={`px-6 py-2.5 rounded-2xl font-black text-sm transition-all cursor-pointer ${
+                          activePackageTab === 'haji' 
+                            ? 'bg-matcha-900 text-gold-400 shadow-lg border border-matcha-700' 
+                            : 'bg-white shadow-sm text-matcha-900 hover:bg-matcha-50 border border-matcha-200/80'
+                        }`}
                       >
                         Paket Haji
                       </button>
@@ -2133,7 +2980,8 @@ export default function Admin() {
                     <table className="w-full text-left">
                       <thead>
                         <tr className="bg-white shadow-md border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                          <th className="p-5">Paket</th>
+                          <th className="p-5">Paket & Kloter</th>
+                          <th className="p-5">Pembimbing / Muthawwif</th>
                           <th className="p-5">Tanggal Keberangkatan</th>
                           <th className="p-5">Sisa Kursi</th>
                           <th className="p-5">Itinerary (PDF)</th>
@@ -2143,6 +2991,9 @@ export default function Admin() {
                       <tbody className="divide-y divide-gray-50">
                         {(schedules || []).map((sch) => {
                           const pkg = packages.find(p => p.id === sch.packageId);
+                          const mName = sch.muthawwifName || 'Ustadz Hanan Attaki';
+                          const mRole = sch.muthawwifRole || 'Muthawwif Utama';
+                          const mAvatar = sch.muthawwifAvatarUrl || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80';
                           return (
                             <tr key={sch.id} className="hover:bg-white/20 transition-colors">
                               <td className="p-5">
@@ -2151,6 +3002,19 @@ export default function Admin() {
                                   <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded-full text-gray-600 w-fit">{pkg?.type?.toUpperCase()}</span>
                                   <p className="text-[10px] font-bold text-gold-600">{sch.name || 'Nama Kloter -'}</p>
                                   <p className="text-[10px] text-gray-400">✈️ {sch.airline || 'Maskapai -'}</p>
+                                </div>
+                              </td>
+                              <td className="p-5">
+                                <div className="flex items-center gap-2.5">
+                                  <img 
+                                    src={mAvatar} 
+                                    alt={mName} 
+                                    className="w-9 h-9 rounded-full object-cover border border-amber-300 shrink-0" 
+                                  />
+                                  <div className="overflow-hidden">
+                                    <p className="font-bold text-xs text-gray-900 truncate">{mName}</p>
+                                    <p className="text-[10px] text-amber-700 font-medium truncate">{mRole}</p>
+                                  </div>
                                 </div>
                               </td>
                               <td className="p-5 font-medium text-gray-700">
@@ -2240,8 +3104,8 @@ export default function Admin() {
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {[...consultations].sort((a, b) => {
-                      const aPending = (a.documents || []).some((d: any) => d.status === 'pending') ? 1 : 0;
-                      const bPending = (b.documents || []).some((d: any) => d.status === 'pending') ? 1 : 0;
+                      const aPending = (a.documents || []).some((d: any) => ['pending', 'PENDING'].includes(d.status)) ? 1 : 0;
+                      const bPending = (b.documents || []).some((d: any) => ['pending', 'PENDING'].includes(d.status)) ? 1 : 0;
                       return bPending - aPending;
                     }).map((c) => {
                       const docs = Array.isArray(c.documents) ? c.documents : [];
@@ -2257,7 +3121,7 @@ export default function Admin() {
                       
                       const uniqueDocs = Array.from(latestDocsMap.values());
                       const docCount = uniqueDocs.length;
-                      const pendingCount = uniqueDocs.filter((d: any) => d.status === 'pending').length;
+                      const pendingCount = uniqueDocs.filter((d: any) => ['pending', 'PENDING'].includes(d.status)).length;
                       
                       return (
                         <tr key={c.id} className="hover:bg-white/20 transition-colors group">
@@ -2297,13 +3161,13 @@ export default function Admin() {
                           </td>
                           <td className="p-5 text-right">
                             <button 
-                              disabled={docCount === 0}
                               onClick={() => {
                                 setReviewingJamaah(c);
                                 setActivePaxIdx(0);
+                                setReviewingDocId('KTP Asli');
                                 setIsReviewModalOpen(true);
                               }}
-                              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${docCount > 0 ? 'bg-matcha-600 text-white hover:bg-matcha-700 shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                              className="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-matcha-600 text-white hover:bg-matcha-700 shadow-sm cursor-pointer"
                             >
                               Periksa Berkas
                             </button>
@@ -2322,8 +3186,48 @@ export default function Admin() {
             </div>
           )}
 
+          {activeTab === 'verifikasi_mitra' && (
+            <AdminMitraManager initialFilter="pending_verification" />
+          )}
+
+          {activeTab === 'daftar_mitra' && (
+            <AdminMitraManager initialFilter="all" />
+          )}
+
+          {activeTab === 'mitra_pencairan_komisi' && (
+            <AdminMitraPencairanKomisi />
+          )}
+
+          {activeTab === 'mitra_calon_jamaah' && (
+            <AdminMitraJamaahManager activeSubTab="biodata" onRefresh={() => refreshData(true)} />
+          )}
+
+          {activeTab === 'mitra_sertifikat_kenangan' && (
+            <AdminMitraSertifikatKenangan 
+              onRefresh={() => refreshData(true)} 
+              users={users}
+              onNavigateTab={(tab: string) => setActiveTab(tab)}
+            />
+          )}
+
+          {activeTab === 'mitra_pembayaran' && (
+            <AdminMitraJamaahManager activeSubTab="pembayaran" onRefresh={() => refreshData(true)} />
+          )}
+
+          {activeTab === 'mitra_persiapan_keberangkatan' && (
+            <AdminMitraJamaahManager activeSubTab="persiapan" onRefresh={() => refreshData(true)} />
+          )}
+
+          {activeTab === 'mitra_dokumen_keberangkatan' && (
+            <AdminMitraJamaahManager activeSubTab="dokumen_keberangkatan" onRefresh={() => refreshData(true)} />
+          )}
+
           {activeTab === 'crm_jamaah' && (
-            <CRMTable />
+            <CRMTable onRefresh={() => refreshData(true)} />
+          )}
+
+          {activeTab === 'rekap_keberangkatan' && (
+            <RekapKeberangkatan />
           )}
 
           {activeTab === 'ops_keberangkatan' && (
@@ -2362,178 +3266,22 @@ export default function Admin() {
               </div>
 
               {activeOpsTab === 'inventory' && (
-                <div className="bg-white shadow-md rounded-3xl  overflow-hidden">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-white shadow-md border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                        <th className="p-5">Nama Jamaah</th>
-                        <th className="p-5">Koper</th>
-                        <th className="p-5">Ihram/Seragam</th>
-                        <th className="p-5">Mukena/Buku</th>
-                        <th className="p-5">Approval Staf</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {consultations.filter(c => c.status !== 'none' && c.status !== 'cancelled' && c.packageName !== 'Belum Memilih Paket').map((c) => {
-                        const status = inventory?.find(i => i.registrationId === c.id);
-                        return (
-                          <tr key={c.id} className="hover:bg-white/20 transition-colors">
-                            <td className="p-5">
-                              <p className="font-bold text-gray-900">{c.name || 'Tanpa Nama'}</p>
-                              <p className="text-[10px] text-gray-600">{c.packageName}</p>
-                            </td>
-                            <td className="p-5">
-                              <button 
-                                onClick={() => handleUpdateInventory(c.id, 'koper', status)}
-                                className={`flex items-center px-3 py-1.5 rounded-full text-[10px] font-bold transition-all ${status?.koper ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-                              >
-                                {status?.koper ? <Check className="w-3 h-3 mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
-                                {status?.koper ? 'Selesai' : 'Pending'}
-                              </button>
-                            </td>
-                            <td className="p-5">
-                              <button 
-                                onClick={() => handleUpdateInventory(c.id, 'ihram', status)}
-                                className={`flex items-center px-3 py-1.5 rounded-full text-[10px] font-bold transition-all ${status?.ihram ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-                              >
-                                {status?.ihram ? <Check className="w-3 h-3 mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
-                                {status?.ihram ? 'Selesai' : 'Pending'}
-                              </button>
-                            </td>
-                            <td className="p-5">
-                              <button 
-                                onClick={() => handleUpdateInventory(c.id, 'mukena', status)}
-                                className={`flex items-center px-3 py-1.5 rounded-full text-[10px] font-bold transition-all ${status?.mukena ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-                              >
-                                {status?.mukena ? <Check className="w-3 h-3 mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
-                                {status?.mukena ? 'Selesai' : 'Pending'}
-                              </button>
-                            </td>
-                            <td className="p-5">
-                              <div className="flex items-center">
-                                {status?.assignee && (
-                                  <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-700 mr-2 uppercase flex-shrink-0">
-                                    {status.assignee.charAt(0)}
-                                  </div>
-                                )}
-                                <input
-                                  type="text"
-                                  className="text-xs font-bold text-gray-700 bg-transparent border-b border-transparent hover:border-gray-300 focus:border-gold-500 focus:outline-none py-1 px-1 w-32 transition-all placeholder-gray-400"
-                                  placeholder="Input nama staf..."
-                                  defaultValue={status?.assignee || ''}
-                                  onBlur={(e) => {
-                                    if (e.target.value !== (status?.assignee || '')) {
-                                      handleUpdateAssignee(c.id, status, e.target.value);
-                                    }
-                                  }}
-                                />
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <EquipmentManagement 
+                  consultations={consultations} 
+                  inventory={inventory} 
+                  handleUpdateInventory={handleUpdateInventory} 
+                  handleUpdateAssignee={handleUpdateAssignee} 
+                />
               )}
 
               {activeOpsTab === 'broadcast' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="bg-white shadow-md p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
-                    <div className="flex items-center space-x-3 text-gray-700 mb-2">
-                      <Megaphone className="w-6 h-6" />
-                      <h3 className="text-lg font-bold">Kirim Pengumuman Baru</h3>
-                    </div>
-                    <form onSubmit={handleSendBroadcast} className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Judul Pengumuman</label>
-                        <input 
-                          type="text" 
-                          required
-                          value={broadcastMessage.title}
-                          onChange={e => setBroadcastMessage({...broadcastMessage, title: e.target.value})}
-                          className="w-full px-4 py-3 rounded-xl bg-white shadow-md border border-gray-200 outline-none focus:border-gray-500 transition-all text-sm"
-                          placeholder="Misal: Info Jadwal Manasik"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Tipe</label>
-                        <select 
-                          value={broadcastMessage.type}
-                          onChange={e => setBroadcastMessage({...broadcastMessage, type: e.target.value})}
-                          className="w-full px-4 py-3 rounded-xl bg-white shadow-md border border-gray-200 outline-none focus:border-gray-500 transition-all text-sm"
-                        >
-                          <option value="info">Informasi Umum</option>
-                          <option value="important">Penting / Urgent</option>
-                          <option value="update">Pembaruan Jadwal</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Konten Pesan</label>
-                        <textarea 
-                          required
-                          value={broadcastMessage.content}
-                          onChange={e => setBroadcastMessage({...broadcastMessage, content: e.target.value})}
-                          className="w-full px-4 py-3 rounded-xl bg-white shadow-md border border-gray-200 outline-none focus:border-gray-500 transition-all text-sm min-h-[150px]"
-                          placeholder="Tuliskan detail pengumuman di sini..."
-                        />
-                      </div>
-                      <button 
-                        type="submit"
-                        className="w-full py-4 bg-gray-50 text-gray-900 rounded-xl font-bold hover:bg-gray-200 transition-all shadow-lg shadow-gray-900/20 flex items-center justify-center"
-                      >
-                        <Megaphone className="w-4 h-4 mr-2" /> Sebarkan Pengumuman
-                      </button>
-                    </form>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-bold text-gray-900 flex items-center px-2">
-                      <History className="w-5 h-5 mr-2 text-gold-500" /> Riwayat Broadcast
-                    </h3>
-                    {(announcements || []).map((ann) => (
-                      <div key={ann.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm relative group overflow-hidden hover:shadow-md transition-shadow">
-                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
-                          ann.type === 'important' ? 'bg-red-500' : 
-                          ann.type === 'update' ? 'bg-amber-500' : 'bg-emerald-500'
-                        }`}></div>
-                        <div className="flex justify-between items-start mb-2 gap-2">
-                          <div>
-                            <span className={`inline-block text-[10px] font-black uppercase px-2 py-0.5 rounded-md mb-1 ${
-                              ann.type === 'important' ? 'bg-red-50 text-red-600 border border-red-100' :
-                              ann.type === 'update' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
-                              'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                            }`}>
-                              {ann.type === 'important' ? 'Penting' : ann.type === 'update' ? 'Pembaruan' : 'Informasi'}
-                            </span>
-                            <h4 className="font-bold text-gray-900 text-sm">{ann.title}</h4>
-                          </div>
-                          <button 
-                            type="button"
-                            onClick={() => deleteAnnouncement(ann.id)}
-                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all flex-shrink-0"
-                            title="Hapus Broadcast"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-line mt-1">
-                          {ann.message || ann.content || 'Detail pengumuman'}
-                        </p>
-                        <p className="text-[10px] text-gray-400 mt-3 font-semibold flex items-center gap-1">
-                          <Clock className="w-3 h-3 text-gray-300" />
-                          {ann.createdAt ? new Date(ann.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : 'Baru saja'}
-                        </p>
-                      </div>
-                    ))}
-                    {announcements.length === 0 && (
-                      <div className="p-12 text-center text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200">
-                        <Megaphone className="w-12 h-12 mx-auto mb-4 opacity-20 text-gray-500" />
-                        <p className="text-sm font-bold">Belum ada broadcast yang dikirim</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <BroadcastManager
+                  users={users}
+                  consultations={consultations}
+                  announcements={announcements}
+                  deleteAnnouncement={deleteAnnouncement}
+                  refreshData={refreshData}
+                />
               )}
 
               {activeOpsTab === 'manifest' && (
@@ -2828,12 +3576,254 @@ export default function Admin() {
             </div>
           )}
 
+          {(activeTab === 'cms_packages' || activeTab === 'cms_gallery' || activeTab === 'cms_videos') && (
+            <CMSManager />
+          )}
+
+          {activeTab === 'buku_manasik' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-slate-900 text-white p-8 rounded-3xl shadow-xl relative overflow-hidden">
+                <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
+                  <BookOpen className="w-64 h-64 text-gold-400" />
+                </div>
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="px-3 py-1 bg-gold-500/20 border border-gold-500/30 text-gold-300 text-xs font-bold rounded-full uppercase tracking-wider flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5" /> Modul Operasional & Edukasi
+                      </span>
+                    </div>
+                    <h2 className="text-2xl md:text-3xl font-black text-white">Buku Panduan Manasik Digital</h2>
+                    <p className="text-emerald-100/80 text-sm mt-1 max-w-2xl">
+                      Kelola dan unggah materi buku panduan manasik (PDF) untuk setiap paket keberangkatan Umroh & Haji. 
+                      Dokumen ini secara otomatis terhubung dan dapat diunduh langsung oleh jamaah melalui portal pribadi mereka.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button
+                      onClick={() => setActiveTab('master_data')}
+                      className="px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2"
+                    >
+                      <Database className="w-4 h-4 text-gold-400" />
+                      Kelola Master Paket
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Metrics Bar */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                    <InventoryIcon className="w-6 h-6 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Total Paket Available</p>
+                    <h3 className="text-2xl font-black text-gray-900 mt-0.5">{packages.length}</h3>
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                    <CheckCircle className="w-6 h-6 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Manasik PDF Terunggah</p>
+                    <h3 className="text-2xl font-black text-emerald-600 mt-0.5">
+                      {packages.filter(p => !!p.manasikPdfUrl).length}
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold shrink-0">
+                    <AlertCircle className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Belum Ada PDF Manasik</p>
+                    <h3 className="text-2xl font-black text-amber-600 mt-0.5">
+                      {packages.filter(p => !p.manasikPdfUrl).length}
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0">
+                    <Users className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium">Jamaah Terkoneksi</p>
+                    <h3 className="text-2xl font-black text-gray-900 mt-0.5">
+                      {registrations.filter(r => r.packageName && r.packageName !== 'Belum Memilih Paket').length}
+                    </h3>
+                  </div>
+                </div>
+              </div>
+
+              {/* Search & Filter Bar */}
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="relative w-full md:w-96">
+                  <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input 
+                    type="text" 
+                    placeholder="Cari nama paket atau harga..." 
+                    value={manasikSearchQuery}
+                    onChange={(e) => setManasikSearchQuery(e.target.value)}
+                    className="w-full pl-11 pr-4 py-2.5 rounded-2xl border border-gray-200 bg-gray-50 focus:bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
+                  {(['all', 'umroh', 'haji'] as const).map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setManasikCategoryFilter(cat)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold capitalize transition-all ${
+                        manasikCategoryFilter === cat 
+                          ? 'bg-gray-900 text-white shadow-md' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {cat === 'all' ? 'Semua Kategori' : cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Packages List with Manasik PDF Upload Management */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {packages
+                  .filter(p => {
+                    const matchSearch = p.name.toLowerCase().includes(manasikSearchQuery.toLowerCase());
+                    const matchCat = manasikCategoryFilter === 'all' || (p.type && p.type.toLowerCase() === manasikCategoryFilter);
+                    return matchSearch && matchCat;
+                  })
+                  .map((pkg) => {
+                    const connectedJamaah = registrations.filter(r => r.packageName === pkg.name).length;
+                    const isUploadingThis = uploadingPkgId === pkg.id;
+
+                    return (
+                      <div key={pkg.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all p-6 flex flex-col justify-between">
+                        <div>
+                          {/* Header Badge */}
+                          <div className="flex items-center justify-between mb-3">
+                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                              pkg.type === 'haji' 
+                                ? 'bg-amber-100 text-amber-800 border border-amber-200' 
+                                : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            }`}>
+                              Paket {pkg.type || 'Umroh'}
+                            </span>
+                            <span className="text-xs text-gray-500 font-bold flex items-center gap-1">
+                              <Users className="w-3.5 h-3.5 text-slate-400" /> {connectedJamaah} Jamaah
+                            </span>
+                          </div>
+
+                          {/* Title */}
+                          <h3 className="text-lg font-bold text-gray-900 line-clamp-1 mb-1">{pkg.name}</h3>
+                          <p className="text-xs text-gray-500 mb-4 font-semibold">
+                            Rp {Number(pkg.price || 0).toLocaleString('id-ID')} &bull; {pkg.duration || '9'} Hari
+                          </p>
+
+                          {/* Status Manasik Card */}
+                          <div className={`p-4 rounded-2xl border mb-5 ${
+                            pkg.manasikPdfUrl 
+                              ? 'bg-emerald-50/70 border-emerald-200' 
+                              : 'bg-amber-50/70 border-amber-200'
+                          }`}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2.5">
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold ${
+                                  pkg.manasikPdfUrl ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'
+                                }`}>
+                                  <FileText className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-extrabold text-gray-900">
+                                    {pkg.manasikPdfUrl ? 'Buku Manasik Ready (PDF)' : 'Belum Ada Buku Manasik'}
+                                  </p>
+                                  <p className="text-[10px] text-gray-500 font-medium">
+                                    {pkg.manasikPdfUrl ? 'Tersedia di portal jamaah' : 'Unggah PDF agar jamaah dapat membaca'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Progress bar if uploading */}
+                            {isUploadingThis && uploadingProgress !== null && (
+                              <div className="mt-3 space-y-1.5">
+                                <div className="flex justify-between text-[11px] font-bold text-emerald-800">
+                                  <span>Memproses: {uploadingFileName}</span>
+                                  <span>{uploadingProgress}%</span>
+                                </div>
+                                <div className="w-full bg-emerald-200 rounded-full h-2 overflow-hidden">
+                                  <div className="bg-emerald-600 h-2 rounded-full transition-all" style={{ width: `${uploadingProgress}%` }} />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="space-y-2 pt-2 border-t border-slate-100">
+                          {pkg.manasikPdfUrl ? (
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                onClick={() => openDataUrlInNewTab(pkg.manasikPdfUrl)}
+                                className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" /> Pratinjau
+                              </button>
+                              
+                              <label className="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-gray-800 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                                <UploadCloud className="w-3.5 h-3.5 text-gray-600" /> Ganti PDF
+                                <input 
+                                  type="file" 
+                                  accept=".pdf,application/pdf"
+                                  className="hidden"
+                                  onChange={(e) => handleDirectManasikUpload(pkg, e)}
+                                />
+                              </label>
+                            </div>
+                          ) : (
+                            <label className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md">
+                              <UploadCloud className="w-4 h-4" /> Unggah Buku Manasik (PDF)
+                              <input 
+                                type="file" 
+                                accept=".pdf,application/pdf"
+                                className="hidden"
+                                onChange={(e) => handleDirectManasikUpload(pkg, e)}
+                              />
+                            </label>
+                          )}
+
+                          {pkg.manasikPdfUrl && (
+                            <button
+                              onClick={() => handleRemoveManasikPdf(pkg)}
+                              className="w-full py-1.5 text-center text-xs font-semibold text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
+                            >
+                              Hapus Buku Manasik
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           {activeTab === 'dashboard' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* Executive Summary Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
                 {stats.map((s, idx) => (
-                  <div key={idx} className="bg-white shadow-md p-6 rounded-2xl  relative overflow-hidden group hover:border-gray-300 transition-all">
+                  <button 
+                    key={idx} 
+                    onClick={() => setActiveTab(s.tab)}
+                    className="bg-white shadow-md p-6 rounded-2xl relative overflow-hidden group hover:border-gold-300 hover:shadow-lg transition-all border border-transparent text-left w-full focus:outline-none focus:ring-2 focus:ring-gold-500 focus:ring-offset-2"
+                  >
                     <div className="flex items-center justify-between mb-4">
                       <div className={`p-3 rounded-xl ${s.bg}`}>
                         {s.icon}
@@ -2845,10 +3835,18 @@ export default function Admin() {
                       </span>
                     </div>
                     <div>
-                      <p className="text-sm text-gray-600 font-medium">{s.title}</p>
-                      <h3 className="text-3xl font-bold text-gray-900 mt-1">{s.value}</h3>
+                      <p className="text-xs sm:text-sm text-gray-600 font-medium truncate">{s.title}</p>
+                      <h3 className={`font-black text-gray-900 mt-1.5 whitespace-nowrap tracking-tight ${
+                        String(s.value).length > 15 
+                          ? 'text-base sm:text-lg' 
+                          : String(s.value).length > 10 
+                          ? 'text-lg sm:text-xl' 
+                          : 'text-2xl sm:text-3xl'
+                      }`}>
+                        {s.value}
+                      </h3>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
               
@@ -3771,7 +4769,15 @@ export default function Admin() {
                 </h4>
                 <div className="space-y-4">
                   <div className="bg-white shadow-md p-4 rounded-xl border border-gray-100 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <h5 className="font-bold text-gray-900 mb-3 border-b border-gray-200 pb-2">Jamaah {activePaxIdx + 1}</h5>
+                    <h5 className="font-bold text-gray-900 mb-3 border-b border-gray-200 pb-2 flex justify-between items-center">
+                      <span>Jamaah {activePaxIdx + 1}</span>
+                      <button 
+                        onClick={() => generateJamaahBiodataPdf(selectedJamaah, activePaxIdx)}
+                        className="px-3 py-1 bg-gold-500 text-white rounded-md text-xs hover:bg-gold-600 transition-colors flex items-center shadow-sm"
+                      >
+                        <Download className="w-3 h-3 mr-1" /> Cetak PDF
+                      </button>
+                    </h5>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="col-span-2">
                         <p className="text-xs text-gray-600 mb-1">Nama Lengkap Sesuai KTP</p>
@@ -3794,8 +4800,8 @@ export default function Admin() {
                       <div>
                         <p className="text-xs text-gray-600 mb-1">Status Pernikahan</p>
                         <p className="font-medium text-sm">
-                          {selectedJamaah.paxData?.[activePaxIdx]?.maritalStatus || '-'}
-                          {selectedJamaah.paxData?.[activePaxIdx]?.spouseName && ` (${selectedJamaah.paxData?.[activePaxIdx]?.spouseName})`}
+                          {selectedJamaah.paxData?.[activePaxIdx]?.maritalStatus || selectedJamaah.paxData?.[activePaxIdx]?.statusPernikahan || '-'}
+                          {(selectedJamaah.paxData?.[activePaxIdx]?.spouseName || selectedJamaah.paxData?.[activePaxIdx]?.namaPasangan) && ` (Pasangan: ${selectedJamaah.paxData?.[activePaxIdx]?.spouseName || selectedJamaah.paxData?.[activePaxIdx]?.namaPasangan})`}
                         </p>
                       </div>
                       <div className="col-span-2">
@@ -3882,97 +4888,115 @@ export default function Admin() {
                     )}
                   </h4>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-6 bg-white shadow-md p-6 rounded-xl border border-gray-100">
-                    {['KTP Asli', 'Kartu Keluarga (KK)', 'Paspor Asli', 'Pas Foto 4x6', 'Buku Nikah', 'Sertifikat Vaksin'].map((docName, i) => {
-                      const docSuffix = `_${activePaxIdx}`;
-                      const docItem = Array.isArray(selectedJamaah.documents) ? selectedJamaah.documents.find((d: any) => d.docType.includes(docName) && d.docType.endsWith(docSuffix)) : null;
-                      const fileUrl = docItem?.fileUrl;
-                      const isUploaded = !!fileUrl;
-                      const status = docItem?.status || 'pending';
-                      const isPdf = isUploaded && (fileUrl.startsWith('data:application/pdf') || fileUrl.endsWith('.pdf'));
-                      const isBase64 = isUploaded && (fileUrl.startsWith('data:image/') || fileUrl.startsWith('http'));
-                      
-                      return (
-                        <div key={i} className={`flex flex-col border rounded-xl overflow-hidden bg-white shadow-md transition-all ${status === 'approved' ? 'border-green-200 ring-1 ring-green-100' : status === 'rejected' ? 'border-red-200' : 'border-gray-100'}`}>
-                          <div className={`p-3 border-b flex justify-between items-center ${status === 'approved' ? 'bg-green-50 border-green-100' : status === 'rejected' ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
-                            <p className="text-sm font-medium text-gray-800">{docName}</p>
-                            {status === 'approved' && <CheckCircle className="w-4 h-4 text-green-600" />}
-                            {status === 'rejected' && <X className="w-4 h-4 text-red-600" />}
-                          </div>
-                          <div className="p-3 flex flex-col justify-center items-center h-32 bg-white relative">
-                            {isUploaded ? (
-                              isPdf ? (
-                                <>
-                                  <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-gray-50 w-full rounded">
-                                    <FileText className="w-8 h-8 mb-2 opacity-50" />
-                                    <span className="text-[10px] font-bold uppercase text-gray-500">PDF Document</span>
+                    {(() => {
+                      const isMarried = selectedJamaah.paxData?.[activePaxIdx]?.maritalStatus === 'Menikah';
+                      const categories = [
+                        'KTP Asli', 
+                        'Kartu Keluarga (KK)', 
+                        'Paspor Asli', 
+                        'Pas Foto 4x6', 
+                        ...(isMarried ? ['Buku Nikah'] : []),
+                        'Sertifikat Vaksin'
+                      ];
+
+                      return categories.map((docName, i) => {
+                        const docSuffix = `_${activePaxIdx}`;
+                        const docItem = Array.isArray(selectedJamaah.documents) ? selectedJamaah.documents.find((d: any) => d.docType.includes(docName) && d.docType.endsWith(docSuffix)) : null;
+                        const isUploaded = !!docItem;
+                        const status = docItem?.status || 'pending';
+                        const isPdf = !!docItem?.isPdf;
+                        const token = localStorage.getItem('token');
+                        const ext = isPdf ? '.pdf' : '.png';
+                        const fileUrl = docItem ? `/api/documents/${docItem.id}/file?token=${token}&ext=${ext}` : '';
+                        const imageSrc = fileUrl;
+                        const isBase64 = isUploaded && !isPdf;
+
+                        return (
+                          <div key={i} className={`flex flex-col border rounded-xl overflow-hidden bg-white shadow-md transition-all ${status === 'approved' || status === 'VERIFIED' ? 'border-green-200 ring-1 ring-green-100' : status === 'rejected' || status === 'REJECTED' ? 'border-red-200' : 'border-gray-100'}`}>
+                            <div className={`p-3 border-b flex justify-between items-center ${status === 'approved' || status === 'VERIFIED' ? 'bg-green-50 border-green-100' : status === 'rejected' || status === 'REJECTED' ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
+                              <p className="text-sm font-medium text-gray-800">{docName}</p>
+                              {(status === 'approved' || status === 'VERIFIED') && <CheckCircle className="w-4 h-4 text-green-600" />}
+                              {(status === 'rejected' || status === 'REJECTED') && <X className="w-4 h-4 text-red-600" />}
+                            </div>
+                            <div className="p-3 flex flex-col justify-center items-center h-32 bg-white relative">
+                              {isUploaded ? (
+                                isPdf ? (
+                                  <>
+                                    <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-gray-50 w-full rounded">
+                                      <FileText className="w-8 h-8 mb-2 opacity-50" />
+                                      <span className="text-[10px] font-bold uppercase text-gray-500">PDF Document</span>
+                                    </div>
+                                    <button onClick={() => openDataUrlInNewTab(fileUrl)} className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-white text-xs font-bold rounded">
+                                      Buka PDF
+                                    </button>
+                                  </>
+                                ) : isBase64 ? (
+                                  <>
+                                    <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-gray-50 w-full rounded">
+                                      <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
+                                      <span className="text-[10px] font-bold uppercase text-gray-500">Image Document</span>
+                                    </div>
+                                    <button onClick={() => openDataUrlInNewTab(imageSrc)} className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-white text-xs font-bold rounded">
+                                      Lihat Penuh
+                                    </button>
+                                  </>
+                                ) : (
+                                  <div className="text-green-600 font-bold text-sm flex items-center">
+                                    <CheckCircle className="w-4 h-4 mr-1"/> File Tersimpan
                                   </div>
-                                  <button onClick={() => openDataUrlInNewTab(fileUrl)} className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-white text-xs font-bold rounded">
-                                    Buka PDF
-                                  </button>
-                                </>
-                              ) : isBase64 ? (
-                                <>
-                                  <img src={fileUrl} alt={docName} className="w-full h-full object-cover rounded" />
-                                  <button onClick={() => openDataUrlInNewTab(fileUrl)} className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-white text-xs font-bold rounded">
-                                    Lihat Penuh
-                                  </button>
-                                </>
+                                )
                               ) : (
-                                <div className="text-green-600 font-bold text-sm flex items-center">
-                                  <CheckCircle className="w-4 h-4 mr-1"/> File Tersimpan
+                                <div className="text-gray-400 text-sm flex flex-col items-center">
+                                  <X className="w-6 h-6 mb-1 opacity-20"/>
+                                  <span className="text-xs">Belum diunggah</span>
                                 </div>
-                              )
-                            ) : (
-                              <div className="text-gray-400 text-sm flex flex-col items-center">
-                                <X className="w-6 h-6 mb-1 opacity-20"/>
-                                <span className="text-xs">Belum diunggah</span>
+                              )}
+                            </div>
+                            {isUploaded && (status === 'pending' || status === 'PENDING') && (
+                              <div className="p-3 flex gap-2 bg-gray-50 border-t border-gray-100">
+                                <button
+                                   onClick={async () => {
+                                     try {
+                                       await api.patch(`/admin/documents/${docItem.id}/verify`, { status: 'approved' });
+                                       toast.success('Dokumen disetujui');
+                                       // Update local state to reflect change
+                                       const updatedDocs = selectedJamaah.documents.map((d: any) => 
+                                         d.id === docItem.id ? { ...d, status: 'approved' } : d
+                                       );
+                                       setSelectedJamaah({ ...selectedJamaah, documents: updatedDocs });
+                                       refreshData(true);
+                                     } catch (error: any) {
+                                       toast.error('Gagal memverifikasi dokumen');
+                                     }
+                                   }}
+                                   className="flex-1 text-[10px] py-1.5 bg-green-600 text-white font-bold rounded hover:bg-green-700 transition-colors uppercase tracking-wider"
+                                >
+                                  Terima
+                                </button>
+                                <button
+                                   onClick={() => {
+                                     setRejectDocModal({
+                                       isOpen: true,
+                                       docId: docItem.id,
+                                       docLabel: docName || 'Dokumen',
+                                       reason: 'Foto / Dokumen Kurang Jelas'
+                                     });
+                                   }}
+                                   className="flex-1 text-[10px] py-1.5 bg-red-600 text-white font-bold rounded hover:bg-red-700 transition-colors uppercase tracking-wider"
+                                >
+                                  Tolak
+                                </button>
+                              </div>
+                            )}
+                            {isUploaded && status !== 'pending' && status !== 'PENDING' && (
+                              <div className={`p-2 text-center text-[10px] font-bold uppercase tracking-widest ${status === 'approved' || status === 'VERIFIED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {status === 'approved' || status === 'VERIFIED' ? 'Terverifikasi' : 'Ditolak'}
                               </div>
                             )}
                           </div>
-                          {isUploaded && status === 'pending' && (
-                            <div className="p-3 flex gap-2 bg-gray-50 border-t border-gray-100">
-                              <button
-                                 onClick={async () => {
-                                   try {
-                                     await api.patch(`/admin/documents/${docItem.id}/verify`, { status: 'approved' });
-                                     toast.success('Dokumen disetujui');
-                                     refreshData(true);
-                                     // Update local state to reflect change
-                                     const updatedDocs = selectedJamaah.documents.map((d: any) => 
-                                       d.id === docItem.id ? { ...d, status: 'approved' } : d
-                                     );
-                                     setSelectedJamaah({ ...selectedJamaah, documents: updatedDocs });
-                                   } catch (error: any) {
-                                     toast.error('Gagal memverifikasi dokumen');
-                                   }
-                                 }}
-                                 className="flex-1 text-[10px] py-1.5 bg-green-600 text-white font-bold rounded hover:bg-green-700 transition-colors uppercase tracking-wider"
-                              >
-                                Terima
-                              </button>
-                              <button
-                                 onClick={() => {
-                                   setRejectDocModal({
-                                     isOpen: true,
-                                     docId: docItem.id,
-                                     docLabel: docName || 'Dokumen',
-                                     reason: 'Foto / Dokumen Kurang Jelas'
-                                   });
-                                 }}
-                                 className="flex-1 text-[10px] py-1.5 bg-red-600 text-white font-bold rounded hover:bg-red-700 transition-colors uppercase tracking-wider"
-                              >
-                                Tolak
-                              </button>
-                            </div>
-                          )}
-                          {isUploaded && status !== 'pending' && (
-                            <div className={`p-2 text-center text-[10px] font-bold uppercase tracking-widest ${status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                              {status === 'approved' ? 'Terverifikasi' : 'Ditolak'}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               )}
@@ -4004,29 +5028,33 @@ export default function Admin() {
               {/* Left Side: Transaction List */}
               <div className="w-full md:w-1/3 border-r border-gray-100 overflow-y-auto bg-white/50 p-6 space-y-4">
                 <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Riwayat Pembayaran</h4>
-                {(reviewingPaymentJamaah.payments || []).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((t: any) => (
-                  <button 
-                    key={t.id}
-                    onClick={() => setReviewingTransactionId(t.id)}
-                    className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between group ${reviewingTransactionId === t.id ? 'bg-white shadow-md border-gray-500 shadow-md ring-2 ring-gray-100' : 'bg-white shadow-md border-gray-100 hover:border-gray-200'}`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${reviewingTransactionId === t.id ? 'bg-white text-gray-900' : 'bg-gray-100 text-gray-400'}`}>
-                        <Banknote className="w-4 h-4" />
+                {(reviewingPaymentJamaah.payments || []).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((t: any) => {
+                  const isVer = ['approved', 'VERIFIED'].includes(t.status);
+                  const isRej = ['rejected', 'REJECTED'].includes(t.status);
+                  return (
+                    <button 
+                      key={t.id}
+                      onClick={() => setReviewingTransactionId(t.id)}
+                      className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between group ${reviewingTransactionId === t.id ? 'bg-white shadow-md border-gray-500 ring-2 ring-gray-100' : 'bg-white shadow-md border-gray-100 hover:border-gray-200'}`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${reviewingTransactionId === t.id ? 'bg-white text-gray-900' : 'bg-gray-100 text-gray-400'}`}>
+                          <Banknote className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-900">Rp {Number(t.amount).toLocaleString('id-ID')}</p>
+                          <p className={`text-[10px] font-bold uppercase ${isVer ? 'text-green-600' : isRej ? 'text-red-600' : 'text-yellow-600'}`}>
+                            {isVer ? 'Terverifikasi' : isRej ? 'Ditolak' : 'Pending'}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-gray-900">Rp {Number(t.amount).toLocaleString('id-ID')}</p>
-                        <p className={`text-[10px] font-bold uppercase ${t.status === 'approved' ? 'text-green-600' : t.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
-                          {t.status === 'approved' ? 'Lunas' : t.status === 'rejected' ? 'Ditolak' : 'Pending'}
-                        </p>
+                      <div className="text-right">
+                        <p className="text-[10px] text-gray-400 font-bold">{t.createdAt ? new Date(t.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}</p>
+                        <ChevronRight className={`w-4 h-4 transition-transform ml-auto ${reviewingTransactionId === t.id ? 'translate-x-1 text-gray-500' : 'text-gray-300'}`} />
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-gray-400 font-bold">{t.createdAt ? new Date(t.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) : '-'}</p>
-                      <ChevronRight className={`w-4 h-4 transition-transform ml-auto ${reviewingTransactionId === t.id ? 'translate-x-1 text-gray-500' : 'text-gray-300'}`} />
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Right Side: Evidence & Action */}
@@ -4034,7 +5062,11 @@ export default function Admin() {
                 {reviewingTransactionId ? (
                   <div className="p-8 space-y-8 flex-1 flex flex-col">
                     {(() => {
-                      const transaction = reviewingPaymentJamaah.payments.find((t: any) => t.id === reviewingTransactionId);
+                      const transaction = (reviewingPaymentJamaah.payments || []).find((t: any) => t.id === reviewingTransactionId);
+                      if (!transaction) return null;
+                      const isVerified = ['approved', 'VERIFIED'].includes(transaction.status);
+                      const isRejected = ['rejected', 'REJECTED'].includes(transaction.status);
+
                       return (
                         <>
                           <div className="flex items-center justify-between shrink-0">
@@ -4042,45 +5074,133 @@ export default function Admin() {
                               <h4 className="text-xl font-bold text-gray-900">Detail Setoran</h4>
                               <p className="text-sm text-gray-600 mt-1">ID Transaksi: {transaction.id} • Diterima: {new Date(transaction.createdAt).toLocaleString('id-ID')}</p>
                             </div>
-                            {transaction.status === 'approved' && (
+                            <div className="flex items-center gap-2">
                               <button 
-                                onClick={() => handleGenerateInvoice(reviewingPaymentJamaah, transaction.id)}
-                                className="flex items-center px-4 py-2 bg-white shadow-md text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-100 border border-gray-200 transition-all"
+                                onClick={() => generateProofPdf(reviewingPaymentJamaah, transaction)}
+                                className="flex items-center px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white shadow-md rounded-xl text-xs font-bold transition-all cursor-pointer border border-emerald-800"
+                                title="Unduh Bukti Transfer sebagai PDF resmi"
                               >
-                                <Printer className="w-4 h-4 mr-2" /> Cetak Kuitansi (PDF)
+                                <Download className="w-4 h-4 mr-2 text-emerald-200" /> Unduh Bukti Transfer (PDF)
                               </button>
-                            )}
+                              {isVerified && (
+                                <button 
+                                  onClick={() => handleGenerateInvoice(reviewingPaymentJamaah, transaction.id)}
+                                  className="flex items-center px-4 py-2 bg-white shadow-md text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-100 border border-gray-200 transition-all cursor-pointer"
+                                  title="Cetak Kuitansi Resmi"
+                                >
+                                  <Printer className="w-4 h-4 mr-2" /> Cetak Kuitansi (PDF)
+                                </button>
+                              )}
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 flex-1">
-                            {/* Evidence Preview */}
-                            <div className="bg-slate-50 rounded-3xl overflow-auto relative group min-h-[350px] border border-gray-100 flex items-center justify-center p-8">
-                              {transaction.proofUrl?.startsWith('data:application/pdf') ? (
-                                <div className="w-full h-full bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-200">
-                                  <iframe 
-                                    src={transaction.proofUrl} 
-                                    title="PDF Preview" 
-                                    className="w-full h-full min-h-[350px] border-0"
-                                  />
+                            {(() => {
+                              const token = localStorage.getItem('admin_token') || localStorage.getItem('token') || '';
+                              const apiProofEndpoint = `/api/payments/${transaction.id}/proof?token=${token}`;
+                              
+                              const rawProof = transaction.proofUrl || transaction.proof_url || transaction.fileUrl || (transaction as any).proof;
+                              const isDirectBase64Image = typeof rawProof === 'string' && (rawProof.startsWith('data:image/') || rawProof.startsWith('iVBORw') || rawProof.startsWith('/9j/'));
+                              const isPdf = typeof rawProof === 'string' && (rawProof.startsWith('data:application/pdf') || rawProof.toLowerCase().includes('.pdf'));
+
+                              const initialSrc = isDirectBase64Image 
+                                ? (rawProof.startsWith('data:') ? rawProof : `data:image/jpeg;base64,${rawProof}`)
+                                : (rawProof && (rawProof.startsWith('http') || rawProof.startsWith('/uploads/')) ? rawProof : apiProofEndpoint);
+
+                              return (
+                                <div className="bg-slate-900/5 rounded-3xl relative group min-h-[420px] border border-gray-200/80 flex flex-col items-center justify-center p-4 overflow-hidden shadow-inner">
+                                  {transaction.id ? (
+                                    isPdf ? (
+                                      <iframe 
+                                        src={initialSrc} 
+                                        className="w-full h-full min-h-[380px] rounded-2xl border border-gray-200 bg-white shadow-md" 
+                                        title="Pratinjau Bukti Transfer (PDF)"
+                                      />
+                                    ) : (
+                                      <div className="relative w-full h-full flex flex-col items-center justify-center p-2 group">
+                                        <img 
+                                          src={initialSrc} 
+                                          alt="Bukti Transfer" 
+                                          className="max-w-full max-h-[55vh] w-auto h-auto object-contain rounded-2xl shadow-xl border border-gray-200 bg-white transition-all duration-300 group-hover:scale-[1.01]" 
+                                          onError={(e) => {
+                                            const target = e.currentTarget;
+                                            if (!target.dataset.triedEndpoint) {
+                                              target.dataset.triedEndpoint = 'true';
+                                              target.src = apiProofEndpoint;
+                                            } else if (!target.dataset.failed) {
+                                              target.dataset.failed = 'true';
+                                              target.style.display = 'none';
+                                              const parent = target.parentElement;
+                                              if (parent) {
+                                                const fallbackDiv = parent.querySelector('.proof-fallback-ui');
+                                                if (fallbackDiv) (fallbackDiv as HTMLElement).style.display = 'flex';
+                                              }
+                                            }
+                                          }}
+                                        />
+
+                                        <div className="proof-fallback-ui hidden flex-col items-center justify-center text-center p-8 bg-white/95 backdrop-blur-sm rounded-2xl border border-gray-200 shadow-md space-y-3 max-w-sm">
+                                          <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                                            <FileText className="w-6 h-6" />
+                                          </div>
+                                          <div>
+                                            <p className="font-bold text-gray-900 text-sm">Bukti Transfer Berkas</p>
+                                            <p className="text-xs text-gray-500 mt-1">Gagal memuat pratinjau gambar secara langsung.</p>
+                                          </div>
+                                          <a 
+                                            href={`${apiProofEndpoint}&download=true`} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center px-4 py-2 bg-emerald-700 text-white rounded-xl font-bold text-xs hover:bg-emerald-800 transition-all shadow-md"
+                                          >
+                                            <Download className="w-3.5 h-3.5 mr-1.5" /> Unduh Berkas Bukti
+                                          </a>
+                                        </div>
+
+                                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center gap-2 bg-black/80 backdrop-blur-md px-4 py-2 rounded-2xl shadow-2xl border border-white/20">
+                                          <button
+                                            type="button"
+                                            onClick={() => setPreviewFile({ url: initialSrc, type: 'image', title: `Bukti Bayar - Rp ${Number(transaction.amount).toLocaleString('id-ID')}` })}
+                                            className="text-white text-xs font-bold hover:text-emerald-400 flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                                          >
+                                            <Maximize2 className="w-3.5 h-3.5" /> Zoom Layar Penuh
+                                          </button>
+                                          <span className="text-white/30 font-light">|</span>
+                                          <a
+                                            href={`${apiProofEndpoint}&download=true`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-white text-xs font-bold hover:text-emerald-400 flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors"
+                                          >
+                                            <Download className="w-3.5 h-3.5" /> Unduh
+                                          </a>
+                                        </div>
+                                      </div>
+                                    )
+                                  ) : (
+                                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
+                                      <FileText className="w-16 h-16 opacity-10" />
+                                      <p className="font-bold text-sm uppercase tracking-widest">Pratinjau Bukti Transfer</p>
+                                    </div>
+                                  )}
+
+                                  <div className="absolute top-4 left-4 pointer-events-none z-10">
+                                    <span className="bg-emerald-950/80 backdrop-blur-md text-emerald-100 text-[10px] font-black px-3 py-1.5 rounded-full border border-emerald-500/30 uppercase tracking-widest shadow-md flex items-center gap-1.5">
+                                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Bukti Transfer Otentik
+                                    </span>
+                                  </div>
+                                  <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewFile({ url: initialSrc, type: isPdf ? 'pdf' : 'image', title: `Bukti Bayar - Rp ${Number(transaction.amount).toLocaleString('id-ID')}` })}
+                                      className="bg-emerald-700/90 hover:bg-emerald-800 backdrop-blur-md text-white text-[11px] font-bold px-3 py-1.5 rounded-xl border border-emerald-500/30 shadow-lg flex items-center gap-1.5 cursor-pointer transition-all active:scale-95"
+                                    >
+                                      <Maximize2 className="w-3.5 h-3.5 text-emerald-200" /> Perbesar Preview
+                                    </button>
+                                  </div>
                                 </div>
-                              ) : transaction.proofUrl?.startsWith('data:') ? (
-                                <div className="relative group max-h-full">
-                                  <img 
-                                    src={transaction.proofUrl} 
-                                    alt="Proof" 
-                                    className="max-w-full max-h-[60vh] w-auto h-auto object-contain rounded-xl shadow-2xl border border-gray-200 bg-white"
-                                  />
-                                </div>
-                              ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 space-y-4">
-                                  <FileText className="w-16 h-16 opacity-10" />
-                                  <p className="font-bold text-sm uppercase tracking-widest">Pratinjau Bukti Transfer</p>
-                                </div>
-                              )}
-                              <div className="absolute top-4 left-4 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                                <span className="bg-black/60 backdrop-blur-md text-white text-[10px] font-black px-3 py-1.5 rounded-full border border-white/20 uppercase tracking-widest">Bukti Transfer Asli</span>
-                              </div>
-                            </div>
+                              );
+                            })()}
 
                             {/* Info & Action */}
                             <div className="space-y-6 flex flex-col">
@@ -4103,29 +5223,31 @@ export default function Admin() {
                                   value={paymentRejectionReason}
                                   onChange={(e) => setPaymentRejectionReason(e.target.value)}
                                 />
-                                {transaction.status === 'rejected' && transaction.rejectionReason && (
+                                {isRejected && (transaction.adminNotes || transaction.rejectionReason) && (
                                   <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
                                     <p className="text-[10px] text-red-600 font-bold uppercase mb-1">Alasan Penolakan Sebelumnya:</p>
-                                    <p className="text-xs text-red-500 italic">"{transaction.rejectionReason}"</p>
+                                    <p className="text-xs text-red-500 italic">"{transaction.adminNotes || transaction.rejectionReason}"</p>
                                   </div>
                                 )}
                               </div>
 
                               <div className="flex items-center gap-4 pt-4 border-t border-gray-100">
                                 <button 
-                                  disabled={transaction.status === 'approved'}
+                                  disabled={isVerified}
                                   onClick={() => handleRejectFinancialPayment(reviewingPaymentJamaah.id, transaction.id, paymentRejectionReason)}
-                                  className={`flex-1 py-4 rounded-2xl font-bold text-sm transition-all active:scale-95 ${transaction.status === 'approved' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-100'}`}
+                                  className={`flex-1 py-4 rounded-2xl font-bold text-sm transition-all active:scale-95 ${isVerified ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-100'}`}
                                 >
                                   Tolak Setoran
                                 </button>
                                 <button 
-                                  disabled={transaction.status === 'approved'}
+                                  disabled={isVerified}
                                   onClick={() => handleApproveFinancialPayment(reviewingPaymentJamaah.id, transaction.id)}
-                                  className={`flex-[2] py-4 rounded-2xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center ${transaction.status === 'approved' ? 'bg-green-100 text-green-700 cursor-default' : 'bg-matcha-600 text-white hover:bg-matcha-700 shadow-lg shadow-gray-900/20'}`}
+                                  className={`flex-[2] py-4 rounded-2xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center ${isVerified ? 'bg-green-100 text-green-700 cursor-default' : 'bg-matcha-600 text-white hover:bg-matcha-700 shadow-lg shadow-gray-900/20'}`}
                                 >
-                                  {transaction.status === 'approved' ? (
+                                  {isVerified ? (
                                     <><CheckCircle className="w-4 h-4 mr-2" /> Setoran Terverifikasi</>
+                                  ) : isRejected ? (
+                                    <><CheckCircle className="w-4 h-4 mr-2" /> Setoran Ditolak (Klik untuk Terima)</>
                                   ) : (
                                     <><CheckCircle className="w-4 h-4 mr-2" /> Terima Pembayaran</>
                                   )}
@@ -4218,53 +5340,84 @@ export default function Admin() {
                 </div>
 
                 <div className="space-y-3">
-                  {Array.isArray(reviewingJamaah?.documents) && (() => {
-                    const filtered = reviewingJamaah.documents.filter((doc: any) => doc && doc.docType && doc.docType.endsWith(`_${activePaxIdx}`));
-                    // Group by docType and take the one with latest updatedAt or simply the first one found
-                    const uniqueDocs: any[] = [];
-                    const seen = new Set();
-                    
-                    // Sort by updatedAt descending to get the latest first
-                    const sorted = [...filtered].sort((a: any, b: any) => 
-                      new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime()
-                    );
+                  {(() => {
+                    const currentPaxData = Array.isArray(reviewingJamaah?.paxData) ? reviewingJamaah.paxData[activePaxIdx] : null;
+                    const isMarried = currentPaxData?.maritalStatus === 'Menikah';
 
-                    for (const doc of sorted) {
-                      if (!seen.has(doc.docType)) {
-                        seen.add(doc.docType);
-                        uniqueDocs.push(doc);
-                      }
-                    }
-                    
-                    // Sort uniqueDocs alphabetically by docType for consistent UI
-                    uniqueDocs.sort((a: any, b: any) => (a.docType || '').localeCompare(b.docType || ''));
+                    const expectedCategories = [
+                      { id: 'KTP Asli', label: 'KTP Asli' },
+                      { id: 'Paspor Asli', label: 'Paspor Asli' },
+                      { id: 'Kartu Keluarga (KK)', label: 'Kartu Keluarga (KK)' },
+                      { id: 'Pas Foto 4x6', label: 'Pas Foto 4x6' },
+                      { id: 'Sertifikat Vaksin', label: 'Sertifikat Vaksin' },
+                      ...(isMarried ? [{ id: 'Buku Nikah', label: 'Buku Nikah' }] : [])
+                    ];
 
-                    return uniqueDocs.map((doc: any) => (
-                      <button 
-                        key={doc.id}
-                        onClick={() => setReviewingDocId(doc.docType)}
-                        className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between group ${reviewingDocId === doc.docType ? 'bg-white shadow-md border-gray-500 shadow-md ring-2 ring-gray-100' : 'bg-white shadow-md border-gray-100 hover:border-gray-200'}`}
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${reviewingDocId === doc.docType ? 'bg-white text-gray-900' : 'bg-gray-100 text-gray-400'}`}>
-                            <FileText className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-900">{(doc.docType || '').split('_')[0]}</p>
-                            <p className={`text-[10px] font-bold uppercase ${doc.status === 'approved' ? 'text-green-600' : doc.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
-                              {doc.status || 'pending'}
-                            </p>
-                          </div>
+                    const allDocs = Array.isArray(reviewingJamaah?.documents) ? reviewingJamaah.documents : [];
+
+                    return expectedCategories.map((cat) => {
+                      // Find matching document for this category and pax index
+                      const doc = allDocs
+                        .filter((d: any) => matchDocumentCategory(d?.docType, cat.id, activePaxIdx))
+                        .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0];
+
+                      const isUploaded = !!doc && !!doc.fileUrl;
+                      const status = doc?.status || 'missing';
+                      const isSelected = reviewingDocId === cat.id || matchDocumentCategory(reviewingDocId, cat.id, activePaxIdx);
+
+                      return (
+                        <div key={cat.id} className="relative group/doc">
+                          <button 
+                            onClick={() => setReviewingDocId(cat.id)}
+                            className={`w-full text-left p-4 rounded-2xl border transition-all flex items-center justify-between group cursor-pointer ${
+                              !isUploaded ? 'bg-gray-50/80 border-gray-100 hover:border-gray-200' :
+                              isSelected ? 'bg-white shadow-md border-emerald-500 ring-2 ring-emerald-100' : 
+                              'bg-white shadow-sm border-gray-100 hover:border-gray-200'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                                !isUploaded ? 'bg-gray-200 text-gray-400' :
+                                status === 'VERIFIED' || status === 'approved' ? 'bg-green-100 text-green-600' :
+                                status === 'REJECTED' || status === 'rejected' ? 'bg-red-100 text-red-600' :
+                                isSelected ? 'bg-emerald-600 text-white shadow-sm' : 'bg-gray-100 text-gray-400'
+                              }`}>
+                                <FileText className="w-4 h-4" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-gray-900">{cat.label}</p>
+                                <p className={`text-[10px] font-black uppercase tracking-widest ${
+                                  !isUploaded ? 'text-gray-400' :
+                                  ['approved', 'VERIFIED'].includes(status) ? 'text-green-600' : 
+                                  ['rejected', 'REJECTED'].includes(status) ? 'text-red-600' : 'text-orange-500'
+                                }`}>
+                                  {!isUploaded ? 'BELUM UNGGAH' : 
+                                   status === 'VERIFIED' || status === 'approved' ? 'TERVERIFIKASI' :
+                                   status === 'REJECTED' || status === 'rejected' ? 'DITOLAK' : 'MENUNGGU VERIFIKASI'}
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronRight className={`w-4 h-4 transition-transform ${isSelected ? 'translate-x-1 text-emerald-500' : 'text-gray-300'}`} />
+                          </button>
+                          
+                          {/* Tarik/Reset Button for Verified/Rejected docs */}
+                          {isUploaded && (status === 'VERIFIED' || status === 'REJECTED' || status === 'approved' || status === 'rejected') && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleResetDoc(reviewingJamaah?.id, cat.id);
+                              }}
+                              disabled={isVerifying}
+                              className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-white shadow-lg border border-gray-100 flex items-center justify-center text-gray-400 hover:text-orange-500 hover:border-orange-200 transition-all z-10 hover:scale-110 active:scale-95"
+                              title="Tarik Verifikasi (Kembalikan ke Pending)"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
-                        <ChevronRight className={`w-4 h-4 transition-transform ${reviewingDocId === doc.docType ? 'translate-x-1 text-gray-500' : 'text-gray-300'}`} />
-                      </button>
-                    ));
+                      );
+                    });
                   })()}
-                  {Array.isArray(reviewingJamaah?.documents) && reviewingJamaah.documents.filter((doc: any) => doc && doc.docType && doc.docType.endsWith(`_${activePaxIdx}`)).length === 0 && (
-                    <div className="text-center py-10 text-gray-400 italic text-xs">
-                      Belum ada dokumen diunggah untuk jamaah ini.
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -4272,61 +5425,49 @@ export default function Admin() {
               <div className="flex-1 overflow-y-auto bg-white shadow-md flex flex-col">
                 {reviewingDocId ? (
                   (() => {
-                    const activeDoc = Array.isArray(reviewingJamaah?.documents) ? reviewingJamaah.documents.find((d: any) => d.docType === reviewingDocId) : null;
-                    const activeDocUrl = activeDoc?.fileUrl;
+                    const allDocs = Array.isArray(reviewingJamaah?.documents) ? reviewingJamaah.documents : [];
+                    const activeDoc = allDocs.find((d: any) => matchDocumentCategory(d?.docType, reviewingDocId, activePaxIdx));
+
+                    const token = localStorage.getItem('token');
+                    let activeDocUrl: string | undefined = undefined;
+
+                    if (activeDoc) {
+                      if (activeDoc.fileUrl && activeDoc.fileUrl.trim() !== '') {
+                        if (activeDoc.fileUrl.startsWith('/api/documents/') && !activeDoc.fileUrl.includes('.') && !activeDoc.fileUrl.includes('ext=')) {
+                          const isPdf = activeDoc.isPdf || (activeDoc.docType && activeDoc.docType.toLowerCase().includes('pdf'));
+                          const ext = isPdf ? '.pdf' : '.png';
+                          activeDocUrl = `${activeDoc.fileUrl}?token=${token}&ext=${ext}`;
+                        } else {
+                          activeDocUrl = activeDoc.fileUrl;
+                        }
+                      } else if (activeDoc.id) {
+                        const isPdf = activeDoc.isPdf || (activeDoc.docType && activeDoc.docType.toLowerCase().includes('pdf'));
+                        const ext = isPdf ? '.pdf' : '.png';
+                        activeDocUrl = `/api/documents/${activeDoc.id}/file?token=${token}&ext=${ext}`;
+                      }
+                    }
+
+                    const effectiveDocUrl = activeDocUrl || getDocPreviewDataUrl(reviewingDocId, reviewingJamaah?.name, reviewingJamaah?.packageName, activePaxIdx);
+                    const docTitle = reviewingDocId ? reviewingDocId.split('_')[0] : 'Detail Dokumen';
+
                     return (
-                  <div className="p-8 space-y-8 flex-1 flex flex-col">
+                  <div className="p-8 space-y-6 flex-1 flex flex-col">
                     <div className="flex items-center justify-between shrink-0">
                       <div>
-                        <h4 className="text-xl font-bold text-gray-900">{reviewingDocId.split('_')[0]}</h4>
+                        <h4 className="text-xl font-bold text-gray-900">{docTitle}</h4>
                         <p className="text-sm text-gray-600 mt-1">Review detail dokumen dan berikan keputusan verifikasi.</p>
                       </div>
-                      <button 
-                        onClick={() => handleDownloadDoc(reviewingJamaah?.name || 'Jamaah', reviewingDocId, activeDocUrl)}
-                        className="p-3 text-gray-600 hover:bg-white shadow-md rounded-xl transition-colors border border-gray-100"
-                        title="Unduh File Ini"
-                      >
-                        <Download className="w-5 h-5" />
-                      </button>
                     </div>
 
-                    <div className="flex-1 bg-slate-50 rounded-3xl overflow-auto relative group min-h-[400px] border border-gray-100 flex items-center justify-center p-8">
-                      {(() => {
-                        if (activeDocUrl?.startsWith('data:application/pdf') || activeDocUrl?.endsWith('.pdf')) {
-                          return (
-                            <div className="w-full h-full bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-200">
-                              <iframe 
-                                src={activeDocUrl} 
-                                title="PDF Preview" 
-                                className="w-full h-full min-h-[500px] border-0"
-                              />
-                            </div>
-                          );
-                        } else if (activeDocUrl?.startsWith('data:image/') || activeDocUrl?.startsWith('http')) {
-                          return (
-                            <div className="relative group max-h-full">
-                              <img 
-                                src={activeDocUrl} 
-                                alt="Doc Preview" 
-                                className="max-w-full max-h-[70vh] w-auto h-auto object-contain rounded-xl shadow-2xl border border-gray-200 bg-white"
-                              />
-                            </div>
-                          );
-                        } else {
-                          return (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 space-y-4 py-20">
-                              <ShieldCheck className="w-16 h-16 opacity-10" />
-                              <p className="font-bold text-sm uppercase tracking-widest">Preview Tidak Tersedia</p>
-                            </div>
-                          );
-                        }
-                      })()}
-                      <div className="absolute top-4 left-4 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="bg-black/60 backdrop-blur-md text-white text-[10px] font-black px-4 py-2 rounded-full border border-white/20 uppercase tracking-widest">Secured Digital Preview</span>
-                      </div>
+                    <div className="flex-1 min-h-[450px] relative rounded-3xl overflow-hidden border border-gray-200 shadow-inner bg-slate-950">
+                      <PdfViewer 
+                        url={effectiveDocUrl} 
+                        title={`${docTitle} - ${reviewingJamaah?.name || 'Jamaah'}`} 
+                        className="w-full h-full min-h-[450px]" 
+                      />
                     </div>
 
-                    <div className="shrink-0 space-y-6 pt-4">
+                    <div className="shrink-0 space-y-6 pt-2">
                       <div className="space-y-3">
                         <label className="text-xs font-bold text-gray-600 uppercase tracking-wider">Catatan Verifikasi (Wajib jika ditolak)</label>
                         <textarea 
@@ -4510,9 +5651,10 @@ export default function Admin() {
                       <input 
                         type="text" 
                         required 
-                        value={editingPackage.price === 0 ? '' : editingPackage.price} 
+                        value={editingPackage.price === 0 ? '' : editingPackage.price.toLocaleString('id-ID')} 
                         onChange={e => {
-                          const val = e.target.value.replace(/[^0-9]/g, '');
+                          let val = e.target.value.replace(/[^0-9]/g, '');
+                          if (val.length > 10) val = val.slice(0, 10); // Max 10 digits to prevent numeric overflow
                           setEditingPackage({...editingPackage, price: val === '' ? 0 : Number(val)});
                         }} 
                         className="w-full border-gray-200 rounded-2xl bg-white shadow-md border py-3 pl-12 pr-4 focus:ring-4 focus:ring-gray-100 focus:border-gray-500 outline-none transition-all font-medium"
@@ -4528,7 +5670,8 @@ export default function Admin() {
                         required 
                         value={editingPackage.quota === 0 ? '' : (editingPackage.quota || '')} 
                         onChange={e => {
-                          const val = e.target.value.replace(/[^0-9]/g, '');
+                          let val = e.target.value.replace(/[^0-9]/g, '');
+                          if (val.length > 4) val = val.slice(0, 4); // Max 4 digits
                           setEditingPackage({...editingPackage, quota: val === '' ? 0 : Number(val)});
                         }} 
                         className="w-full border-gray-200 rounded-2xl bg-white shadow-md border py-3 px-4 focus:ring-4 focus:ring-gray-100 focus:border-gray-500 outline-none transition-all font-medium"
@@ -4626,129 +5769,7 @@ export default function Admin() {
                   <label htmlFor="isAvailable" className="text-sm font-bold text-gray-700">Tersedia untuk Pendaftaran</label>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-bold text-gray-800">
-                      Upload Buku Panduan Manasik (PDF)
-                    </label>
-                    <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md border border-emerald-200">
-                      Mendukung File Besar s/d 150MB
-                    </span>
-                  </div>
 
-                  {manasikProgress !== null ? (
-                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
-                      <div className="flex items-center justify-between text-xs font-bold text-emerald-900">
-                        <span className="flex items-center gap-1.5 truncate">
-                          <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
-                          <span className="truncate">Memproses: {manasikFileName}</span>
-                        </span>
-                        <span>{manasikProgress}%</span>
-                      </div>
-                      <div className="w-full bg-emerald-200/60 rounded-full h-2.5 overflow-hidden">
-                        <div 
-                          className="bg-emerald-600 h-2.5 rounded-full transition-all duration-150"
-                          style={{ width: `${manasikProgress}%` }}
-                        />
-                      </div>
-                      <p className="text-[10px] text-emerald-700 italic text-right">
-                        Mohon tunggu, file besar sedang dimuat...
-                      </p>
-                    </div>
-                  ) : editingPackage.manasikPdfUrl ? (
-                    <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-center justify-between shadow-sm">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                          <FileText className="w-5 h-5" />
-                        </div>
-                        <div className="overflow-hidden">
-                          <p className="text-xs font-extrabold text-emerald-950 truncate">
-                            {manasikFileName || 'Buku Panduan Manasik Digital.pdf'}
-                          </p>
-                          <p className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 mt-0.5">
-                            <CheckCircle className="w-3 h-3 text-emerald-600" /> Dokumen Berhasil Terlampir & Siap Disimpan
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                        <button
-                          type="button"
-                          onClick={() => openDataUrlInNewTab(editingPackage.manasikPdfUrl)}
-                          className="p-2 text-emerald-800 hover:bg-emerald-100 rounded-xl transition-all"
-                          title="Pratinjau PDF Buku Manasik"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingPackage({...editingPackage, manasikPdfUrl: null});
-                            setManasikFileName('');
-                          }}
-                          className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-xl transition-all"
-                          title="Hapus / Ganti Buku"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <label className="group relative border-2 border-dashed border-gray-200 hover:border-emerald-500 bg-gray-50/60 hover:bg-emerald-50/20 rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 text-center">
-                      <input 
-                        type="file" 
-                        accept=".pdf,application/pdf"
-                        className="hidden"
-                        onChange={e => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            if (file.size > 150 * 1024 * 1024) {
-                              toast.error('Ukuran file PDF terlalu besar. Maksimal 150MB.');
-                              e.target.value = '';
-                              return;
-                            }
-                            if (!file.type.includes('pdf') && !file.name.toLowerCase().endsWith('.pdf')) {
-                              toast.error('Hanya file PDF yang diperbolehkan!');
-                              e.target.value = '';
-                              return;
-                            }
-
-                            const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-                            setManasikFileName(`${file.name} (${sizeMB} MB)`);
-                            setManasikProgress(0);
-
-                            const reader = new FileReader();
-                            reader.onprogress = (evt) => {
-                              if (evt.lengthComputable) {
-                                const percent = Math.round((evt.loaded / evt.total) * 100);
-                                setManasikProgress(percent);
-                              }
-                            };
-                            reader.onload = (event) => {
-                              const base64 = event.target?.result as string;
-                              setEditingPackage({...editingPackage, manasikPdfUrl: base64});
-                              setManasikProgress(null);
-                              toast.success(`Buku Manasik (${sizeMB} MB) berhasil dimuat. Klik "Simpan Paket" jika sudah selesai.`);
-                            };
-                            reader.onerror = () => {
-                              setManasikProgress(null);
-                              toast.error('Gagal membaca file PDF. Silakan coba lagi.');
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                      />
-                      <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm border border-gray-100 group-hover:scale-105 group-hover:border-emerald-200 transition-all mb-2 text-emerald-600">
-                        <UploadCloud className="w-6 h-6" />
-                      </div>
-                      <p className="text-xs font-bold text-gray-800 group-hover:text-emerald-700 transition-colors">
-                        Klik atau Tarik File Buku Manasik (PDF) ke Sini
-                      </p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
-                        Format PDF &bull; Kapasitas Fleksibel hingga <span className="font-bold text-gray-600">150 MB</span>
-                      </p>
-                    </label>
-                  )}
-                </div>
               </form>
             </div>
             
@@ -4852,6 +5873,108 @@ export default function Admin() {
                       readOnly
                       value={editingSchedule.availableSeats} 
                       className="w-full border-gray-200 rounded-2xl bg-gray-100 border py-3 px-4 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Section Informasi Pembimbing & Muthawwif */}
+                <div className="pt-4 border-t border-gray-100 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                      <UserCheck className="w-4 h-4 text-amber-600" /> Informasi Pembimbing & Muthawwif Kloter
+                    </label>
+                    <span className="text-[10px] bg-amber-50 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                      Tampil di Portal Jemaah
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Nama Pembimbing / Ustaz</label>
+                      <input 
+                        type="text" 
+                        value={editingSchedule.muthawwifName || ''} 
+                        onChange={e => setEditingSchedule({...editingSchedule, muthawwifName: e.target.value})} 
+                        placeholder="Contoh: Ustadz Hanan Attaki"
+                        className="w-full border-gray-200 rounded-xl bg-white shadow-sm border py-2.5 px-3 text-sm focus:ring-2 focus:ring-amber-400 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Peran / Jabatan</label>
+                      <input 
+                        type="text" 
+                        value={editingSchedule.muthawwifRole || ''} 
+                        onChange={e => setEditingSchedule({...editingSchedule, muthawwifRole: e.target.value})} 
+                        placeholder="Contoh: Muthawwif Utama & Pembimbing Syariah"
+                        className="w-full border-gray-200 rounded-xl bg-white shadow-sm border py-2.5 px-3 text-sm focus:ring-2 focus:ring-amber-400 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Nomor WhatsApp Pembimbing</label>
+                      <input 
+                        type="text" 
+                        value={editingSchedule.muthawwifPhone || ''} 
+                        onChange={e => setEditingSchedule({...editingSchedule, muthawwifPhone: e.target.value})} 
+                        placeholder="Contoh: 081234567890"
+                        className="w-full border-gray-200 rounded-xl bg-white shadow-sm border py-2.5 px-3 text-sm focus:ring-2 focus:ring-amber-400 outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Foto Profil Pembimbing (URL / Upload)</label>
+                      <div className="flex gap-2 items-center">
+                        <input 
+                          type="text" 
+                          value={editingSchedule.muthawwifAvatarUrl || ''} 
+                          onChange={e => setEditingSchedule({...editingSchedule, muthawwifAvatarUrl: e.target.value})} 
+                          placeholder="https://..."
+                          className="w-full border-gray-200 rounded-xl bg-white shadow-sm border py-2.5 px-3 text-xs focus:ring-2 focus:ring-amber-400 outline-none truncate"
+                        />
+                        <label className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl cursor-pointer shrink-0 text-xs shadow-sm flex items-center justify-center" title="Unggah Foto Pembimbing">
+                          <Upload className="w-4 h-4" />
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                try {
+                                  toast.info('Mengunggah foto pembimbing...');
+                                  const uploadRes = await api.upload('/upload', file);
+                                  const newUrl = uploadRes.url || uploadRes.fileUrl;
+                                  if (newUrl) {
+                                    setEditingSchedule({...editingSchedule, muthawwifAvatarUrl: newUrl});
+                                    toast.success('Foto pembimbing berhasil diunggah!');
+                                  }
+                                } catch (err) {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => {
+                                    setEditingSchedule({...editingSchedule, muthawwifAvatarUrl: reader.result as string});
+                                    toast.success('Foto pembimbing dimuat.');
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Pesan & Pengumuman Bimbingan Manasik untuk Jemaah</label>
+                    <textarea 
+                      rows={3}
+                      value={editingSchedule.muthawwifNotes || ''} 
+                      onChange={e => setEditingSchedule({...editingSchedule, muthawwifNotes: e.target.value})} 
+                      placeholder="Masukkan panduan, arahan manasik, atau pesan penting untuk jemaah kloter ini..."
+                      className="w-full border-gray-200 rounded-xl bg-white shadow-sm border p-3 text-sm focus:ring-2 focus:ring-amber-400 outline-none"
                     />
                   </div>
                 </div>
@@ -5380,7 +6503,15 @@ export default function Admin() {
               </div>
               <div className="flex items-center space-x-2">
                 <button 
-                  onClick={() => openDataUrlInNewTab(previewFile.url)}
+                  onClick={() => downloadFile(previewFile.url, `${previewFile.title.replace(/\s+/g, '_')}.${isPdfUrl(previewFile.url) ? 'pdf' : 'png'}`)}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold rounded-xl transition-colors flex items-center gap-1.5 text-xs shadow-sm"
+                  title="Unduh File"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Unduh PDF</span>
+                </button>
+                <button 
+                  onClick={() => openDataUrlInNewTab(previewFile.url, previewFile.title)}
                   className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl transition-colors flex items-center gap-1.5 text-xs font-bold border border-emerald-200"
                   title="Buka di tab baru"
                 >
@@ -5395,20 +6526,38 @@ export default function Admin() {
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-auto bg-gray-100 p-4 flex items-center justify-center">
-              {previewFile.type === 'pdf' ? (
-                <iframe 
-                  src={previewFile.url} 
-                  className="w-full h-full rounded-xl border shadow-lg"
-                  title="PDF Preview"
-                />
-              ) : (
-                <img 
-                  src={previewFile.url} 
-                  alt="Preview" 
-                  className="max-w-full max-h-full object-contain shadow-2xl rounded-xl" 
-                />
-              )}
+            <div className="flex-1 overflow-hidden bg-slate-950 p-2 flex items-center justify-center">
+              {(() => {
+                const isPdf = isPdfUrl(previewFile.url) || previewFile.type === 'pdf';
+                const isImage = isImageUrl(previewFile.url) || previewFile.type === 'image';
+                const blobUrl = getBlobUrlFromDataUrl(previewFile.url);
+
+                if (isPdf) {
+                  return (
+                    <PdfViewer url={previewFile.url} title={previewFile.title} className="h-full w-full" />
+                  );
+                } else if (isImage) {
+                  return (
+                    <img 
+                      src={blobUrl} 
+                      alt="Preview" 
+                      className="max-w-full max-h-full object-contain shadow-2xl rounded-xl" 
+                    />
+                  );
+                } else {
+                  return (
+                    <div className="text-center p-8 space-y-3">
+                      <p className="font-bold text-gray-800">{previewFile.title}</p>
+                      <button 
+                        onClick={() => openDataUrlInNewTab(previewFile.url, previewFile.title)}
+                        className="px-4 py-2 bg-gold-500 text-slate-950 rounded-xl font-bold text-xs"
+                      >
+                        Buka Dokumen
+                      </button>
+                    </div>
+                  );
+                }
+              })()}
             </div>
             <div className="p-4 border-t bg-gray-50 flex justify-center">
               <button 

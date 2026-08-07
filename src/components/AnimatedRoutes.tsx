@@ -1,10 +1,9 @@
 import React from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import Home from '../pages/Home';
 import Login from '../pages/Login';
 import LoginAdmin from '../pages/LoginAdmin';
-import Mitra from '../pages/Mitra';
 import LoginMitra from '../pages/LoginMitra';
 import Admin from '../pages/Admin';
 import PackageDetail from '../pages/PackageDetail';
@@ -13,6 +12,7 @@ import DashboardMitra from '../pages/DashboardMitra';
 import Legalitas from '../pages/Legalitas';
 import Blog from '../pages/Blog';
 import KatalogPaket from '../pages/KatalogPaket';
+import Kemitraan from '../pages/Kemitraan';
 
 const pageVariants = {
   initial: { opacity: 0, y: 15 },
@@ -50,7 +50,7 @@ export default function AnimatedRoutes() {
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<AnimatedPage><Home /></AnimatedPage>} />
         <Route path="/login" element={<AnimatedPage><Login /></AnimatedPage>} />
-        <Route path="/mitra" element={<AnimatedPage><Mitra /></AnimatedPage>} />
+        <Route path="/mitra" element={<Navigate to="/mitra/login" replace />} />
         <Route path="/mitra/login" element={<AnimatedPage><LoginMitra /></AnimatedPage>} />
         <Route path="/admin/login" element={<AnimatedPage><LoginAdmin /></AnimatedPage>} />
         <Route path="/admin" element={<AnimatedPage><Admin /></AnimatedPage>} />
@@ -60,6 +60,7 @@ export default function AnimatedRoutes() {
         <Route path="/legalitas" element={<AnimatedPage><Legalitas /></AnimatedPage>} />
         <Route path="/blog" element={<AnimatedPage><Blog /></AnimatedPage>} />
         <Route path="/katalog" element={<AnimatedPage><KatalogPaket /></AnimatedPage>} />
+        <Route path="/kemitraan" element={<AnimatedPage><Kemitraan /></AnimatedPage>} />
       </Routes>
     </AnimatePresence>
   );

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
   Compass, 
@@ -67,7 +67,7 @@ const DEFAULT_HAJI_PACKAGES: HajiPackage[] = [
     duration: '24-26 Hari',
     priceUsd: 21500,
     priceIdrApprox: '340.000.000',
-    dpAmount: 'USD 5.000 / pax',
+    dpAmount: 'Rp 50.000.000 / pax',
     waitingTime: 'Tanpa Antre (Langsung Berangkat)',
     visaType: 'Visa Haji Mujamalah / Furoda Resmi',
     isBestSeller: true,
@@ -113,7 +113,7 @@ const DEFAULT_HAJI_PACKAGES: HajiPackage[] = [
       'Kartu Tanda Penduduk (KTP) & Kartu Keluarga (KK)',
       'Pasfoto Terbaru Latar Belakang Putih Ukuran 4x6 (6 lembar)',
       'Sertifikat Vaksin Meningitis & COVID-19 Lengkap',
-      'Membayar Uang Muka (DP) USD 5.000 / pax'
+      'Membayar Uang Muka (DP) Rp 50.000.000 / pax'
     ],
     itinerary: [
       { day: 'Hari 1-2', title: 'Keberangkatan Jakarta - Jeddah - Madinah', description: 'Berkumpul di Bandara Soekarno Hatta, proses check-in & pembagian dokumen. Penerbangan ke Jeddah/Madinah. Tiba & check-in hotel Madinah.' },
@@ -135,7 +135,7 @@ const DEFAULT_HAJI_PACKAGES: HajiPackage[] = [
     duration: '26 Hari',
     priceUsd: 14500,
     priceIdrApprox: '230.000.000',
-    dpAmount: 'USD 4.000 / pax',
+    dpAmount: 'Rp 40.000.000 / pax',
     waitingTime: 'Masa Tunggu ~5-7 Tahun (Siskohat Resmi)',
     visaType: 'Visa Haji Kuota Resmi Indonesia',
     isPopular: true,
@@ -174,7 +174,7 @@ const DEFAULT_HAJI_PACKAGES: HajiPackage[] = [
       'Fotokopi KTP & Kartu Keluarga (KK)',
       'Fotokopi Akta Kelahiran / Surat Nikah',
       'Pasfoto 3x4 & 4x6 Latar Putih (masing-masing 10 lembar)',
-      'Setoran Awal Porsi Kuota Haji Khusus USD 4.000'
+      'Setoran Awal Porsi Kuota Haji Khusus Rp 40.000.000'
     ],
     itinerary: [
       { day: 'Hari 1-3', title: 'Pemberangkatan & Madinah Munawwarah', description: 'Penerbangan dari Jakarta ke Madinah. Ziarah Raudhah & Masjid Nabawi.' },
@@ -191,7 +191,7 @@ const DEFAULT_HAJI_PACKAGES: HajiPackage[] = [
     duration: '30 Hari',
     priceUsd: 24800,
     priceIdrApprox: '390.000.000',
-    dpAmount: 'USD 5.000 / pax',
+    dpAmount: 'Rp 50.000.000 / pax',
     waitingTime: 'Tanpa Antre (Langsung Berangkat 2026)',
     visaType: 'Visa Haji Mujamalah + Visa Transit Turki',
     isBestSeller: false,
@@ -229,7 +229,7 @@ const DEFAULT_HAJI_PACKAGES: HajiPackage[] = [
       'Scan Paspor Asli Berlakunya minimal 9 bulan',
       'Dokumen Identitas KTP & Kartu Keluarga',
       'Pasfoto 4x6 Latar Belakang Putih',
-      'DP Pembayaran USD 5.000 / pax'
+      'DP Pembayaran Rp 50.000.000 / pax'
     ],
     itinerary: [
       { day: 'Hari 1-4', title: 'Transit & City Tour Istanbul Turki', description: 'Tiba di Istanbul. Mengunjungi Blue Mosque, Hagia Sophia, Topkapi Palace, dan Bosphorus Cruise.' },
@@ -241,6 +241,87 @@ const DEFAULT_HAJI_PACKAGES: HajiPackage[] = [
 ];
 
 export default function PaketHajiShowcase() {
+
+  const [packages, setPackages] = useState<HajiPackage[]>(DEFAULT_HAJI_PACKAGES);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isError, setIsError] = useState<boolean>(false);
+
+  useEffect(() => {
+    const fetchPackages = async () => {
+      setIsLoading(true);
+      setIsError(false);
+      try {
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        const response = await fetch(`${baseUrl}/api/packages`);
+        if (response.ok) {
+          const data = await response.json();
+          const hajiPackages = data.filter((p: any) => p.type?.toLowerCase() === 'haji');
+          if (hajiPackages.length > 0) {
+             const mapped = hajiPackages.map((p: any) => {
+                const hotels = (p.hotel || '').split(',').map((s: string) => s.trim());
+                const hMakkah = hotels[0] || 'Hotel Pilihan Makkah';
+                const hMadinah = hotels[1] || 'Hotel Pilihan Madinah';
+                
+                return {
+                id: p.id,
+                name: p.name,
+                category: p.type === 'haji' ? 'Haji' : 'Umrah',
+                categoryLabel: p.type === 'haji' ? 'Haji' : 'Umrah',
+                duration: p.duration || '9 Hari',
+                price: Number(p.price) || 0,
+                priceUsd: Math.round((Number(p.price) || 0) / 16000),
+                priceIdrApprox: (Number(p.price) || 0).toLocaleString('id-ID'),
+                waitingTime: 'Langsung Berangkat',
+                visaType: 'Visa Haji Mujamalah',
+                isPopular: false,
+                isBestSeller: false,
+                dpAmount: 'DP Rp 5.000.000',
+                imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+                airline: 'Saudia Airlines',
+                hotelMakkah: hMakkah,
+                hotelMakkahStars: 5,
+                hotelMakkahDistance: '±100m',
+                hotelMadinah: hMadinah,
+                hotelMadinahStars: 5,
+                hotelMadinahDistance: '±100m',
+                departureSchedule: p.departureDate ? new Date(p.departureDate).toLocaleDateString('id-ID', {month: 'long', year: 'numeric'}) : 'Lihat Jadwal',
+                seatsLeft: p.remainingSeats ?? (p.quota || 45),
+                highlights: (p.facilities || '').split(',').map((f:string)=>f.trim()).filter(Boolean),
+                includes: Array.isArray(p.description) ? p.description : [],
+                excludes: (() => {
+                  try {
+                    return Array.isArray(p.excludes) ? p.excludes : (typeof p.excludes === 'string' ? JSON.parse(p.excludes || '[]') : ['Pembuatan Paspor', 'Vaksin Meningitis', 'Pengeluaran Pribadi']);
+                  } catch(e) {
+                    return ['Pembuatan Paspor', 'Vaksin Meningitis', 'Pengeluaran Pribadi'];
+                  }
+                })(),
+                itinerary: p.itinerary || []
+             }});
+             setPackages(mapped);
+          }
+        } else {
+          setIsError(true);
+        }
+      } catch (error) {
+        console.error('Failed to fetch packages', error);
+        setIsError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchPackages();
+    
+    try {
+      const channel = new BroadcastChannel('golden_travel_updates');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'CATALOG_UPDATED') {
+          fetchPackages();
+        }
+      };
+      return () => channel.close();
+    } catch(e) {}
+  }, []);
+
   const [activeTab, setActiveTab] = useState<string>('semua');
   const [selectedPackage, setSelectedPackage] = useState<HajiPackage | null>(null);
   const [detailModalTab, setDetailModalTab] = useState<'fasilitas' | 'itinerary' | 'persyaratan'>('fasilitas');
@@ -251,7 +332,7 @@ export default function PaketHajiShowcase() {
   const [isHovered, setIsHovered] = useState<boolean>(false);
   const [activeIndex, setActiveIndex] = useState<number>(0);
 
-  const filteredPackages = DEFAULT_HAJI_PACKAGES.filter((pkg) => {
+  const filteredPackages = packages.filter((pkg) => {
     if (activeTab === 'semua') return true;
     return pkg.category === activeTab;
   });
@@ -445,9 +526,30 @@ export default function PaketHajiShowcase() {
           </div>
         </div>
 
-        {/* Horizontal Slider Track Container */}
-        <div className="relative group/carousel">
-          {/* Side Floating Controls for Desktop */}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-[#D4AF37]">
+            <div className="animate-spin w-12 h-12 border-4 border-[#D4AF37] border-t-transparent rounded-full mb-4"></div>
+            <p className="text-[#F3E5AB] text-lg font-medium">Memuat paket haji...</p>
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+            <div className="w-16 h-16 bg-[#D4AF37]/20 rounded-full flex items-center justify-center mb-4">
+              <Info className="w-8 h-8 text-[#D4AF37]" />
+            </div>
+            <h3 className="text-xl font-bold text-[#F3E5AB] mb-2">Gagal Terhubung ke Server</h3>
+            <p className="text-[#D4AF37]/80 max-w-md">Mohon maaf, kami tidak dapat mengambil data paket saat ini. Silakan periksa koneksi Anda atau coba lagi nanti.</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="mt-6 px-6 py-2.5 bg-[#D4AF37] hover:bg-[#B8860B] text-[#011E15] font-bold rounded-full transition-colors"
+            >
+              Coba Lagi
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Horizontal Slider Track Container */}
+            <div className="relative group/carousel">
+              {/* Side Floating Controls for Desktop */}
           <button
             onClick={scrollPrev}
             className="hidden xl:flex absolute left-[-24px] top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-[#011E15]/95 border-2 border-[#D4AF37] text-[#F3E5AB] hover:bg-[#D4AF37] hover:text-[#011E15] transition-all items-center justify-center shadow-2xl backdrop-blur-md opacity-0 group-hover/carousel:opacity-100 hover:scale-110"
@@ -520,12 +622,9 @@ export default function PaketHajiShowcase() {
                       <div className="space-y-1">
                         <div className="flex items-baseline gap-2">
                           <span className="font-serif text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-[#F3E5AB] via-[#D4AF37] to-[#B8860B] bg-clip-text text-transparent">
-                            USD {pkg.priceUsd.toLocaleString('en-US')}
+                            Rp {pkg.priceIdrApprox}
                           </span>
                           <span className="text-stone-300 text-xs">/ pax</span>
-                        </div>
-                        <div className="text-xs text-stone-300 font-medium">
-                          Est. Rp {pkg.priceIdrApprox} <span className="text-[10px] text-stone-400">(Kurs 15.800)</span>
                         </div>
                       </div>
                     </div>
@@ -619,6 +718,8 @@ export default function PaketHajiShowcase() {
             ))}
           </div>
         </div>
+        </>
+        )}
 
         {/* Guarantee Banner */}
         <div className="bg-gradient-to-r from-[#022A1F] via-[#043d2d] to-[#022A1F] rounded-3xl p-6 sm:p-8 border border-[#D4AF37]/50 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 backdrop-blur-md">
@@ -673,7 +774,7 @@ export default function PaketHajiShowcase() {
                     {selectedPackage.name}
                   </h3>
                   <div className="text-xl sm:text-2xl font-bold text-[#F3E5AB] mt-1 font-serif">
-                    USD {selectedPackage.priceUsd.toLocaleString('en-US')} <span className="text-xs font-sans text-stone-300 font-normal">(Est. Rp {selectedPackage.priceIdrApprox})</span>
+                    Rp {selectedPackage.priceIdrApprox}
                   </div>
                 </div>
 
@@ -861,7 +962,7 @@ export default function PaketHajiShowcase() {
                       <div className="space-y-2 text-xs text-stone-200">
                         <p>• <strong>Setoran DP Booking Seat:</strong> {selectedPackage.dpAmount} saat pendaftaran.</p>
                         <p>• <strong>Pelunasan Haji Furoda:</strong> Dilakukan saat penerbitan Visa Haji Furoda resmi oleh Kerajaan Arab Saudi.</p>
-                        <p>• <strong>Legalitas Resmi:</strong> Dikelola langsung oleh PT Golden Tour Haramain (PIHK Kemenag RI No. 912/2021).</p>
+                        <p>• <strong>Legalitas Resmi:</strong> Dikelola langsung oleh PT. Golden Tour Haramain (PIHK Kemenag RI No. 912/2021).</p>
                       </div>
                     </div>
                   </div>
@@ -874,7 +975,7 @@ export default function PaketHajiShowcase() {
                 <div>
                   <div className="text-xs text-stone-300">Biaya Investasi Haji:</div>
                   <div className="font-serif font-bold text-2xl text-[#F3E5AB]">
-                    USD {selectedPackage.priceUsd.toLocaleString('en-US')} <span className="text-xs font-sans text-stone-300 font-normal">(Est. Rp {selectedPackage.priceIdrApprox})</span>
+                    Rp {selectedPackage.priceIdrApprox}
                   </div>
                 </div>
 

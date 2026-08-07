@@ -58,6 +58,7 @@ export const Pembayaran: React.FC = () => {
   };
 
   const handleUpload = async () => {
+    if (uploading) return;
     if (!selectedFile || !invoice) return;
 
     setUploading(true);
@@ -291,14 +292,21 @@ export const Pembayaran: React.FC = () => {
             </div>
 
             <div className="mt-8 pt-8 border-t border-gray-100 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
-                  <Banknote className="w-4 h-4" />
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                    <Banknote className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">Rekening Tujuan</p>
+                    <p className="text-xs font-bold text-gray-800">Bank Mandiri</p>
+                    <p className="text-xs font-mono font-bold text-blue-600 tracking-wider">1090064995673</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase">Rekening Tujuan</p>
-                  <p className="text-xs font-bold text-gray-800">Bank Syariah Indonesia (BSI)</p>
-                  <p className="text-xs font-mono font-bold text-blue-600 tracking-wider">7788 9900 11</p>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Seluruh Rekening Atas Nama:</p>
+                  <p className="text-sm font-black text-slate-900">PT Golden Tour Haramain</p>
                 </div>
               </div>
               <p className="text-[10px] text-gray-400 italic">

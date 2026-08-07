@@ -103,21 +103,68 @@ export const Dashboard: React.FC = () => {
         </div>
       </section>
 
-      {/* Package Info (if exists) */}
+      {/* Package & Schedule Info (if exists) */}
       {registration?.package && (
         <section className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100">
-          <h2 className="text-xl font-bold text-gray-800 mb-6">Paket Terpilih</h2>
-          <div className="flex flex-col md:flex-row gap-6">
-            <img 
-              src={registration.package.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80'} 
-              alt={registration.package.name}
-              className="w-full md:w-48 h-32 object-cover rounded-2xl"
-            />
-            <div className="flex-1">
-              <h3 className="text-lg font-bold text-gray-900 mb-1">{registration.package.name}</h3>
-              <p className="text-sm text-gray-500 mb-4">{registration.package.duration} • Keberangkatan: {registration.package.departureDate ? new Date(registration.package.departureDate).toLocaleDateString('id-ID') : 'Segera Ditentukan'}</p>
-              <div className="text-2xl font-black text-gray-900">
-                Rp {Number(registration.totalAmount || registration.package.price).toLocaleString('id-ID')}
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-800">Detail Paket & Jadwal</h2>
+            {registration.schedule && (
+              <span className="bg-matcha-900 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
+                Kloter: {registration.schedule.name || 'Terjadwal'}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col md:flex-row gap-8">
+            <div className="w-full md:w-64 shrink-0">
+              <div className="relative group">
+                <img 
+                  src={registration.package.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80'} 
+                  alt={registration.package.name}
+                  className="w-full h-48 object-cover rounded-2xl shadow-md group-hover:scale-[1.02] transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent rounded-2xl flex items-end p-4">
+                  <span className="text-white font-black text-sm uppercase tracking-tighter">{registration.package.type}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex-1 space-y-6">
+              <div>
+                <h3 className="text-2xl font-black text-gray-900 leading-tight mb-2">{registration.package.name}</h3>
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex items-center gap-1.5 bg-gray-100 px-3 py-1.5 rounded-xl text-xs font-bold text-gray-600">
+                    <Clock className="w-4 h-4 text-gold-500" />
+                    {registration.package.duration}
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-gold-50 px-3 py-1.5 rounded-xl text-xs font-bold text-gold-700">
+                    <Plane className="w-4 h-4 text-gold-500" />
+                    {registration.schedule?.departureDate 
+                      ? new Date(registration.schedule.departureDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+                      : registration.package.departureDate 
+                        ? new Date(registration.package.departureDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+                        : 'Segera Ditentukan'}
+                  </div>
+                  {registration.schedule?.airline && (
+                    <div className="flex items-center gap-1.5 bg-blue-50 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-700">
+                      <Plane className="w-4 h-4" />
+                      {registration.schedule.airline}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-gray-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Biaya Perjalanan</p>
+                  <div className="text-3xl font-black text-gray-900">
+                    Rp {Number(registration.totalAmount || registration.package.price).toLocaleString('id-ID')}
+                  </div>
+                </div>
+                {registration.status === 'LUNAS' && (
+                  <div className="flex items-center gap-2 text-emerald-600 font-black text-sm">
+                    <CheckCircle2 className="w-5 h-5" />
+                    LUNAS
+                  </div>
+                )}
               </div>
             </div>
           </div>

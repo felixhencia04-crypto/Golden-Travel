@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { api } from '../utils/api';
 import { motion, AnimatePresence } from 'motion/react';
+import PdfViewer from './PdfViewer';
 
 export default function DocumentVerification() {
   const [documents, setDocuments] = useState<any[]>([]);
@@ -32,13 +33,20 @@ export default function DocumentVerification() {
   };
 
   const handleVerify = async (id: string, status: 'approved' | 'rejected') => {
+    const docId = id || selectedDoc?.id || selectedDoc?.documentId || selectedDoc?.document_id;
+    console.log("ID Payload yang dikirim:", docId);
+    if (!docId || docId === '.' || (typeof docId === 'string' && docId.startsWith('.'))) {
+      toast.error("ID Dokumen tidak valid atau berupa titik (.)");
+      return;
+    }
     try {
       setSubmitting(true);
-      await api.verifyDocument(id, status, status === 'rejected' ? rejectionReason : undefined);
-      setDocuments(prev => prev.filter(d => d.id !== id));
+      await api.verifyDocument(docId, status, status === 'rejected' ? rejectionReason : undefined);
+      setDocuments(prev => prev.filter(d => d.id !== docId && d.documentId !== docId));
       setIsRejecting(false);
       setRejectionReason('');
       setSelectedDoc(null);
+      toast.success(status === 'approved' ? 'Dokumen berhasil disetujui' : 'Dokumen ditolak');
     } catch (error) {
       console.error('Verification failed:', error);
       toast.error('Gagal memproses verifikasi');
@@ -202,13 +210,9 @@ export default function DocumentVerification() {
                       Buka di Tab Baru <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
-                  <div className="rounded-2xl border border-gray-100 overflow-hidden bg-gray-50 aspect-[4/3] relative group">
+                  <div className="rounded-2xl border border-gray-100 overflow-hidden bg-slate-900 min-h-[350px] relative group flex items-center justify-center">
                     {(selectedDoc.fileUrl?.startsWith('data:application/pdf') || selectedDoc.fileUrl?.endsWith('.pdf')) ? (
-                      <iframe 
-                        src={selectedDoc.fileUrl} 
-                        className="w-full h-full border-none"
-                        title="PDF Preview"
-                      />
+                      <PdfViewer url={selectedDoc.fileUrl} title={selectedDoc.docType || 'Pratinjau Dokumen'} className="h-[380px] w-full" />
                     ) : (
                       <img 
                         src={selectedDoc.fileUrl} 

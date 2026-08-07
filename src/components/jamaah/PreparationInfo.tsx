@@ -269,7 +269,7 @@ export default function PreparationInfo({ manifest, registration }: PreparationI
                 </div>
                 <div>
                   <h3 className="font-extrabold text-gray-900 text-lg">Kartu Pass Manifes Keberangkatan</h3>
-                  <p className="text-xs text-gray-500">PT Golden Tour Haramain Umrah & Hajj Services</p>
+                  <p className="text-xs text-gray-500">PT. Golden Tour Haramain Umrah & Hajj Services</p>
                 </div>
               </div>
               <button

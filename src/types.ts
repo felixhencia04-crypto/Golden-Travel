@@ -11,6 +11,12 @@ export interface Package {
   isAvailable?: boolean;
   scheduleUrl?: string;
   quota?: number;
+  departureDate?: string;
+  muthawwifName?: string;
+  muthawwifRole?: string;
+  muthawwifPhone?: string;
+  muthawwifAvatarUrl?: string;
+  muthawwifNotes?: string;
 }
 
 export interface Schedule {
@@ -20,6 +26,16 @@ export interface Schedule {
   itineraryPdfUrl: string;
   availableSeats: number;
   totalSeats: number;
+  days?: string;
+  packageName?: string;
+  package?: Package;
+  name?: string;
+  airline?: string;
+  muthawwifName?: string;
+  muthawwifRole?: string;
+  muthawwifPhone?: string;
+  muthawwifAvatarUrl?: string;
+  muthawwifNotes?: string;
 }
 
 export interface Announcement {
@@ -86,7 +102,8 @@ export type RegistrationStatus =
   | 'LUNAS'
   | 'SIAP_BERANGKAT'
   | 'BERANGKAT'
-  | 'SELESAI';
+  | 'SELESAI'
+  | 'CANCELLED';
 
 export interface Registration {
   id: string;
@@ -99,6 +116,9 @@ export interface Registration {
   package?: Package;
   createdAt: string;
   updatedAt: string;
+  ordererName?: string;
+  ordererPhone?: string;
+  ordererEmail?: string;
 }
 
 export interface User {
@@ -152,6 +172,7 @@ export interface CRMRegistration extends Registration {
   schedule?: Schedule;
   paymentProgress: number;
   hasRequiredDocs: boolean;
+  manifests?: any[];
 }
 
 export interface Activity {

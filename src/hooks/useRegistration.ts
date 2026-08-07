@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -28,17 +28,18 @@ export function useRegistration() {
   const [user, setUser] = useState<any>(null);
   const [dbUser, setDbUser] = useState<any>(cache?.dbUser || null);
 
-  const refreshData = async (silent = false) => {
+  const refreshData = React.useCallback(async (silent = false) => {
     if (!silent && !cache) setLoading(true);
     try {
       const results = await Promise.all([
         api.get('/jamaah/registration').catch((err) => {
           console.error("refreshData: Registration fetch failed", err);
-          if (err.message?.includes('Sesi') || err.message?.includes('login')) {
-            auth.signOut().catch(() => {});
-            localStorage.removeItem('jamaah_token');
-            sessionStorage.removeItem(JAMAAH_CACHE_KEY);
-            window.location.href = '/login';
+          if (err.status === 401 || err.message?.includes('Unauthorized')) {
+            const hasToken = !!localStorage.getItem('jamaah_token');
+            if (!hasToken) {
+              auth.signOut().catch(() => {});
+              sessionStorage.removeItem(JAMAAH_CACHE_KEY);
+            }
           }
           return { __error: true };
         }),
@@ -81,7 +82,7 @@ export function useRegistration() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [cache]);
 
   useEffect(() => {
     const hasJamaahToken = !!localStorage.getItem('jamaah_token');

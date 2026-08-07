@@ -13,7 +13,6 @@ import PaketUmrahShowcase from '../components/PaketUmrahShowcase';
 import PaketHajiShowcase from '../components/PaketHajiShowcase';
 import TestimonialsShowcase from '../components/TestimonialsShowcase';
 import DepartureGalleryShowcase from '../components/DepartureGalleryShowcase';
-import VideoProfileShowcase from '../components/VideoProfileShowcase';
 
 export default function Home() {
   const logoImg = useLogo();
@@ -107,22 +106,22 @@ export default function Home() {
         <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
           <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full border-[1.5px] border-[#f59e0b] overflow-hidden flex items-center justify-center bg-[#064e3b] shrink-0 shadow-sm">
             {logoImg ? (
-              <img src={logoImg} alt="Logo Golden Travel" className="w-full h-full object-contain p-0.5 sm:p-1" />
+              <img src={logoImg} alt="Logo PT. Golden Tour Haramain" className="w-full h-full object-contain p-0.5 sm:p-1" />
             ) : (
               <span className="font-serif font-bold text-[#D4AF37] text-base sm:text-lg">G</span>
             )}
           </div>
           <div className="min-w-0">
-            <h2 className="font-serif text-xs min-[360px]:text-sm sm:text-lg md:text-xl font-black text-[#064e3b] tracking-wider m-0 leading-tight whitespace-nowrap">GOLDEN TRAVEL</h2>
-            <p className="text-[0.48rem] min-[360px]:text-[0.56rem] sm:text-[0.65rem] md:text-[0.7rem] text-[#b45309] font-extrabold tracking-[0.02em] min-[360px]:tracking-[0.05em] sm:tracking-[0.15em] uppercase m-0 mt-0.5 whitespace-nowrap">PT GOLDEN TOUR HARAMAIN</p>
+            <h2 className="font-serif text-xs min-[360px]:text-sm sm:text-lg md:text-xl font-black text-[#064e3b] tracking-wider m-0 leading-tight whitespace-nowrap uppercase">GOLDEN TRAVEL</h2>
+            <p className="text-[0.48rem] min-[360px]:text-[0.56rem] sm:text-[0.65rem] md:text-[0.7rem] text-[#b45309] font-extrabold tracking-[0.02em] min-[360px]:tracking-[0.05em] sm:tracking-[0.15em] uppercase m-0 mt-0.5 whitespace-nowrap">PT. GOLDEN TOUR HARAMAIN</p>
           </div>
         </div>
         
         {/* Desktop Menu */}
-        <nav className="hidden lg:flex gap-5 xl:gap-8 text-xs xl:text-sm font-semibold items-center">
+        <nav className="hidden lg:flex gap-4 xl:gap-7 text-xs xl:text-sm font-semibold items-center">
           <a 
             href="#" 
-            className={`pb-1 border-b-2 transition-all duration-200 ${
+            className={`pb-1 border-b-2 whitespace-nowrap transition-all duration-200 ${
               activeSection === 'beranda' 
                 ? 'text-[#064e3b] font-bold border-[#064e3b]' 
                 : 'text-[#1f3a30] hover:text-[#064e3b] border-transparent'
@@ -133,7 +132,7 @@ export default function Home() {
           </a>
           <a 
             href="#tentang-kami" 
-            className={`pb-1 border-b-2 transition-all duration-200 ${
+            className={`pb-1 border-b-2 whitespace-nowrap transition-all duration-200 ${
               activeSection === 'tentang-kami' 
                 ? 'text-[#064e3b] font-bold border-[#064e3b]' 
                 : 'text-[#1f3a30] hover:text-[#064e3b] border-transparent'
@@ -142,12 +141,12 @@ export default function Home() {
           >
             Tentang Kami
           </a>
-          <Link to="/legalitas" className="text-[#1f3a30] hover:text-[#064e3b] transition-colors pb-1 border-b-2 border-transparent">
+          <Link to="/legalitas" className="text-[#1f3a30] hover:text-[#064e3b] transition-colors pb-1 border-b-2 border-transparent whitespace-nowrap">
             Legalitas
           </Link>
           <a 
             href="#pilihan-paket" 
-            className={`pb-1 border-b-2 transition-all duration-200 ${
+            className={`pb-1 border-b-2 whitespace-nowrap transition-all duration-200 ${
               activeSection === 'pilihan-paket' 
                 ? 'text-[#064e3b] font-bold border-[#064e3b]' 
                 : 'text-[#1f3a30] hover:text-[#064e3b] border-transparent'
@@ -158,7 +157,7 @@ export default function Home() {
           </a>
           <a 
             href="#pilihan-haji" 
-            className={`pb-1 border-b-2 transition-all duration-200 ${
+            className={`pb-1 border-b-2 whitespace-nowrap transition-all duration-200 ${
               activeSection === 'pilihan-haji' 
                 ? 'text-[#064e3b] font-bold border-[#064e3b]' 
                 : 'text-[#1f3a30] hover:text-[#064e3b] border-transparent'
@@ -169,7 +168,7 @@ export default function Home() {
           </a>
           <a 
             href="#galeri" 
-            className={`pb-1 border-b-2 transition-all duration-200 ${
+            className={`pb-1 border-b-2 whitespace-nowrap transition-all duration-200 ${
               activeSection === 'galeri' 
                 ? 'text-[#064e3b] font-bold border-[#064e3b]' 
                 : 'text-[#1f3a30] hover:text-[#064e3b] border-transparent'
@@ -178,7 +177,7 @@ export default function Home() {
           >
             Galeri
           </a>
-          <Link to="/mitra" className="text-[#1f3a30] hover:text-[#064e3b] transition-colors pb-1 border-b-2 border-transparent">
+          <Link to="/kemitraan" className="text-[#1f3a30] hover:text-[#064e3b] transition-colors pb-1 border-b-2 border-transparent font-medium whitespace-nowrap">
             Kemitraan
           </Link>
         </nav>
@@ -289,8 +288,8 @@ export default function Home() {
               <span>Galeri Keberangkatan</span>
               <span className="text-xs text-[#064e3b]">›</span>
             </a>
-            <Link to="/mitra" className="flex items-center justify-between py-2.5 px-3 rounded-lg text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]" onClick={() => setMobileMenuOpen(false)}>
-              <span>Program Kemitraan</span>
+            <Link to="/kemitraan" className="flex items-center justify-between py-2.5 px-3 rounded-lg text-gray-700 font-medium hover:bg-stone-50 hover:text-[#064e3b]" onClick={() => setMobileMenuOpen(false)}>
+              <span>Info Kemitraan</span>
               <span className="text-xs text-gray-400">›</span>
             </Link>
           </div>
@@ -365,7 +364,7 @@ export default function Home() {
               >
                 <img 
                   src={direkturImgSrc} 
-                  alt="Ustadz Ahmad Daud - Direktur Utama PT. Golden Tour Haramain" 
+                  alt="Ustadz Ahmad Daud - Direktur Utama Golden Travel" 
                   className="w-full h-auto max-h-[380px] sm:max-h-[420px] object-contain mx-auto drop-shadow-[0_20px_35px_rgba(0,0,0,0.7)]"
                   onError={() => {
                     if (direkturImgSrc === '/owner.png') {
@@ -383,7 +382,7 @@ export default function Home() {
                   Ustadz Ahmad Daud
                 </h3>
                 <p className="text-[#D4AF37] text-sm sm:text-base font-semibold tracking-wide">
-                  Direktur Utama PT. Golden Tour Haramain
+                  Direktur Utama Golden Travel
                 </p>
                 <div className="pt-1.5 flex items-center justify-center gap-1.5 text-xs sm:text-sm text-[#10B981] font-medium">
                   <CheckCircle2 className="w-4 h-4 text-[#10B981] shrink-0" />
@@ -438,7 +437,7 @@ export default function Home() {
           <div className="text-center max-w-4xl mx-auto space-y-4">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#083829] border border-[#14533e] text-[#e5c158] text-xs font-semibold tracking-widest uppercase shadow-sm">
               <Sparkles className="w-3.5 h-3.5 text-[#e5c158]" />
-              <span>TENTANG GOLDEN TRAVEL</span>
+              <span>TENTANG PT. GOLDEN TOUR HARAMAIN</span>
             </div>
             
             <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold text-white leading-tight tracking-tight">
@@ -724,10 +723,6 @@ export default function Home() {
 
       {/* Gallery Section - Departure Gallery Showcase Component */}
       <DepartureGalleryShowcase />
-
-      {/* Video Profile & Special Documentary Section */}
-      <VideoProfileShowcase />
-
       {/* Footer */}
       <footer 
         className="bg-[#01140e] bg-cover bg-center bg-no-repeat border-t-2 border-[#D4AF37]/60 pt-12 sm:pt-16 pb-8 px-5 sm:px-8 md:px-12 lg:px-20 shadow-[0_-15px_40px_rgba(0,0,0,0.6)] relative z-20 text-xs sm:text-sm text-stone-200 overflow-hidden"
@@ -747,8 +742,8 @@ export default function Home() {
                     <img src={logoImg} alt="Logo Golden Travel" className="w-full h-full object-contain" />
                   </div>
                   <div>
-                    <h3 className="font-serif text-lg font-bold text-white m-0 leading-tight tracking-wide">GOLDEN TRAVEL</h3>
-                    <span className="text-[10px] text-[#D4AF37] font-extrabold tracking-widest uppercase block">PT GOLDEN TOUR HARAMAIN</span>
+                    <h3 className="font-serif text-lg font-bold text-white m-0 leading-tight tracking-wide">PT. GOLDEN TOUR HARAMAIN</h3>
+                    <span className="text-[10px] text-[#D4AF37] font-extrabold tracking-widest uppercase block">PT. GOLDEN TOUR HARAMAIN OFFICIAL</span>
                   </div>
                 </div>
                 
@@ -789,7 +784,7 @@ export default function Home() {
                 <li><a href="#tentang-kami" className="hover:text-[#F3E5AB] transition-all flex items-center gap-1.5 group"><span className="text-[#D4AF37] group-hover:translate-x-1 transition-transform">›</span> Tentang Golden Travel</a></li>
                 <li><Link to="/legalitas" className="hover:text-[#F3E5AB] transition-all flex items-center gap-1.5 group"><span className="text-[#D4AF37] group-hover:translate-x-1 transition-transform">›</span> Legalitas Resmi Kemenag RI</Link></li>
                 <li><a href="#galeri" className="hover:text-[#F3E5AB] transition-all flex items-center gap-1.5 group"><span className="text-[#D4AF37] group-hover:translate-x-1 transition-transform">›</span> Galeri Keberangkatan Jemaah</a></li>
-                <li><Link to="/mitra" className="hover:text-[#F3E5AB] transition-all flex items-center gap-1.5 group"><span className="text-[#D4AF37] group-hover:translate-x-1 transition-transform">›</span> Program Kemitraan Travel Agent</Link></li>
+                <li><Link to="/mitra/login" className="hover:text-[#F3E5AB] transition-all flex items-center gap-1.5 group"><span className="text-[#D4AF37] group-hover:translate-x-1 transition-transform">›</span> Daftar Mitra Agent</Link></li>
               </ul>
               
               <div className="pt-3 border-t border-[#D4AF37]/20 flex flex-col gap-2">
@@ -850,7 +845,7 @@ export default function Home() {
 
           {/* Copyright & Legal links */}
           <div className="pt-6 border-t border-[#D4AF37]/25 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-stone-400 font-light">
-            <p>&copy; {new Date().getFullYear()} PT Golden Tour Haramain Haji & Umroh. Hak Cipta Dilindungi.</p>
+            <p>&copy; {new Date().getFullYear()} Golden Travel Haji & Umroh. Hak Cipta Dilindungi.</p>
             <div className="flex items-center gap-4 text-xs">
               <a href="#" className="hover:text-[#F3E5AB] transition-colors">Kebijakan Privasi</a>
               <span className="text-[#D4AF37]/40">•</span>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api, getAdminToken } from '../lib/api';
 
 const ADMIN_CACHE_KEY = 'cached_admin_portal_data';
@@ -29,24 +29,43 @@ export function useAdminData() {
   const [broadcast, setBroadcast] = useState<any[]>(cache?.broadcast || []);
   const [manifest, setManifest] = useState<any[]>(cache?.manifest || []);
 
-  const refreshData = async (silent = false) => {
+  const [lastRefresh, setLastRefresh] = useState<number>(0);
+
+  const refreshData = React.useCallback(async (silent = false) => {
+    // Throttle refresh calls to at most once every 5 seconds unless it's a forced non-silent refresh
+    const now = Date.now();
+    if (silent && now - lastRefresh < 5000) {
+      console.log("[Admin] Skipping silent refresh - throttled");
+      return;
+    }
+    
+    setLastRefresh(now);
+    
     // If we already have cache, keep silent true by default for zero visual lag
     if (!silent && !cache) setLoading(true);
+
     try {
-      const results = await Promise.all([
+      // Chunk requests to prevent rate limit (HTTP 429) and db connection pool exhaustion
+      const chunk1 = await Promise.all([
         api.get('/admin/users').catch((e) => { console.warn("Admin users fetch error:", e?.message); return { __error: true }; }),
         api.get('/admin/registrations').catch((e) => { console.warn("Admin registrations fetch error:", e?.message); return { __error: true }; }),
         api.get('/packages').catch((e) => { console.warn("Packages fetch error:", e?.message); return { __error: true }; }),
+      ]);
+      const chunk2 = await Promise.all([
         api.get('/admin/schedules').catch((e) => { console.warn("Schedules fetch error:", e?.message); return { __error: true }; }),
         api.get('/admin/dashboard-stats').catch((e) => { console.warn("Stats fetch error:", e?.message); return { __error: true }; }),
         api.get('/admin/action-center').catch((e) => { console.warn("Action center fetch error:", e?.message); return { __error: true }; }),
+      ]);
+      const chunk3 = await Promise.all([
         api.get('/admin/equipment').catch(() => ({ __error: true })),
         api.get('/admin/broadcast').catch(() => ({ __error: true })),
         api.get('/admin/manifest').catch(() => ({ __error: true })),
         api.get('/users/me').catch(() => ({ __error: true }))
       ]);
 
-      const [u, r, p, s, ds, ac, eqData, brData, mnData, me] = results;
+      const [u, r, p] = chunk1;
+      const [s, ds, ac] = chunk2;
+      const [eqData, brData, mnData, me] = chunk3;
 
       if (u !== undefined && !(u as any)?.__error) setUsers(Array.isArray(u) ? u : []);
       if (r !== undefined && !(r as any)?.__error) setRegistrations(Array.isArray(r) ? r : []);
@@ -91,7 +110,7 @@ export function useAdminData() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [cache, lastRefresh]);
 
   useEffect(() => {
     const adminToken = getAdminToken();

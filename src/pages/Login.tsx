@@ -44,10 +44,11 @@ export default function Login() {
 
     setIsLoading(true); 
     localStorage.removeItem('admin_token');
+    localStorage.removeItem('mitra_token');
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('mitra_token');
+    sessionStorage.removeItem('cached_jamaah_portal_data');
     
-    let user: any = null;
-
-    // 1. Try direct backend auth first for instant speed & high reliability
     try {
       const directRes = await api.post('/auth/direct-auth', {
         action: isRegister ? 'register' : 'login',
@@ -60,54 +61,35 @@ export default function Login() {
       if (directRes.token) {
         localStorage.setItem('jamaah_token', directRes.token);
       }
-      user = directRes.user;
-
-      // Try Firebase sign-in in background if possible for auth state sync
-      try {
-        if (isRegister) {
-          await createUserWithEmailAndPassword(auth, email, password);
-        } else {
-          await signInWithEmailAndPassword(auth, email, password);
-        }
-      } catch (fbErr) {
-        // Firebase error non-blocking if direct-auth succeeded
+      
+      const user = directRes.user;
+      if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
       }
 
-    } catch (directErr: any) {
-      console.warn('Direct auth failed, attempting Firebase Auth + Sync...', directErr);
-      try {
-        if (isRegister) {
-          await createUserWithEmailAndPassword(auth, email, password);
-        } else {
-          const { setPersistence, browserLocalPersistence, browserSessionPersistence } = await import('firebase/auth');
-          await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-          await signInWithEmailAndPassword(auth, email, password);
-        }
-        
-        const response = await api.post('/auth/sync', { name: isRegister ? name : undefined, role: 'jamaah' });
-        if (response.token) {
-          localStorage.setItem('jamaah_token', response.token);
-        }
-        user = response.user;
-      } catch (error: any) {
-        console.error('Login/Register error:', error);
-        toast.error(error.message || (isRegister ? 'Pendaftaran gagal.' : 'Login gagal. Periksa email dan password Anda.'));
-        setIsLoading(false);
-        return;
-      }
-    }
-
-    if (user) {
-      toast.success(isRegister ? 'Pendaftaran berhasil! Selamat datang.' : 'Login berhasil!');
-      if (user.role === 'admin') {
-        navigate('/admin');
-      } else if (user.role === 'mitra') {
-        navigate('/mitra/dashboard');
+      // Fire-and-forget Firebase Auth sync in background so registration is instant and non-blocking
+      if (isRegister) {
+        createUserWithEmailAndPassword(auth, email, password).catch((e) => console.log('Firebase background reg notice:', e?.message));
       } else {
-        navigate('/dashboard');
+        signInWithEmailAndPassword(auth, email, password).catch((e) => console.log('Firebase background login notice:', e?.message));
       }
+
+      if (user) {
+        toast.success(directRes.message || (isRegister ? 'Pendaftaran berhasil! Selamat datang.' : 'Login berhasil!'));
+        if (user.role === 'admin') {
+          navigate('/admin');
+        } else if (user.role === 'mitra') {
+          navigate('/mitra/dashboard');
+        } else {
+          navigate('/dashboard');
+        }
+      }
+    } catch (directErr: any) {
+      console.error('Login/Register error:', directErr);
+      toast.error(directErr.message || (isRegister ? 'Pendaftaran gagal.' : 'Login gagal. Periksa email dan password Anda.'));
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
 
@@ -120,6 +102,7 @@ export default function Login() {
       const googleResult = await signInWithPopup(auth, provider);
       const response = await api.post('/auth/sync', {
         name: googleResult.user.displayName,
+        email: googleResult.user.email,
         role: 'jamaah'
       });
       if (response.token) {
@@ -140,9 +123,11 @@ export default function Login() {
       if (error.code === 'auth/unauthorized-domain') {
         toast.error('Domain ' + window.location.hostname + ' belum diizinkan di Firebase Console. Silakan tambahkan di Authentication > Settings > Authorized Domains.');
       } else if (error.code === 'auth/operation-not-allowed') {
-        toast.error('Metode login Google belum diaktifkan di Firebase Console. Silakan aktifkan di Authentication > Sign-in method.');
+        toast.error('Metode login Google belum diaktifkan di Firebase Console.');
       } else if (error.code === 'auth/popup-closed-by-user') {
         toast.error('Jendela login ditutup sebelum selesai.');
+      } else if (error.code === 'auth/popup-blocked') {
+        toast.error('Pop-up diblokir oleh peramban. Izinkan pop-up untuk login Google.');
       } else {
         toast.error('Login dengan Google gagal: ' + (error.message || 'Kesalahan tidak diketahui'));
       }
@@ -498,7 +483,7 @@ export default function Login() {
                       <img src={logoImg} alt="Logo" className="w-full h-full object-contain rounded-full" />
                   </div>
                   <div className="brand-text-group">
-                      <h1>GOLDEN TRAVEL</h1>
+                      <h1>GOLDEN TOUR HARAMAIN</h1>
                       <span>PT. GOLDEN TOUR HARAMAIN</span>
                   </div>
               </div>
@@ -507,7 +492,7 @@ export default function Login() {
                   <div className="badge-exclusive">✨ PORTAL EKSKLUSIF JEMAAH</div>
                   <h2 className="jamaah-hero-title">Melayani Perjalanan Suci <br/><span className="gold-text">Sepenuh Hati</span></h2>
                   <p className="jamaah-hero-desc">
-                      Selamat datang di ruang digital khusus Jemaah PT Golden Tour Haramain. Akses seluruh kebutuhan persiapan ibadah Anda dengan mudah, tenang, dan terorganisir dalam satu genggaman.
+                      Selamat datang di ruang digital khusus Jemaah Golden Tour Haramain. Akses seluruh kebutuhan persiapan ibadah Anda dengan mudah, tenang, dan terorganisir dalam satu genggaman.
                   </p>
 
                   {/* Daftar Fitur Portal Jemaah */}

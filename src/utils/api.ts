@@ -51,7 +51,7 @@ export const api = {
   // Admin Endpoints
   getPendingVerifications: () => fetchApi('/admin/pending-verifications'),
   getAdminDashboardStats: () => fetchApi('/admin/dashboard-stats'),
-  getPendingDocuments: () => fetchApi('/admin/pending-documents'),
+  getPendingDocuments: () => fetchApi('/admin/dokumens/pending'),
   verifyDocument: (id: string, status: 'approved' | 'rejected', reason?: string) => 
     fetchApi(`/admin/documents/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ status, reason }) }),
   getFinancialReport: () => fetchApi('/admin/financial-report'),
@@ -60,8 +60,8 @@ export const api = {
   getJamaahDashboardInfo: () => fetchApi('/jamaah/dashboard-info'),
   getJamaahDocuments: () => fetchApi('/jamaah/documents'),
   getJamaahInvoice: () => fetchApi('/jamaah/invoice'),
-  uploadDocument: (data: { docType: string, fileUrl: string }) => 
-    fetchApi('/documents/upload', { method: 'POST', body: JSON.stringify(data) }),
+  uploadDocument: (data: { docType: string, fileUrl: string; registrationId?: string }) => 
+    fetchApi('/documents', { method: 'POST', body: JSON.stringify(data) }),
   
   verifyPayment: (id: string, status: 'approved' | 'rejected', reason?: string) => 
     fetchApi(`/admin/payments/${id}/verify`, { method: 'PATCH', body: JSON.stringify({ status, reason }) }),

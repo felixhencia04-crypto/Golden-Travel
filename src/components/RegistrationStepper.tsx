@@ -2,37 +2,36 @@ import React, { useState } from 'react';
 import { Check, UploadCloud, Plus, Minus, X, Image as ImageIcon, ArrowRight, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-export type RegistrationStatus = 
-  | 'package_selected' 
-  | 'bio_filled' 
-  | 'documents_uploaded' 
-  | 'dp1_paid' 
-  | 'dp2_paid' 
-  | 'fully_paid' 
-  | 'visa_ticket_ready';
+export type RegistrationStatus = string;
 
 interface RegistrationStepperProps {
   currentStatus: RegistrationStatus;
   pendingPaymentStep?: string;
   computedPaymentStep?: string;
   isDocumentPending?: boolean;
+  isDocsComplete?: boolean;
   onNavigate: (tabId: string, paymentMode?: 'step' | 'full') => void;
   onResetPackage?: () => void;
   selectedPackageName?: string;
   paxCount?: number;
   packagePrice?: number;
+  approvedTotal?: number;
+  sisaTagihan?: number;
 }
 
 export default function RegistrationStepper({ 
   currentStatus, 
   pendingPaymentStep,
   isDocumentPending,
+  isDocsComplete,
   onNavigate,
   onResetPackage,
   selectedPackageName,
   computedPaymentStep,
   paxCount = 1,
   packagePrice = 36000000,
+  approvedTotal,
+  sisaTagihan,
 }: RegistrationStepperProps) {
   
   const navigate = useNavigate();
@@ -59,20 +58,37 @@ export default function RegistrationStepper({
       currentIdx = 1; 
   }
 
+  // Determine if actually lunas - Must have a package selected and zero/near-zero balance
+  const isTrulyLunas = hasSelectedPackage && ((sisaTagihan !== undefined && sisaTagihan <= 100) || computedPaymentStep === 'lunas');
 
   // Override based on currentStatus for realistic flow
   switch (currentStatus) {
-    case 'bio_filled': currentIdx = Math.max(currentIdx, 2); break;
-    case 'documents_uploaded': currentIdx = Math.max(currentIdx, 3); break;
-    case 'dp1_paid': currentIdx = Math.max(currentIdx, 4); break;
-    case 'dp2_paid': currentIdx = Math.max(currentIdx, 5); break;
-    case 'fully_paid': currentIdx = Math.max(currentIdx, 6); break;
-    case 'visa_ticket_ready': currentIdx = Math.max(currentIdx, 7); break;
+    case 'ISI_BIODATA': currentIdx = Math.max(currentIdx, 1); break;
+    case 'UPLOAD_DOKUMEN': currentIdx = Math.max(currentIdx, 2); break;
+    case 'VERIFIKASI_DOKUMEN': currentIdx = Math.max(currentIdx, 3); break;
+    case 'CICIL_BAYAR': currentIdx = Math.max(currentIdx, 4); break;
+    case 'VERIFIKASI_BAYAR': currentIdx = Math.max(currentIdx, 5); break;
+    case 'LUNAS': 
+      if (isTrulyLunas) {
+        currentIdx = Math.max(currentIdx, 6);
+      } else {
+        currentIdx = Math.max(currentIdx, 5);
+      }
+      break;
+    case 'SIAP_BERANGKAT': 
+    case 'BERANGKAT': 
+    case 'SELESAI': 
+      if (isTrulyLunas) {
+        currentIdx = Math.max(currentIdx, 6);
+      } else {
+        currentIdx = Math.max(currentIdx, 5);
+      }
+      break;
   }
   
-  if (computedPaymentStep === 'dp1' || computedPaymentStep === 'dp2' || computedPaymentStep === 'lunas') currentIdx = Math.max(currentIdx, 4);
-  if (computedPaymentStep === 'dp2' || computedPaymentStep === 'lunas') currentIdx = Math.max(currentIdx, 5);
-  if (computedPaymentStep === 'lunas') currentIdx = Math.max(currentIdx, 6);
+  if (computedPaymentStep === 'dp1' || computedPaymentStep === 'dp2' || isTrulyLunas) currentIdx = Math.max(currentIdx, 4);
+  if (computedPaymentStep === 'dp2' || isTrulyLunas) currentIdx = Math.max(currentIdx, 5);
+  if (isTrulyLunas) currentIdx = Math.max(currentIdx, 6);
 
   
   const dp1Price = 1500000;
@@ -150,17 +166,46 @@ export default function RegistrationStepper({
               <button 
                 onClick={(e) => { 
                   e.stopPropagation(); 
-                  // [SIMULASI FUNGSIONAL]
-                  // Ketika tombol ini diklik, fungsi navigasi ini akan memindahkan
-                  // layar Jamaah dari Dasbor menuju ke halaman khusus form "Biodata & Paspor".
                   onNavigate('biodata'); 
-                  // Atau bisa menggunakan React Router: navigate('/biodata')
                 }}
                 className="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 w-fit transition-all shadow-sm"
               >
                 Lengkapi Sekarang
                 <ArrowRight className="w-4 h-4" />
               </button>
+            </div>
+          );
+        }
+        if (isCompleted) {
+          return (
+            <div className="mt-4 bg-white p-5 shadow-sm rounded-xl border-l-4 border-yellow-500 border-y border-r border-gray-200">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div>
+                  <span className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">BIODATA JAMAAH</span>
+                  <span className="block text-base font-bold text-gray-900">{paxCount} Jamaah Terisi & Terverifikasi</span>
+                </div>
+              </div>
+              
+              <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-6">
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onNavigate('biodata');
+                  }}
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer transition-colors"
+                >
+                  Ubah / Periksa Biodata
+                </button>
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onNavigate('dokumen');
+                  }}
+                  className="text-sm font-semibold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer transition-colors flex items-center gap-1"
+                >
+                  Lanjut ke Unggah Dokumen <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           );
         }
@@ -173,6 +218,39 @@ export default function RegistrationStepper({
       desc: 'Upload KTP, KK, dan Paspor untuk proses validasi.',
       tab: 'dokumen',
       renderContent: (isCompleted: boolean, isActive: boolean) => {
+        if (isActive && isDocsComplete) {
+          return (
+            <div className="mt-4 bg-white p-5 shadow-sm rounded-xl border-l-4 border-emerald-500 border-y border-r border-gray-200">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div>
+                  <span className="block text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">DOKUMEN SIAP</span>
+                  <span className="block text-base font-bold text-gray-900">Seluruh dokumen wajib telah terunggah.</span>
+                </div>
+              </div>
+              
+              <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-6">
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onNavigate('dokumen');
+                  }}
+                  className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer transition-colors"
+                >
+                  Periksa Dokumen
+                </button>
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onNavigate('pembayaran');
+                  }}
+                  className="text-sm font-semibold text-emerald-600 hover:text-emerald-700 hover:underline cursor-pointer flex items-center gap-1 group"
+                >
+                  Lanjut ke Pembayaran <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </div>
+            </div>
+          );
+        }
         if (isActive) {
           return (
             <div className="mt-3">
@@ -186,6 +264,14 @@ export default function RegistrationStepper({
                 Unggah Sekarang
                 <ArrowRight className="w-4 h-4" />
               </button>
+            </div>
+          );
+        }
+        if (isCompleted) {
+          return (
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold">
+              <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+              Seluruh Dokumen Telah Terverifikasi
             </div>
           );
         }
@@ -247,6 +333,17 @@ export default function RegistrationStepper({
       tab: 'pembayaran',
       renderContent: (isCompleted: boolean, isActive: boolean) => {
         if (isActive) {
+          if (pendingPaymentStep === 'dp2' || pendingPaymentStep === 'DP2') {
+            return (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold flex items-center gap-2 shadow-sm">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                </span>
+                Bukti Pembayaran DP 2 telah diunggah & sedang dalam verifikasi oleh Tim Admin.
+              </div>
+            );
+          }
           return (
             <div className="mt-3 flex flex-wrap gap-2">
               <button 
@@ -254,7 +351,7 @@ export default function RegistrationStepper({
                   e.stopPropagation(); 
                   onNavigate('pembayaran', 'step'); 
                 }}
-                className="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 text-xs transition-all shadow-sm"
+                className="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 text-xs transition-all shadow-sm cursor-pointer"
               >
                 Bayar DP 2 Sekarang
                 <ArrowRight className="w-4 h-4" />
@@ -264,11 +361,19 @@ export default function RegistrationStepper({
                   e.stopPropagation(); 
                   onNavigate('pembayaran', 'full'); 
                 }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 text-xs transition-all shadow-sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 text-xs transition-all shadow-sm cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 Bayar Full Sisa Paket
               </button>
+            </div>
+          );
+        }
+        if (isCompleted) {
+          return (
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold">
+              <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+              DP 2 (Booking Seat) Terverifikasi & Lunas
             </div>
           );
         }
@@ -282,19 +387,49 @@ export default function RegistrationStepper({
       tab: 'pembayaran',
       renderContent: (isCompleted: boolean, isActive: boolean) => {
         if (isActive) {
+          const remainingAmount = sisaTagihan !== undefined && sisaTagihan > 0 
+            ? sisaTagihan 
+            : Math.max(0, (packagePrice * paxCount) - (approvedTotal || 0));
+
+          if (pendingPaymentStep === 'full' || pendingPaymentStep === 'PELUNASAN' || currentStatus === 'VERIFIKASI_BAYAR') {
+            return (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-semibold flex items-center gap-2 shadow-sm">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                </span>
+                Bukti Pelunasan telah diunggah & sedang dalam verifikasi oleh Tim Admin.
+              </div>
+            );
+          }
           return (
-            <div className="mt-3">
-              <button 
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  onNavigate('pembayaran', 'full'); 
-                }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 w-fit text-xs transition-all shadow-sm"
-              >
-                <Sparkles className="w-4 h-4" />
-                Lunasi Full Sekarang
-                <ArrowRight className="w-4 h-4" />
-              </button>
+            <div className="mt-3 space-y-2">
+              {remainingAmount > 0 && (
+                <div className="text-xs font-semibold text-gray-700 bg-amber-50 px-3 py-1.5 rounded-lg inline-block border border-amber-200">
+                  Sisa Tagihan Pelunasan: <span className="font-bold text-amber-700">Rp {Number(remainingAmount).toLocaleString('id-ID')}</span>
+                </div>
+              )}
+              <div>
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    onNavigate('pembayaran', 'full'); 
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-2 text-xs transition-all shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-emerald-200" />
+                  Lunasi Sisa Pembayaran Sekarang
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          );
+        }
+        if (isCompleted) {
+          return (
+            <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold">
+              <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+              Pembayaran Sisa Pelunasan Terverifikasi & Lunas
             </div>
           );
         }
@@ -309,15 +444,20 @@ export default function RegistrationStepper({
       renderContent: (isCompleted: boolean, isActive: boolean) => {
         if (isActive || isCompleted) {
           return (
-            <div className="mt-3">
+            <div className="mt-3 space-y-2">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2 shadow-sm">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0 stroke-[2.5]" />
+                Pendaftaran Umroh Lunas! Selamat mempersiapkan keberangkatan.
+              </div>
               <button 
                 onClick={(e) => { 
                   e.stopPropagation(); 
                   onNavigate('persiapan_keberangkatan'); 
                 }}
-                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 w-fit transition-all shadow-sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-xl flex items-center gap-2 text-xs transition-all shadow-md shadow-emerald-600/20 active:scale-95 cursor-pointer"
               >
-                Lihat Info Persiapan
+                <Sparkles className="w-4 h-4 text-emerald-200" />
+                Lihat Info Persiapan Keberangkatan
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -329,11 +469,8 @@ export default function RegistrationStepper({
   ];
 
   return (
-    <>
-      <div className="bg-gray-50 p-6 md:p-8 rounded-2xl border border-gray-100 mb-8">
-        <h3 className="text-xl font-bold text-gray-900 mb-8">Progress Pendaftaran Jamaah</h3>
-        
-        <div className="space-y-0">
+    <div className="pt-2">
+      <div className="space-y-0">
           {steps.map((step, index) => {
             let isCompleted = index < currentIdx;
             let isActive = index === currentIdx;
@@ -417,8 +554,6 @@ export default function RegistrationStepper({
             );
           })}
         </div>
-      </div>
-
-    </>
+    </div>
   );
 }

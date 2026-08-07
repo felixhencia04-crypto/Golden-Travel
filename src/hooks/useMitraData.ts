@@ -2,38 +2,119 @@ import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { mitraRealtimeService } from '../services/mitraRealtimeService';
+import { setActiveMitraInfo } from '../utils/mitraStorage';
 
 export function useMitraData() {
   const [jamaahList, setJamaahList] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [dbUser, setDbUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [mitraStatus, setMitraStatus] = useState<string | null>(null);
 
-  const refreshData = async () => {
-    setLoading(true);
+  const refreshData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const [jamaah, s] = await Promise.all([
-        api.get('/mitra/jamaah'),
-        api.get('/mitra/stats')
+      const token = localStorage.getItem('mitra_token') || localStorage.getItem('jamaah_token') || localStorage.getItem('admin_token');
+      if (!token && !auth.currentUser) {
+        setLoading(false);
+        return null;
+      }
+
+      const [statusRes, jamaah, s, p, me] = await Promise.all([
+        mitraRealtimeService.fetchMitraStatus().catch(() => null),
+        api.get('/mitra/jamaah').catch(() => []),
+        api.get('/mitra/stats').catch(() => null),
+        api.get('/mitra/profile').catch(() => null),
+        api.get('/auth/me').catch(() => null)
       ]);
-      setJamaahList(jamaah);
+
+      setJamaahList(jamaah || []);
       setStats(s);
-    } catch (error) {
+      
+      const hasActualKycData = !!(p && (p.nik || p.alamatLengkap || p.noRekening || p.npwp));
+      setProfile(p || null);
+      if (me?.user) {
+        setDbUser(me.user);
+        setActiveMitraInfo({
+          id: me.user.id,
+          email: me.user.email,
+          name: me.user.name || p?.namaLengkap || p?.fullName
+        });
+      } else if (p) {
+        setActiveMitraInfo({
+          id: p.userId || p.id,
+          email: p.email,
+          name: p.namaLengkap || p.fullName
+        });
+      } else if (auth.currentUser) {
+        setActiveMitraInfo({
+          id: auth.currentUser.uid,
+          email: auth.currentUser.email || '',
+          name: auth.currentUser.displayName || ''
+        });
+      }
+      
+      let effectiveStatus = statusRes?.status || statusRes?.statusAkun || me?.mitraStatus;
+      
+      // Determine strict hierarchy based on mitra verification status
+      if (effectiveStatus === 'active') {
+        effectiveStatus = 'active';
+      } else if (effectiveStatus === 'rejected') {
+        effectiveStatus = 'rejected';
+      } else if (effectiveStatus === 'pending_verification' || hasActualKycData) {
+        effectiveStatus = 'pending_verification';
+      } else {
+        effectiveStatus = 'incomplete_profile';
+      }
+
+      setMitraStatus(effectiveStatus);
+      return effectiveStatus;
+    } catch (error: any) {
       console.error("Failed to fetch mitra data", error);
       if (error.message?.includes('Sesi') || error.message?.includes('login')) {
         auth.signOut();
+        localStorage.removeItem('mitra_token');
         window.location.href = '/mitra/login';
       }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    let unsubscribeRealtime: (() => void) | null = null;
+    let interval: any;
+
+    const token = localStorage.getItem('mitra_token') || localStorage.getItem('jamaah_token') || localStorage.getItem('admin_token');
+
+    // Initial load for direct JWT token users
+    if (token) {
+      refreshData();
+    }
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
-      if (firebaseUser) {
-        refreshData();
+      const currentToken = localStorage.getItem('mitra_token') || localStorage.getItem('jamaah_token') || localStorage.getItem('admin_token');
+      
+      if (firebaseUser || currentToken) {
+        await refreshData(true);
+
+        if (!interval) {
+          interval = setInterval(() => {
+            refreshData(true);
+          }, 3000);
+        }
+
+        if (!unsubscribeRealtime) {
+          unsubscribeRealtime = mitraRealtimeService.subscribeToVerificationEvents(({ status }) => {
+            console.log('[Realtime] Verification status updated:', status);
+            setMitraStatus(status);
+            refreshData(true);
+          });
+        }
       } else {
         setJamaahList([]);
         setStats(null);
@@ -41,8 +122,22 @@ export function useMitraData() {
       }
     });
 
-    return () => unsubscribe();
+    const handleFocus = () => {
+      const currentToken = localStorage.getItem('mitra_token') || localStorage.getItem('jamaah_token');
+      if (auth.currentUser || currentToken) {
+        refreshData(true);
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      unsubscribeAuth();
+      if (interval) clearInterval(interval);
+      if (unsubscribeRealtime) unsubscribeRealtime();
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
-  return { jamaahList, stats, loading, user, refreshData };
+  return { jamaahList, stats, profile, dbUser, mitraStatus, setMitraStatus, loading, user, refreshData };
 }
+

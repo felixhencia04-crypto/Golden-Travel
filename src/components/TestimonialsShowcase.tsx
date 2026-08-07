@@ -46,7 +46,7 @@ export const TESTIMONIALS_DATA: Testimonial[] = [
     departurePeriod: 'Keberangkatan Rajab 1445 H (2024)',
     category: 'keluarga-lansia',
     highlight: 'Kenyamanan Lansia Nomor Satu, Hotel Benar-Benar Depan Pelataran Masjidil Haram!',
-    story: 'Saya membawa Ibu saya yang berusia 72 tahun dan menggunakan kursi roda. Kekhawatiran awal kami sirnah seketika saat tiba di Makkah. Tim pendorong kursi roda dan Muthawwif dari PT Golden Tour Haramain sangat sigap, sabar, dan penuh kasih sayang membantu Ibu dari awal hingga selesai Thawaf dan Sai. Hotel Dar Al Eiman Royal hanya berjarak beberapa langkah dari pelataran utama Masjidil Haram, sangat memudahkan Ibu untuk shalat berjamaah 5 waktu di masjid tanpa lelah. Makanan khas Indonesia yang disediakan juga sangat cocok dengan lidah kami.',
+    story: 'Saya membawa Ibu saya yang berusia 72 tahun dan menggunakan kursi roda. Kekhawatiran awal kami sirnah seketika saat tiba di Makkah. Tim pendorong kursi roda dan Muthawwif dari PT. Golden Tour Haramain sangat sigap, sabar, dan penuh kasih sayang membantu Ibu dari awal hingga selesai Thawaf dan Sai. Hotel Dar Al Eiman Royal hanya berjarak beberapa langkah dari pelataran utama Masjidil Haram, sangat memudahkan Ibu untuk shalat berjamaah 5 waktu di masjid tanpa lelah. Makanan khas Indonesia yang disediakan juga sangat cocok dengan lidah kami.',
     tags: ['Ring 1 Masjidil Haram', 'Pelayanan Kursi Roda', 'Muthawwif Alumni Madinah', 'Makanan Nusantara'],
     verified: true,
     videoThumbnail: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&w=600&q=80',
@@ -497,7 +497,7 @@ export const TestimonialsShowcase: React.FC = () => {
               <div className="pt-4 border-t border-[#D4AF37]/20 flex flex-col sm:flex-row items-center justify-between gap-3">
                 <div className="text-xs text-emerald-400 flex items-center gap-1">
                   <Award className="w-4 h-4" />
-                  <span>Ulasan Resmi Jemaah PT Golden Tour Haramain</span>
+                  <span>Ulasan Resmi Jemaah PT. Golden Tour Haramain</span>
                 </div>
 
                 <a

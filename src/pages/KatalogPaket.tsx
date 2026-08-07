@@ -66,7 +66,7 @@ export default function KatalogPaket() {
             GT
           </div>
           <div>
-            <h1 className="text-white font-bold text-lg leading-tight">PT Golden Tour Haramain</h1>
+            <h1 className="text-white font-bold text-lg leading-tight">Golden Travel</h1>
             <p className="text-xs text-gray-500">Sistem Pendaftaran</p>
           </div>
         </div>
@@ -130,7 +130,7 @@ export default function KatalogPaket() {
                 Katalog Paket Umroh & Haji
               </h2>
               <p className="text-gray-500 mt-2 text-sm md:text-base max-w-2xl">
-                Temukan paket perjalanan ibadah resmi terpercaya dari PT Golden Tour Haramain dengan akomodasi hotel bintang 5.
+                Temukan paket perjalanan ibadah resmi terpercaya dari Golden Travel dengan akomodasi hotel bintang 5.
               </p>
             </div>
 

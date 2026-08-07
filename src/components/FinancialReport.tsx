@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Download, Loader2, TrendingUp, Wallet, Banknote, 
   Calendar, Search, Filter, ArrowUpRight, FileText,
-  RefreshCw, CheckCircle, ShieldCheck, Printer, User
+  RefreshCw, CheckCircle, ShieldCheck, Printer, User, Clock
 } from 'lucide-react';
 import { api } from '../utils/api';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { toast } from 'sonner';
 
 interface FinancialReportProps {
   consultations?: any[];
@@ -16,19 +17,42 @@ interface FinancialReportProps {
 export default function FinancialReport({ consultations = [], packages = [] }: FinancialReportProps) {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [stageFilter, setStageFilter] = useState<'all' | 'dp1' | 'dp2' | 'pelunasan' | 'full'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'verified' | 'pending'>('verified');
   const [periodFilter, setPeriodFilter] = useState<'all' | 'month' | 'year' | 'custom'>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
+  // Normalize payment status
+  const normalizeStatus = (st: any): 'VERIFIED' | 'PENDING' | 'REJECTED' => {
+    const s = String(st || '').toLowerCase().trim();
+    if (['approved', 'verified', 'lunas', 'paid', 'verified_dp1', 'verified_dp2'].includes(s)) return 'VERIFIED';
+    if (['rejected', 'ditolak', 'rejection'].includes(s)) return 'REJECTED';
+    return 'PENDING';
+  };
+
+  // Stage matching helper
+  const matchStage = (type: any, target: 'dp1' | 'dp2' | 'pelunasan' | 'full') => {
+    const t = String(type || '').toLowerCase().trim();
+    if (target === 'dp1') return ['dp1', 'dp', 'dp_1'].includes(t);
+    if (target === 'dp2') return ['dp2', 'cicilan', 'dp_2'].includes(t);
+    if (target === 'pelunasan') return ['pelunasan', 'pelunasan_sisa', 'pelunasan sisa', 'sisa', 'pelunasan_dp3'].includes(t);
+    if (target === 'full') return ['full', 'pelunasan_full', 'pelunasan full', 'lunas'].includes(t);
+    return false;
+  };
+
   useEffect(() => {
-    loadReports();
+    loadReports(false);
   }, [consultations]);
 
-  const loadReports = async () => {
+  const loadReports = async (showSpinner = true) => {
     try {
-      setLoading(true);
+      if (showSpinner && !hasLoadedOnce) {
+        setLoading(true);
+      }
       
       // 1. Fetch from server API
       let serverData: any[] = [];
@@ -38,7 +62,7 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
         console.warn('Could not fetch server financial report, relying on prop consultations:', err);
       }
 
-      // 2. Extract approved payments from consultations prop
+      // 2. Extract payments from consultations prop
       const propPayments: any[] = (consultations || []).flatMap((c: any) => {
         const pkg = (packages || []).find((p: any) => p.id === c.packageId || p.name === c.packageName);
         const basePrice = Number(pkg?.price || 0);
@@ -47,23 +71,23 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
         const payments = c.payments || [];
 
         return payments
-          .filter((p: any) => p.status === 'approved')
+          .filter((p: any) => normalizeStatus(p.status) !== 'REJECTED')
           .map((p: any) => ({
             id: p.id || `prop-${c.id}-${p.paymentType}-${p.amount}`,
             amount: Number(p.amount || 0),
-            paymentType: p.paymentType || p.type || 'dp1',
-            status: 'approved',
+            paymentType: p.paymentType || p.type || 'DP1',
+            status: normalizeStatus(p.status),
             createdAt: p.createdAt || p.date || new Date().toISOString(),
-            userName: c.name || 'Jamaah',
-            userPhone: c.phone || '-',
-            userEmail: c.email || '-',
+            userName: c.name || c.ordererName || 'Jamaah',
+            userPhone: c.phone || c.ordererPhone || '-',
+            userEmail: c.email || c.ordererEmail || '-',
             packageName: c.packageName || pkg?.name || 'Paket Umroh',
             packagePrice: packagePrice,
             proofUrl: p.proofUrl || ''
           }));
       });
 
-      // 3. Combine and deduplicate by payment ID or signature
+      // 3. Combine and deduplicate
       const combinedMap = new Map<string, any>();
 
       // Add prop payments
@@ -71,17 +95,21 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
         combinedMap.set(String(item.id), item);
       });
 
-      // Add server payments (overwrite or append if new)
+      // Add server payments
       if (Array.isArray(serverData)) {
         serverData.forEach(item => {
-          if (item.status === 'approved' || !item.status) {
+          const normSt = normalizeStatus(item.status);
+          if (normSt !== 'REJECTED') {
             const key = String(item.id || `server-${item.registrationId}-${item.amount}`);
+            const existing = combinedMap.get(key) || {};
             combinedMap.set(key, {
+              ...existing,
               ...item,
               amount: Number(item.amount || 0),
-              status: 'approved',
-              userName: item.userName || 'Jamaah',
-              packageName: item.packageName || 'Paket Umroh'
+              status: normSt,
+              userName: item.userName || existing.userName || 'Jamaah',
+              userPhone: item.userPhone || existing.userPhone || '-',
+              packageName: item.packageName || existing.packageName || 'Paket Umroh'
             });
           }
         });
@@ -92,6 +120,7 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
       );
 
       setReports(allList);
+      setHasLoadedOnce(true);
     } catch (error) {
       console.error('Failed to load reports:', error);
     } finally {
@@ -99,27 +128,34 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
     }
   };
 
-  // Stage aggregates
-  const dp1Payments = reports.filter(r => r.paymentType === 'dp1' || r.paymentType === 'dp');
-  const dp1Sum = dp1Payments.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  // Verified income list
+  const verifiedReports = useMemo(() => reports.filter(r => r.status === 'VERIFIED'), [reports]);
 
-  const dp2Payments = reports.filter(r => r.paymentType === 'dp2' || r.paymentType === 'cicilan');
-  const dp2Sum = dp2Payments.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  // Stage aggregates based on verified transactions
+  const dp1Payments = useMemo(() => verifiedReports.filter(r => matchStage(r.paymentType, 'dp1')), [verifiedReports]);
+  const dp1Sum = useMemo(() => dp1Payments.reduce((acc, curr) => acc + Number(curr.amount || 0), 0), [dp1Payments]);
 
-  const pelunasanPayments = reports.filter(r => r.paymentType === 'pelunasan');
-  const pelunasanSum = pelunasanPayments.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const dp2Payments = useMemo(() => verifiedReports.filter(r => matchStage(r.paymentType, 'dp2')), [verifiedReports]);
+  const dp2Sum = useMemo(() => dp2Payments.reduce((acc, curr) => acc + Number(curr.amount || 0), 0), [dp2Payments]);
 
-  const fullPayments = reports.filter(r => r.paymentType === 'full' || r.paymentType === 'pelunasan_full');
-  const fullSum = fullPayments.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const pelunasanPayments = useMemo(() => verifiedReports.filter(r => matchStage(r.paymentType, 'pelunasan')), [verifiedReports]);
+  const pelunasanSum = useMemo(() => pelunasanPayments.reduce((acc, curr) => acc + Number(curr.amount || 0), 0), [pelunasanPayments]);
 
-  // Filtered reports calculation
+  const fullPayments = useMemo(() => verifiedReports.filter(r => matchStage(r.paymentType, 'full')), [verifiedReports]);
+  const fullSum = useMemo(() => fullPayments.reduce((acc, curr) => acc + Number(curr.amount || 0), 0), [fullPayments]);
+
+  // Filtered reports
   const filteredReports = useMemo(() => {
     return reports.filter(r => {
+      // Status Filter
+      if (statusFilter === 'verified' && r.status !== 'VERIFIED') return false;
+      if (statusFilter === 'pending' && r.status !== 'PENDING') return false;
+
       // Stage Filter
-      if (stageFilter === 'dp1' && !(r.paymentType === 'dp1' || r.paymentType === 'dp')) return false;
-      if (stageFilter === 'dp2' && !(r.paymentType === 'dp2' || r.paymentType === 'cicilan')) return false;
-      if (stageFilter === 'pelunasan' && r.paymentType !== 'pelunasan') return false;
-      if (stageFilter === 'full' && !(r.paymentType === 'full' || r.paymentType === 'pelunasan_full')) return false;
+      if (stageFilter === 'dp1' && !matchStage(r.paymentType, 'dp1')) return false;
+      if (stageFilter === 'dp2' && !matchStage(r.paymentType, 'dp2')) return false;
+      if (stageFilter === 'pelunasan' && !matchStage(r.paymentType, 'pelunasan')) return false;
+      if (stageFilter === 'full' && !matchStage(r.paymentType, 'full')) return false;
 
       // Period Filter
       if (periodFilter === 'month') {
@@ -160,15 +196,15 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
 
       return true;
     });
-  }, [reports, stageFilter, periodFilter, searchTerm, customStartDate, customEndDate]);
+  }, [reports, statusFilter, stageFilter, periodFilter, searchTerm, customStartDate, customEndDate]);
 
   const totalFilteredRevenue = useMemo(() => {
     return filteredReports.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
   }, [filteredReports]);
 
   const totalRevenue = useMemo(() => {
-    return reports.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
-  }, [reports]);
+    return verifiedReports.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  }, [verifiedReports]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -179,19 +215,34 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
   };
 
   const getStageBadge = (type: string) => {
-    if (type === 'dp1' || type === 'dp') {
+    if (matchStage(type, 'dp1')) {
       return <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">Setoran DP 1</span>;
     }
-    if (type === 'dp2' || type === 'cicilan') {
+    if (matchStage(type, 'dp2')) {
       return <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">Setoran DP 2</span>;
     }
-    if (type === 'pelunasan') {
+    if (matchStage(type, 'pelunasan')) {
       return <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100">Pelunasan Sisa</span>;
     }
-    if (type === 'full' || type === 'pelunasan_full') {
+    if (matchStage(type, 'full')) {
       return <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-green-50 text-green-700 border border-green-100">Pelunasan Full</span>;
     }
-    return <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-50 text-gray-700 border border-gray-100">{type.toUpperCase()}</span>;
+    return <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-50 text-gray-700 border border-gray-100">{String(type || '').toUpperCase()}</span>;
+  };
+
+  const getStatusBadge = (st: string) => {
+    if (st === 'VERIFIED') {
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 uppercase border border-green-100">
+          <CheckCircle className="w-3 h-3 mr-1" /> Terverifikasi
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-50 text-yellow-700 uppercase border border-yellow-100">
+        <Clock className="w-3 h-3 mr-1" /> Pending
+      </span>
+    );
   };
 
   const downloadPDF = () => {
@@ -217,7 +268,7 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(16);
       doc.setTextColor(255, 255, 255);
-      doc.text('PT GOLDEN TOUR HARAMAIN', 14, 15);
+      doc.text('PT. GOLDEN TOUR HARAMAIN', 14, 15);
 
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
@@ -233,7 +284,7 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
       doc.text(`Dicetak: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`, pageWidth - 14, 25, { align: 'right' });
 
       // 2. Summary Box Card
-      doc.setFillColor(245, 247, 245); // Light neutral gray/matcha
+      doc.setFillColor(245, 247, 245);
       doc.setDrawColor(210, 222, 213);
       doc.roundedRect(14, 40, pageWidth - 28, 30, 3, 3, 'FD');
 
@@ -242,12 +293,13 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
       doc.setTextColor(31, 58, 43);
       doc.text('RINGKASAN EKSEKUTIF KEUANGAN', 18, 47);
 
-      // Metadata items
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(80, 80, 80);
       
       const filterStageText = stageFilter === 'all' ? 'Semua Tahap' : stageFilter === 'dp1' ? 'Setoran DP 1' : stageFilter === 'dp2' ? 'Setoran DP 2' : stageFilter === 'pelunasan' ? 'Pelunasan Sisa' : 'Pelunasan Full';
+      const filterStatusText = statusFilter === 'all' ? 'Semua Status' : statusFilter === 'verified' ? 'Terverifikasi' : 'Pending';
+
       let periodText = 'Semua Waktu';
       if (periodFilter === 'month') {
         periodText = 'Bulan Ini';
@@ -259,34 +311,34 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
         periodText = `${startStr} s/d ${endStr}`;
       }
 
-      doc.text(`Periode: ${periodText}   |   Filter Tahap: ${filterStageText}   |   Jumlah Transaksi: ${filteredReports.length} Invoice`, 18, 53);
+      doc.text(`Periode: ${periodText}   |   Tahap: ${filterStageText}   |   Status: ${filterStatusText}   |   Jumlah: ${filteredReports.length} Transaksi`, 18, 53);
 
-      // Highlight Amount
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(31, 58, 43);
-      doc.text(`Total Kas Masuk Valid: ${formatCurrency(totalFilteredRevenue)}`, 18, 62);
+      doc.text(`Total Kas Masuk Terfilter: ${formatCurrency(totalFilteredRevenue)}`, 18, 62);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
       doc.text(`(Rata-rata setoran per transaksi: ${formatCurrency(totalFilteredRevenue / (filteredReports.length || 1))})`, 18, 66.5);
 
-      // 3. Table Column & Data Preparation
+      // 3. Table Column & Data
       const tableColumns = [
         { header: 'No', dataKey: 'no' },
         { header: 'Tanggal', dataKey: 'date' },
         { header: 'Nama Jamaah', dataKey: 'userName' },
         { header: 'Paket Umroh', dataKey: 'packageName' },
         { header: 'Tahap Pembayaran', dataKey: 'stage' },
+        { header: 'Status', dataKey: 'status' },
         { header: 'Nominal Setoran', dataKey: 'amount' }
       ];
 
       const tableRows = filteredReports.map((report, idx) => {
         let stageLabel = 'DP 1';
-        if (report.paymentType === 'dp2' || report.paymentType === 'cicilan') stageLabel = 'DP 2';
-        else if (report.paymentType === 'pelunasan') stageLabel = 'Pelunasan Sisa';
-        else if (report.paymentType === 'full' || report.paymentType === 'pelunasan_full') stageLabel = 'Pelunasan Full';
+        if (matchStage(report.paymentType, 'dp2')) stageLabel = 'DP 2';
+        else if (matchStage(report.paymentType, 'pelunasan')) stageLabel = 'Pelunasan Sisa';
+        else if (matchStage(report.paymentType, 'full')) stageLabel = 'Pelunasan Full';
 
         return {
           no: idx + 1,
@@ -294,11 +346,11 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
           userName: report.userName || 'Jamaah',
           packageName: report.packageName || 'Paket Umroh',
           stage: stageLabel,
+          status: report.status === 'VERIFIED' ? 'VERIFIED' : 'PENDING',
           amount: formatCurrency(Number(report.amount || 0))
         };
       });
 
-      // Execute autoTable
       autoTable(doc, {
         columns: tableColumns,
         body: tableRows,
@@ -320,17 +372,18 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
           fillColor: [248, 250, 248]
         },
         columnStyles: {
-          no: { halign: 'center', cellWidth: 10 },
-          date: { halign: 'center', cellWidth: 26 },
-          userName: { halign: 'left', cellWidth: 42, fontStyle: 'bold' },
+          no: { halign: 'center', cellWidth: 8 },
+          date: { halign: 'center', cellWidth: 24 },
+          userName: { halign: 'left', cellWidth: 38, fontStyle: 'bold' },
           packageName: { halign: 'left' },
-          stage: { halign: 'center', cellWidth: 30 },
-          amount: { halign: 'right', cellWidth: 35, fontStyle: 'bold' }
+          stage: { halign: 'center', cellWidth: 26 },
+          status: { halign: 'center', cellWidth: 20 },
+          amount: { halign: 'right', cellWidth: 32, fontStyle: 'bold' }
         },
         foot: [
           [
-            { content: '', colSpan: 3 },
-            { content: 'TOTAL KAS MASUK TERVERIFIKASI', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: '', colSpan: 4 },
+            { content: 'TOTAL ARUS KAS MASUK', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
             { content: formatCurrency(totalFilteredRevenue), styles: { halign: 'right', fontStyle: 'bold', fillColor: [226, 235, 229], textColor: [31, 58, 43] } }
           ]
         ],
@@ -340,58 +393,54 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
           fontSize: 8.5
         },
         didDrawPage: (data) => {
-          // Footer on every page
           doc.setDrawColor(220, 220, 220);
           doc.line(14, pageHeight - 12, pageWidth - 14, pageHeight - 12);
 
           doc.setFontSize(7.5);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(120, 120, 120);
-          doc.text('PT Golden Tour Haramain — Dokumen Laporan Keuangan Audit Internal', 14, pageHeight - 7);
+          doc.text('PT. Golden Tour Haramain — Dokumen Laporan Keuangan Audit Internal', 14, pageHeight - 7);
           
           const pageStr = `Halaman ${data.pageNumber} dari ${(doc as any).internal.getNumberOfPages()}`;
           doc.text(pageStr, pageWidth - 14, pageHeight - 7, { align: 'right' });
         }
       });
 
-      // 4. Signature Block
+      // Signature Block
       const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : 150;
       let startSignY = finalY + 12;
 
-      // Check page overflow for signature block
       if (startSignY + 40 > pageHeight - 15) {
         doc.addPage();
         startSignY = 25;
       }
 
-      const signRightX = pageWidth - 65;
+      const signRightX = pageWidth - 45;
 
       doc.setFontSize(8.5);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(50, 50, 50);
-      doc.text(`Batam, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, signRightX, startSignY);
-      doc.text('Disetujui & Disahkan oleh,', signRightX, startSignY + 5);
+      doc.text(`Batam, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, signRightX, startSignY, { align: 'center' });
+      doc.text('Disetujui & Disahkan oleh,', signRightX, startSignY + 5, { align: 'center' });
 
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(31, 58, 43);
-      doc.text('Departemen Keuangan & Akuntansi', signRightX, startSignY + 10);
+      doc.text('Departemen Keuangan & Akuntansi', signRightX, startSignY + 10, { align: 'center' });
 
-      // Signature Name & Role (without stamp box)
       doc.setFontSize(9.5);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(31, 58, 43);
-      doc.text('AHMAD DAUD', signRightX, startSignY + 32);
+      doc.text('AHMAD DAUD', signRightX, startSignY + 32, { align: 'center' });
 
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(80, 80, 80);
-      doc.text('Head of Finance & Treasury', signRightX, startSignY + 37);
+      doc.text('Head of Finance & Treasury', signRightX, startSignY + 37, { align: 'center' });
 
-      // Save PDF
       doc.save(`Laporan_Keuangan_GoldenTourHaramain_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error) {
       console.error('Error generating PDF report:', error);
-      alert('Gagal mengunduh laporan PDF. Silakan coba beberapa saat lagi.');
+      toast.error('Gagal mengunduh laporan PDF. Silakan coba beberapa saat lagi.');
     }
   };
 
@@ -420,7 +469,7 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
 
         <div className="flex items-center space-x-3">
           <button 
-            onClick={loadReports}
+            onClick={() => loadReports(true)}
             className="p-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all"
             title="Refresh Data"
           >
@@ -446,7 +495,7 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
             </div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Pendapatan Valid</p>
             <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</h3>
-            <p className="text-[11px] text-gray-500 mt-1">{reports.length} Transaksi Disetujui</p>
+            <p className="text-[11px] text-gray-500 mt-1">{verifiedReports.length} Transaksi Terverifikasi</p>
           </div>
         </div>
 
@@ -458,19 +507,19 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
             </div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Bukti / Invoice</p>
             <h3 className="text-2xl font-bold text-gray-900">{reports.length} <span className="text-sm font-medium text-gray-500">Bukti Transfer</span></h3>
-            <p className="text-[11px] text-gray-500 mt-1">Lolos Verifikasi Keuangan</p>
+            <p className="text-[11px] text-gray-500 mt-1">{verifiedReports.length} Verifikasi • {reports.length - verifiedReports.length} Pending</p>
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden group">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-gold-50 rounded-full group-hover:scale-110 transition-transform duration-500"></div>
+          <div className="absolute -right-4 -top-4 w-24 h-24 bg-amber-50 rounded-full group-hover:scale-110 transition-transform duration-500"></div>
           <div className="relative z-10">
-            <div className="w-10 h-10 bg-gold-100 text-gold-700 rounded-2xl flex items-center justify-center mb-4">
+            <div className="w-10 h-10 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mb-4">
               <Wallet className="w-5 h-5" />
             </div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Rata-Rata Setoran</p>
-            <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(totalRevenue / (reports.length || 1))}</h3>
-            <p className="text-[11px] text-gray-500 mt-1">Per Bukti Pembayaran</p>
+            <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(totalRevenue / (verifiedReports.length || 1))}</h3>
+            <p className="text-[11px] text-gray-500 mt-1">Per Bukti Terverifikasi</p>
           </div>
         </div>
       </div>
@@ -480,25 +529,25 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
           <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Total Setoran DP 1</span>
           <p className="text-lg font-bold text-blue-700">{formatCurrency(dp1Sum)}</p>
-          <span className="text-[10px] text-gray-400">{dp1Payments.length} Transaksi</span>
+          <span className="text-[10px] text-gray-400">{dp1Payments.length} Transaksi Terverifikasi</span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
           <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Total Setoran DP 2</span>
           <p className="text-lg font-bold text-indigo-700">{formatCurrency(dp2Sum)}</p>
-          <span className="text-[10px] text-gray-400">{dp2Payments.length} Transaksi</span>
+          <span className="text-[10px] text-gray-400">{dp2Payments.length} Transaksi Terverifikasi</span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
           <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Pelunasan Sisa</span>
           <p className="text-lg font-bold text-emerald-700">{formatCurrency(pelunasanSum)}</p>
-          <span className="text-[10px] text-gray-400">{pelunasanPayments.length} Transaksi</span>
+          <span className="text-[10px] text-gray-400">{pelunasanPayments.length} Transaksi Terverifikasi</span>
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
           <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Pelunasan Full</span>
           <p className="text-lg font-bold text-green-700">{formatCurrency(fullSum)}</p>
-          <span className="text-[10px] text-gray-400">{fullPayments.length} Transaksi</span>
+          <span className="text-[10px] text-gray-400">{fullPayments.length} Transaksi Terverifikasi</span>
         </div>
       </div>
 
@@ -516,13 +565,35 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Status Filter */}
+            <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
+              <button 
+                onClick={() => setStatusFilter('verified')}
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${statusFilter === 'verified' ? 'bg-white shadow text-green-700' : 'text-gray-500 hover:text-gray-900'}`}
+              >
+                Terverifikasi
+              </button>
+              <button 
+                onClick={() => setStatusFilter('pending')}
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${statusFilter === 'pending' ? 'bg-white shadow text-yellow-700' : 'text-gray-500 hover:text-gray-900'}`}
+              >
+                Pending
+              </button>
+              <button 
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${statusFilter === 'all' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
+              >
+                Semua Status
+              </button>
+            </div>
+
             {/* Stage filter buttons */}
             <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
               <button 
                 onClick={() => setStageFilter('all')}
                 className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${stageFilter === 'all' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-900'}`}
               >
-                Semua
+                Semua Tahap
               </button>
               <button 
                 onClick={() => setStageFilter('dp1')}
@@ -672,9 +743,7 @@ export default function FinancialReport({ consultations = [], packages = [] }: F
                       </span>
                     </td>
                     <td className="p-4 text-center">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 uppercase border border-green-100">
-                        <CheckCircle className="w-3 h-3 mr-1" /> Verified
-                      </span>
+                      {getStatusBadge(report.status)}
                     </td>
                   </tr>
                 ))

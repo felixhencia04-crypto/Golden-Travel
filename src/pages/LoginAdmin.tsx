@@ -347,7 +347,7 @@ export default function LoginAdmin() {
                           <img src={logoImg} alt="Logo" className="w-full h-full object-contain rounded-full" />
                       </div> 
                       <div className="brand-text">
-                          <h1>GOLDEN TRAVEL</h1>
+                          <h1>GOLDEN TOUR HARAMAIN</h1>
                           <span>PORTAL ADMINISTRATOR</span>
                       </div>
                   </div>

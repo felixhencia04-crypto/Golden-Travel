@@ -7,9 +7,9 @@ import {
   Clock, Upload, AlertCircle, AlertTriangle, Briefcase, Settings, Star,
   BookOpen, MapPin, LayoutDashboard, ChevronRight, ChevronLeft, Bell, 
   HelpCircle, Calendar as CalendarIcon, Download, Smartphone, X, Menu, ShieldCheck, HeartPulse, Plane, RefreshCw, Edit2, ExternalLink,
-  Sparkles, Eye, FileCheck,
+  Sparkles, Eye, EyeOff, FileCheck, ArrowRight,
   Banknote, Tag, CheckCircle, Building, Users, Megaphone, Package as InventoryIcon, Scroll, Check, UserPlus, Lock,
-  MessageCircle, Image as ImageIcon, Award, UserCircle, Send, MessageSquare, Video
+  MessageCircle, Image as ImageIcon, Award, UserCircle, Send, MessageSquare, Video, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { updatePassword } from 'firebase/auth';
@@ -22,15 +22,28 @@ import { useRegistration } from '../hooks/useRegistration';
 import { useSocket } from '../hooks/useSocket';
 import { api } from '../lib/api';
 import { auth } from '../lib/firebase';
-import { openDataUrlInNewTab, downloadFile } from '../utils/file';
+import { openDataUrlInNewTab, downloadFile, isPdfUrl, isImageUrl, getBlobUrlFromDataUrl } from '../utils/file';
 import { generateRegistrationFormPdf } from '../utils/generateRegistrationFormPdf';
+import { generateEquipmentReceiptPdf } from '../utils/generateEquipmentReceiptPdf';
+import { generateJamaahDocumentPdf } from '../utils/generateJamaahDocumentPdf';
 import UmrahCertificate from '../components/jamaah/UmrahCertificate';
+import PdfViewer from '../components/PdfViewer';
+import FloatingWhatsApp from '../components/FloatingWhatsApp';
 
 export default function DashboardJamaah() {
   const logoImg = useLogo();
   const { registration, setRegistration, packages, schedules, notifications: announcements, manifest, equipment: inventoryState, loading, user, dbUser, refreshData } = useRegistration();
   
   const [directPackages, setDirectPackages] = useState<any[]>([]);
+
+  // Professional currency formatter helper
+  const formatCurrency = (amount: number | string) => {
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return new Intl.NumberFormat('id-ID', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(num || 0);
+  };
 
   const fetchDirectPackages = React.useCallback(async () => {
     try {
@@ -48,9 +61,12 @@ export default function DashboardJamaah() {
   }, [fetchDirectPackages]);
 
   const onDataUpdated = React.useCallback(() => {
-    console.log("DashboardJamaah: Received real-time update signal.");
+    console.log("DashboardJamaah: Received real-time update signal. Scheduling refresh...");
     fetchDirectPackages();
-    refreshData(true);
+    // Delay refresh slightly to ensure server DB has finished flushing all related updates
+    setTimeout(() => {
+      refreshData(true);
+    }, 500);
   }, [fetchDirectPackages, refreshData]);
 
   useSocket(onDataUpdated);
@@ -69,15 +85,31 @@ export default function DashboardJamaah() {
   
   const userConsultation = registration;
   const paxCount = parseInt(registration?.adultCount || '0') + parseInt(registration?.childCount || '0') + parseInt(registration?.infantCount || '0') || 1;
+  const docs = Array.isArray(registration?.documents) ? registration.documents : [];
+  const uniqueDocTypes = new Set(docs.map((d: any) => d.docType));
+  const expectedDocsCount = paxCount * 5;
+  const isDocsComplete = uniqueDocTypes.size >= expectedDocsCount && expectedDocsCount > 0;
+  
   const paymentsList = (userConsultation as any)?.payments || [];
   const packagePriceTotal = Number(registration?.package?.price || 0) * paxCount;
-  const approvedTotal = paymentsList.filter((p: any) => p.status === 'approved').reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+  const approvedTotal = paymentsList.filter((p: any) => ['approved', 'VERIFIED'].includes(p.status)).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
   const paymentPercent = packagePriceTotal > 0 ? approvedTotal / packagePriceTotal : 0;
 
+  const hasVerifiedDp1 = paymentsList.some((p: any) => ['approved', 'VERIFIED'].includes(p.status) && ['DP1', 'dp1'].includes(p.paymentType));
+  const hasVerifiedDp2 = paymentsList.some((p: any) => ['approved', 'VERIFIED'].includes(p.status) && ['DP2', 'dp2'].includes(p.paymentType));
+  const hasVerifiedPelunasan = paymentsList.some((p: any) => ['approved', 'VERIFIED'].includes(p.status) && ['PELUNASAN', 'pelunasan', 'full'].includes(p.paymentType));
+
+  const isLunasStatus = ['LUNAS', 'SIAP_BERANGKAT', 'BERANGKAT', 'SELESAI'].includes(registration?.status || '');
+  const isLunasAmount = packagePriceTotal > 0 && (packagePriceTotal - approvedTotal) <= 100;
+
   let computedPaymentStep = 'none';
-  if (paymentPercent >= 1.0) computedPaymentStep = 'lunas';
-  else if (paymentPercent >= 0.6) computedPaymentStep = 'dp2';
-  else if (paymentPercent > 0) computedPaymentStep = 'dp1';
+  if (isLunasStatus || hasVerifiedPelunasan || isLunasAmount || paymentPercent >= 0.99) {
+    computedPaymentStep = 'lunas';
+  } else if (hasVerifiedDp2 || approvedTotal >= (10000000 * paxCount + 1500000 * paxCount - 100) || paymentPercent >= 0.3) {
+    computedPaymentStep = 'dp2';
+  } else if (hasVerifiedDp1 || approvedTotal > 0) {
+    computedPaymentStep = 'dp1';
+  }
   const pendingPaymentStep = ((userConsultation as any)?.payments || []).find((p: any) => p.status === 'pending')?.paymentType;
   
   
@@ -87,6 +119,7 @@ export default function DashboardJamaah() {
   const [certificates, setCertificates] = useState<any[]>([]);
   const [showCertPreview, setShowCertPreview] = useState<any>(null);
   const [isUpdatingAccount, setIsUpdatingAccount] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const fetchMemories = async () => {
     try {
@@ -132,21 +165,24 @@ export default function DashboardJamaah() {
     return () => clearInterval(interval);
   }, [selectedTicket?.id, registration?.id]);
   
-  const updateConsultation = async (data: any) => {
+  const updateConsultation = async (data: any, silentToast = false) => {
     try {
       await api.patch('/jamaah/registration', data);
       await refreshData(true);
-      toast.success("Data berhasil diperbarui!");
+      if (!silentToast) toast.success("Data berhasil diperbarui!");
+      return true;
     } catch (error: any) {
       toast.error(error.message || "Gagal memperbarui data.");
+      return false;
     }
   };
 
   const resetAllData = async () => {
     try {
+      sessionStorage.removeItem('cached_jamaah_portal_data');
       await api.delete('/jamaah/registration');
       await refreshData(true);
-      setActiveTab('dashboard');
+      setActiveTab('katalog_paket');
       toast.success("Data pendaftaran berhasil direset.");
     } catch (error: any) {
       toast.error(error.message || "Gagal mereset data.");
@@ -154,6 +190,13 @@ export default function DashboardJamaah() {
   };
 
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Auto-redirect new users (no package) to catalog
+  useEffect(() => {
+    if (!loading && registration && !registration.packageId && activeTab === 'dashboard') {
+      setActiveTab('katalog_paket');
+    }
+  }, [loading, registration, activeTab]);
   const [packageCategory, setPackageCategory] = useState<'umroh' | 'haji'>('umroh');
 
   // Handle packageId from URL for seamless catalog-to-registration transition
@@ -178,8 +221,7 @@ export default function DashboardJamaah() {
     }
   }, [activeTab]);
   const [isScanning, setIsScanning] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024);
   
   // Sub-menu states
   const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({
@@ -210,6 +252,196 @@ export default function DashboardJamaah() {
       confirmText,
       onConfirm
     });
+  };
+
+  // Notification Drawer & State
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
+  const [readNotifIds, setReadNotifIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('jamaah_read_notif_ids') || '[]');
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('jamaah_read_notif_ids', JSON.stringify(readNotifIds));
+    } catch (e) {}
+  }, [readNotifIds]);
+
+  // Generate notifications list from server announcements and real-time smart account updates
+  const allNotifications = React.useMemo(() => {
+    const list: Array<{
+      id: string;
+      title: string;
+      message: string;
+      type: 'info' | 'success' | 'warning' | 'alert';
+      createdAt: string;
+      isRead?: boolean;
+      targetTab?: string;
+    }> = [];
+
+    // 1. Server DB Notifications
+    if (Array.isArray(announcements)) {
+      announcements.forEach((a: any) => {
+        const notifId = a.id || `notif-${a.createdAt}`;
+        list.push({
+          id: notifId,
+          title: a.title || 'Pengumuman Resmi',
+          message: a.message || '',
+          type: a.type || 'info',
+          createdAt: a.createdAt || new Date().toISOString(),
+          isRead: a.isRead === 'true' || a.isRead === true || readNotifIds.includes(notifId),
+          targetTab: a.targetTab || 'dashboard',
+        });
+      });
+    }
+
+    // 2. Real-time Smart Account Status Alerts
+    if (registration) {
+      // Payment Alerts
+      if (computedPaymentStep === 'lunas') {
+        list.push({
+          id: `smart-pay-lunas-${registration.id}`,
+          title: 'Pembayaran Lunas',
+          message: 'Selamat! Seluruh biaya pendaftaran ibadah Anda telah LUNAS dan terverifikasi.',
+          type: 'success',
+          createdAt: registration.updatedAt || registration.createdAt || new Date().toISOString(),
+          targetTab: 'setoran',
+        });
+      } else if (computedPaymentStep === 'dp2') {
+        list.push({
+          id: `smart-pay-dp2-${registration.id}`,
+          title: 'Setoran DP 2 Terverifikasi',
+          message: 'Setoran DP 2 Anda telah diverifikasi oleh tim keuangan Golden Travel.',
+          type: 'success',
+          createdAt: registration.updatedAt || registration.createdAt || new Date().toISOString(),
+          targetTab: 'setoran',
+        });
+      } else if (computedPaymentStep === 'dp1') {
+        list.push({
+          id: `smart-pay-dp1-${registration.id}`,
+          title: 'Setoran DP 1 Terverifikasi',
+          message: 'Setoran DP 1 Anda telah disetujui. Silakan lengkapi biodata & dokumen Anda.',
+          type: 'success',
+          createdAt: registration.updatedAt || registration.createdAt || new Date().toISOString(),
+          targetTab: 'setoran',
+        });
+      } else {
+        list.push({
+          id: `smart-pay-pending-${registration.id}`,
+          title: 'Menunggu Setoran DP 1',
+          message: 'Silakan lakukan pembayaran DP 1 dan unggah bukti pembayaran untuk pemesanan kouta.',
+          type: 'warning',
+          createdAt: registration.createdAt || new Date().toISOString(),
+          targetTab: 'setoran',
+        });
+      }
+
+      // Document Verification Alerts
+      const verifiedDocs = docs.filter((d: any) => d.status === 'VERIFIED');
+      const rejectedDocs = docs.filter((d: any) => d.status === 'REJECTED');
+
+      if (rejectedDocs.length > 0) {
+        list.push({
+          id: `smart-doc-rejected-${registration.id}-${rejectedDocs.length}`,
+          title: 'Perbaikan Dokumen Diperlukan',
+          message: `${rejectedDocs.length} berkas dokumen memerlukan unggah ulang. Periksa catatan verifikasi admin.`,
+          type: 'alert',
+          createdAt: new Date().toISOString(),
+          targetTab: 'dokumen',
+        });
+      } else if (verifiedDocs.length > 0) {
+        list.push({
+          id: `smart-doc-verified-${registration.id}-${verifiedDocs.length}`,
+          title: 'Dokumen Terverifikasi',
+          message: `${verifiedDocs.length} berkas dokumen Anda telah disetujui oleh tim verifikasi.`,
+          type: 'success',
+          createdAt: new Date().toISOString(),
+          targetTab: 'dokumen',
+        });
+      }
+
+      // Helpdesk Ticket Updates
+      if (Array.isArray(helpTickets)) {
+        helpTickets.forEach((t: any) => {
+          if (Array.isArray(t.replies) && t.replies.length > 0) {
+            const lastReply = t.replies[t.replies.length - 1];
+            if (lastReply.sender === 'admin') {
+              list.push({
+                id: `smart-ticket-${t.id}-${lastReply.id || lastReply.createdAt}`,
+                title: `Balasan Bantuan: ${t.subject}`,
+                message: `Admin membalas: "${lastReply.message.substring(0, 65)}..."`,
+                type: 'info',
+                createdAt: lastReply.createdAt || new Date().toISOString(),
+                targetTab: 'layanan_bantuan',
+              });
+            }
+          }
+        });
+      }
+
+      // Certificate Alert
+      if (Array.isArray(certificates) && certificates.length > 0) {
+        list.push({
+          id: `smart-cert-${registration.id}`,
+          title: 'Sertifikat Digital Diterbitkan',
+          message: 'Sertifikat apresiasi ibadah Anda telah siap untuk diunduh di portal.',
+          type: 'success',
+          createdAt: certificates[0].createdAt || new Date().toISOString(),
+          targetTab: 'sertifikat',
+        });
+      }
+    }
+
+    // Deduplicate and sort descending by date
+    const uniqueMap = new Map();
+    list.forEach(item => {
+      if (!uniqueMap.has(item.id)) {
+        uniqueMap.set(item.id, item);
+      }
+    });
+
+    return Array.from(uniqueMap.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [announcements, registration, computedPaymentStep, docs, helpTickets, certificates, readNotifIds]);
+
+  const unreadCount = React.useMemo(() => {
+    return allNotifications.filter(n => !n.isRead && !readNotifIds.includes(n.id)).length;
+  }, [allNotifications, readNotifIds]);
+
+  const filteredNotifications = React.useMemo(() => {
+    if (notifFilter === 'unread') {
+      return allNotifications.filter(n => !n.isRead && !readNotifIds.includes(n.id));
+    }
+    return allNotifications;
+  }, [allNotifications, notifFilter, readNotifIds]);
+
+  const handleMarkAsRead = async (id: string) => {
+    if (!readNotifIds.includes(id)) {
+      setReadNotifIds(prev => [...prev, id]);
+      try {
+        await api.post('/jamaah/notifications/read', { notificationId: id });
+      } catch (e) {}
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    const allIds = allNotifications.map(n => n.id);
+    setReadNotifIds(allIds);
+    try {
+      await api.post('/jamaah/notifications/read-all', {});
+    } catch (e) {}
+    toast.success('Semua notifikasi ditandai telah dibaca');
+  };
+
+  const handleNotifClick = (notif: any) => {
+    handleMarkAsRead(notif.id);
+    if (notif.targetTab) {
+      setActiveTab(notif.targetTab);
+    }
+    setIsNotifOpen(false);
   };
   const [selectedPackageForPax, setSelectedPackageForPax] = useState<any>(null);
   const [paxInput, setPaxInput] = useState(1);
@@ -264,6 +496,8 @@ export default function DashboardJamaah() {
   const [replyMessage, setReplyMessage] = useState('');
 
   // Akun State
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [accountForm, setAccountForm] = useState({
     name: userConsultation?.user?.name || '',
     phone: userConsultation?.user?.phone || '',
@@ -272,6 +506,9 @@ export default function DashboardJamaah() {
     confirmPassword: '',
     avatarUrl: userConsultation?.user?.avatarUrl || ''
   });
+
+  const currentUserName = dbUser?.name || accountForm.name || userConsultation?.user?.name || userConsultation?.ordererName || user?.displayName || 'Jamaah';
+  const currentAvatarUrl = accountForm.avatarUrl || dbUser?.avatarUrl || userConsultation?.user?.avatarUrl || '';
 
   useEffect(() => {
     if (dbUser) {
@@ -293,7 +530,7 @@ export default function DashboardJamaah() {
     }
   }, [dbUser, userConsultation]);
 
-  const currentStatus = registration?.status || 'package_selected';
+  const currentStatus = registration?.status || '';
 
   // Close sidebar on tab change on mobile
   useEffect(() => {
@@ -301,8 +538,19 @@ export default function DashboardJamaah() {
   }, [activeTab]);
 
   const currentPackage = packages.find(p => p.id === userConsultation?.packageId) || 
-                         packages.find(p => p.name === userConsultation?.package?.name) || 
-                         packages[0];
+                         packages.find(p => p.name === userConsultation?.package?.name);
+
+  const [isMuthawwifModalOpen, setIsMuthawwifModalOpen] = useState(false);
+
+  const activeSchedule = schedules.find(s => s.id === userConsultation?.scheduleId) || 
+                         schedules.find(s => s.packageId === userConsultation?.packageId) ||
+                         schedules[0];
+
+  const muthawwifName = activeSchedule?.muthawwifName || currentPackage?.muthawwifName || 'Ustadz Hanan Attaki';
+  const muthawwifRole = activeSchedule?.muthawwifRole || currentPackage?.muthawwifRole || 'Muthawwif Utama & Pembimbing Syariah';
+  const muthawwifPhone = activeSchedule?.muthawwifPhone || currentPackage?.muthawwifPhone || '081234567890';
+  const muthawwifAvatar = activeSchedule?.muthawwifAvatarUrl || currentPackage?.muthawwifAvatarUrl || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80';
+  const muthawwifNotes = activeSchedule?.muthawwifNotes || currentPackage?.muthawwifNotes || "Assalamu'alaikum jemaah. Diharapkan hadir manasik H-3 sebelum keberangkatan di Asrama Haji. Pastikan fisik dan dokumen paspor telah siap.";
 
   // LOGIKA 3: Deteksi parameter packageId dari Halaman Katalog
   useEffect(() => {
@@ -355,25 +603,25 @@ export default function DashboardJamaah() {
     handlePaxDataChange(activePaxIdx, field, value);
   };
 
-  const handleSaveOrderer = () => {
+  const handleSaveOrderer = async () => {
     if (userConsultation) {
-      updateConsultation({
+      await updateConsultation({
         ...userConsultation,
         ...ordererForm
-      });
+      }, true);
       setIsEditingOrderer(false);
       toast.success("Data Pemesan berhasil diperbarui!");
     }
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (userConsultation) {
-      updateConsultation({ ...userConsultation, paxData: paxDataList });
+      await updateConsultation({ ...userConsultation, paxData: paxDataList }, true);
       toast.success("Draft biodata jamaah berhasil disimpan sementara.");
     }
   };
 
-  const handleSubmitFinal = () => {
+  const handleSubmitFinal = async () => {
     // Basic validation for current active pax
     const currentPax = paxDataList[activePaxIdx];
     if (!currentPax?.nik) {
@@ -398,18 +646,21 @@ export default function DashboardJamaah() {
       }
 
       let newStatus = userConsultation.status;
-      if (nextUnsubmitted === -1 && userConsultation.status === 'package_selected') {
-         newStatus = 'bio_filled';
+      if (nextUnsubmitted === -1 && (userConsultation.status === 'PILIH_PAKET' || userConsultation.status === 'ISI_BIODATA')) {
+         newStatus = 'UPLOAD_DOKUMEN';
       }
 
-      updateConsultation({ ...userConsultation, paxData: updatedPaxData, status: newStatus });
+      const success = await updateConsultation({ ...userConsultation, paxData: updatedPaxData, status: newStatus }, true);
+      if (!success) return;
       
       if (nextUnsubmitted !== -1) {
         setActivePaxIdx(nextUnsubmitted);
         toast.success("Biodata Jamaah " + (activePaxIdx + 1) + " berhasil disubmit! Silakan lanjut ke jamaah berikutnya.");
       } else {
         setIsEditingBio(false);
-        toast.success("Semua biodata jamaah berhasil disubmit secara final!");
+        toast.success("Semua biodata jamaah berhasil disubmit secara final! Lanjut ke tahap Unggah Dokumen.");
+        setActiveTab('dokumen');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     }
   };
@@ -444,6 +695,7 @@ export default function DashboardJamaah() {
       'Apakah Anda yakin ingin menghapus pilihan paket saat ini? Anda dapat memilih paket baru setelah ini.',
       async () => {
         try {
+          sessionStorage.removeItem('cached_jamaah_portal_data');
           await api.delete('/jamaah/register');
           await refreshData(true);
           toast.success('Pilihan paket berhasil dihapus.');
@@ -457,12 +709,14 @@ export default function DashboardJamaah() {
   };
 
   const handleConfirmPayment = async () => {
+    if (isSubmittingPayment) return;
     if (!paymentForm.proof) {
       toast.error("Mohon unggah bukti transfer terlebih dahulu!");
       return;
     }
 
     if (userConsultation) {
+      setIsSubmittingPayment(true);
       try {
         let paymentTypeToSend = 'dp1';
         let amountToSend = currentPaymentAmount;
@@ -483,15 +737,37 @@ export default function DashboardJamaah() {
           paymentType: paymentTypeToSend
         });
 
+        // Optimistic UI update: instantly reflect payment in registration state
+        const newPayment = { 
+          id: `pay-${Date.now()}`, 
+          amount: String(amountToSend), 
+          proofUrl: paymentForm.proof, 
+          paymentType: paymentTypeToSend,
+          status: 'pending', 
+          createdAt: new Date().toISOString() 
+        };
+        
+        if (registration && setRegistration) {
+          const existingPayments = Array.isArray(registration.payments) ? registration.payments : [];
+          setRegistration({
+            ...registration,
+            payments: [newPayment, ...existingPayments]
+          });
+        }
+
         toast.success(
           selectedPaymentMode === 'full'
             ? `Pembayaran Pelunasan Full (Rp ${Number(amountToSend).toLocaleString('id-ID')}) berhasil disubmit! Menunggu verifikasi admin.`
             : "Pembayaran berhasil disubmit! Menunggu verifikasi admin."
         );
         setPaymentForm({ amount: '', date: new Date().toISOString().split('T')[0], proof: null });
-        await refreshData(true);
+        
+        // Background refresh to get official state
+        setTimeout(() => refreshData(true), 1500);
       } catch (err: any) {
         toast.error(err.message || "Gagal submit pembayaran");
+      } finally {
+        setIsSubmittingPayment(false);
       }
     }
   };
@@ -532,39 +808,38 @@ export default function DashboardJamaah() {
       }
     }
 
-    const firebaseUser = auth.currentUser;
-    if (!firebaseUser) {
-      toast.error("Sesi Anda telah habis. Silakan login kembali.");
-      return;
-    }
-
     setIsUpdatingAccount(true);
     try {
-      // Update name, phone and avatar via API
-      await api.patch('/users/me', {
+      const updatedUser = await api.patch('/users/me', {
         name: accountForm.name,
         phone: accountForm.phone,
-        avatarUrl: accountForm.avatarUrl
+        email: accountForm.email,
+        avatarUrl: accountForm.avatarUrl,
+        password: accountForm.password || undefined
       });
 
-      // If user provided a new password, update it in Firebase
-      if (accountForm.password) {
+      if (updatedUser && typeof updatedUser === 'object') {
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+      }
+
+      // Also attempt updating Firebase Auth password in background if Firebase session exists
+      const firebaseUser = auth.currentUser;
+      if (firebaseUser && accountForm.password) {
         try {
           await updatePassword(firebaseUser, accountForm.password);
-          toast.success("Kata sandi berhasil diperbarui!");
         } catch (pwError: any) {
-          if (pwError.code === 'auth/requires-recent-login') {
-            toast.error("Demi keamanan, sistem meminta Anda logout dan login kembali sebelum membuat sandi baru.");
-            setIsUpdatingAccount(false);
-            return;
-          }
-          throw pwError;
+          console.warn("Firebase Auth updatePassword notice:", pwError?.message);
         }
       }
 
-      toast.success("Profil berhasil diperbarui!");
+      if (accountForm.password) {
+        toast.success("Profil dan kata sandi berhasil diperbarui! Saat login berikutnya, Anda wajib menggunakan kata sandi baru.");
+      } else {
+        toast.success("Profil berhasil diperbarui!");
+      }
+
       setAccountForm(prev => ({ ...prev, password: '', confirmPassword: '' }));
-      refreshData(true);
+      await refreshData(true);
     } catch (error: any) {
       console.error("Update account error:", error);
       toast.error(error.message || "Gagal memperbarui profil.");
@@ -573,14 +848,25 @@ export default function DashboardJamaah() {
     }
   };
 
-  const handleUploadAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAccountForm(prev => ({ ...prev, avatarUrl: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+      try {
+        toast.info("Mengunggah foto profil...");
+        const uploadRes = await api.upload('/upload', file);
+        const newUrl = uploadRes.url || uploadRes.fileUrl;
+        if (newUrl) {
+          setAccountForm(prev => ({ ...prev, avatarUrl: newUrl }));
+          toast.success("Foto profil berhasil diunggah! Klik 'Simpan Perubahan' untuk menyimpan secara permanen.");
+        }
+      } catch (err) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setAccountForm(prev => ({ ...prev, avatarUrl: reader.result as string }));
+          toast.success("Foto profil dipilih! Klik 'Simpan Perubahan' untuk menyimpan.");
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -607,7 +893,7 @@ export default function DashboardJamaah() {
     const packagePrice = Number(currentPackage?.price || 0);
     const payments = (userConsultation as any)?.payments || [];
     const totalPaid = payments
-      .filter((t: any) => t.status === 'approved')
+      .filter((t: any) => ['approved', 'VERIFIED'].includes(t.status))
       .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
     const remainingBalance = (packagePrice * paxCount) - totalPaid;
 
@@ -631,7 +917,7 @@ export default function DashboardJamaah() {
     });
     const uniqueDocs = Array.from(uniqueDocsMap.values());
     const docCount = uniqueDocs.length;
-    const approvedCount = uniqueDocs.filter((d: any) => d.status === 'approved').length;
+    const approvedCount = uniqueDocs.filter((d: any) => ['approved', 'VERIFIED'].includes(d.status)).length;
     const expectedDocs = paxDataList.reduce((acc, pax) => acc + 5 + (pax.maritalStatus === 'Menikah' ? 1 : 0), 0) || (paxCount * 5);
     
     // Base doc upload progress (15%)
@@ -672,7 +958,7 @@ export default function DashboardJamaah() {
     const uniqueDocTypes = new Set(docs.map((d: any) => d.docType));
     const docCount = uniqueDocTypes.size;
     const expectedDocs = paxDataList.reduce((acc, pax) => acc + 5 + (pax.maritalStatus === 'Menikah' ? 1 : 0), 0) || (paxCount * 5);
-    const rejectedDocs = docs.filter((d: any) => d.status === 'rejected');
+    const rejectedDocs = docs.filter((d: any) => ['rejected', 'REJECTED'].includes(d.status));
 
     if (rejectedDocs.length > 0) {
       alerts.push({ id: 'docs-rejected', title: 'Dokumen Ditolak', desc: `${rejectedDocs.length} dokumen perlu diunggah ulang. Cek menu dokumen.`, type: 'error', completed: false });
@@ -684,7 +970,7 @@ export default function DashboardJamaah() {
 
     // 4. Payments rejections
     const payments = Array.isArray(userConsultation?.payments) ? userConsultation.payments : [];
-    const rejectedPayments = payments.filter((p: any) => p.status === 'rejected');
+    const rejectedPayments = payments.filter((p: any) => ['rejected', 'REJECTED'].includes(p.status));
     if (rejectedPayments.length > 0) {
       alerts.push({ id: 'pay-rejected', title: 'Pembayaran Ditolak', desc: 'Ada bukti transfer yang ditolak. Mohon periksa riwayat pembayaran.', type: 'error', completed: false });
     }
@@ -724,20 +1010,10 @@ export default function DashboardJamaah() {
     setPaxDataList(updated);
   };
 
-  const handleSaveBiodata = async () => {
-    if (userConsultation) {
-      const updateData: any = { ...userConsultation, paxData: paxDataList };
-      if (userConsultation.status === 'package_selected') {
-        updateData.status = 'bio_filled';
-      }
-      await updateConsultation(updateData);
-      toast.success("Biodata semua jamaah berhasil disimpan!");
-      setActiveTab('dokumen');
-    }
-  };
+
   const basePrice = currentPackage ? Number(currentPackage.price) * paxCount : 0;
   const approvedPaymentsSum = ((userConsultation as any)?.payments || [])
-    .filter((t: any) => t.status === 'approved')
+    .filter((t: any) => ['approved', 'VERIFIED'].includes(t.status))
     .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
   const remainingAmount = Math.max(0, basePrice - approvedPaymentsSum);
 
@@ -763,51 +1039,78 @@ export default function DashboardJamaah() {
     }
   }
 
-  const handleUploadDocument = (docName: string, paxIdx: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUploadDocument = async (docName: string, paxIdx: number, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0] && userConsultation) {
       const file = e.target.files[0];
       const docKey = `${docName}_${paxIdx}`;
       
-      // High capacity limit up to 100MB
+      // Capacity limit up to 100MB
       if (file.size > 100 * 1024 * 1024) {
         toast.error('File terlalu besar! Maksimal 100MB.');
         return;
       }
 
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const fileUrl = reader.result as string;
-        
-        // Optimistic UI update: instantly reflect document in registration state
-        const newDoc = { id: `doc-${Date.now()}`, docType: docKey, fileUrl, status: 'approved', createdAt: new Date().toISOString() };
-        if (registration) {
-          const existingDocs = Array.isArray(registration.documents) ? registration.documents : [];
-          const updatedDocs = [...existingDocs.filter((d: any) => d.docType !== docKey), newDoc];
-          if (setRegistration) {
-            setRegistration({ ...registration, documents: updatedDocs });
-          }
+      setUploadingDoc(docKey);
+      let finalFileUrl = '';
+
+      try {
+        // 1. Try physical upload via FormData first
+        const uploadRes = await api.upload('/upload', file);
+        if (uploadRes && (uploadRes.url || uploadRes.fileUrl)) {
+          finalFileUrl = uploadRes.url || uploadRes.fileUrl;
         }
+      } catch (err) {
+        console.warn("Direct file upload via FormData failed, falling back to FileReader base64:", err);
+      }
 
-        toast.success(`Dokumen ${docName} untuk Jamaah ${paxIdx + 1} berhasil diunggah secara real-time!`);
-        setUploadingDoc(null);
+      // 2. Fallback to Data URL if physical upload failed
+      if (!finalFileUrl) {
+        try {
+          finalFileUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error("Gagal membaca file."));
+            reader.readAsDataURL(file);
+          });
+        } catch (err: any) {
+          toast.error(err.message || "Gagal membaca file.");
+          setUploadingDoc(null);
+          return;
+        }
+      }
 
-        // Background API sync
-        api.post('/documents', {
-           registrationId: userConsultation.id,
-           docType: docKey,
-           fileUrl
-        }).then(() => {
-          refreshData(true);
-        }).catch((error: any) => {
-          console.error("Background document save error:", error);
-          toast.error(error.message || "Gagal menyimpan dokumen ke server");
+      // 3. Optimistic UI update: instantly reflect document in registration state
+      const newDoc = { 
+        id: `doc-${Date.now()}`, 
+        docType: docKey, 
+        fileUrl: finalFileUrl, 
+        status: 'pending', 
+        createdAt: new Date().toISOString() 
+      };
+
+      if (registration) {
+        const existingDocs = Array.isArray(registration.documents) ? registration.documents : [];
+        const updatedDocs = [...existingDocs.filter((d: any) => d.docType !== docKey), newDoc];
+        if (setRegistration) {
+          setRegistration({ ...registration, documents: updatedDocs });
+        }
+      }
+
+      toast.success(`Dokumen ${docName} untuk Jamaah ${paxIdx + 1} berhasil diunggah!`);
+      setUploadingDoc(null);
+
+      // 4. Background API sync to server database
+      try {
+        await api.post('/documents', {
+          registrationId: userConsultation.id,
+          docType: docKey,
+          fileUrl: finalFileUrl
         });
-      };
-      reader.onerror = () => {
-        toast.error("Gagal membaca file. Pastikan file tidak rusak.");
-        setUploadingDoc(null);
-      };
-      reader.readAsDataURL(file);
+        setTimeout(() => refreshData(true), 800);
+      } catch (error: any) {
+        console.error("Background document save error:", error);
+        toast.error(error.message || "Gagal menyimpan dokumen ke server.");
+      }
     }
   };
 
@@ -826,56 +1129,26 @@ export default function DashboardJamaah() {
     if (computedPaymentStep === 'dp2' || computedPaymentStep === 'lunas') idx = Math.max(idx, 5);
     if (computedPaymentStep === 'lunas') idx = Math.max(idx, 6);
     
-    if (userConsultation?.status === 'visa_ticket_ready') idx = Math.max(idx, 7);
+    if (userConsultation?.status === 'SIAP_BERANGKAT' || userConsultation?.status === 'BERANGKAT') idx = Math.max(idx, 7);
     return idx;
   };
 
-  const isTabLocked = (tabId: string) => {
-    const idx = getRegistrationStepIdx();
-    if (tabId === 'biodata' && idx < 1) return true;
-    if (tabId === 'dokumen' && idx < 2) return true;
-    if (tabId === 'pembayaran' && idx < 2) return true; // DP1 is accessible once biodata is filled (idx >= 2)
+  const isTabLocked = (_tabId: string) => {
     return false;
   };
 
   const lifecycleStatus = dbUser?.status || 'DRAFT';
 
-  const isTabDisabled = (tabId: string) => {
-    // Always active
-    if (tabId === 'dashboard' || tabId === 'akun' || tabId === 'bantuan') return false;
-    
-    switch (tabId) {
-      case 'pilih_paket':
-      case 'katalog_paket':
-      case 'informasi_jadwal':
-        return lifecycleStatus !== 'DRAFT';
-      case 'biodata':
-        return !['ISI_BIODATA', 'UPLOAD_DOKUMEN', 'VERIFIKASI_DOKUMEN', 'CICIL_BAYAR', 'VERIFIKASI_BAYAR', 'LUNAS', 'SIAP_BERANGKAT', 'BERANGKAT', 'SELESAI'].includes(lifecycleStatus);
-      case 'dokumen':
-        return !['UPLOAD_DOKUMEN', 'VERIFIKASI_DOKUMEN'].includes(lifecycleStatus);
-      case 'pembayaran':
-        return !['CICIL_BAYAR', 'VERIFIKASI_BAYAR', 'LUNAS', 'SIAP_BERANGKAT', 'BERANGKAT', 'SELESAI'].includes(lifecycleStatus);
-      case 'persiapan_keberangkatan':
-      case 'dokumen_keberangkatan':
-        return !['SIAP_BERANGKAT', 'BERANGKAT'].includes(lifecycleStatus);
-      case 'kenangan':
-        return lifecycleStatus !== 'SELESAI';
-      default:
-        return false;
-    }
+  const isTabDisabled = (_tabId: string) => {
+    return false; // Unlock all tabs in portal jamaah
   };
 
   const handleTabClick = (tabId: string, paymentMode?: 'step' | 'full') => {
-    if (isTabDisabled(tabId)) {
-      const reason = getDisabledReason(tabId);
-      toast.error(reason || "Tahapan ini belum terbuka.");
-      return;
-    }
     setActiveTab(tabId);
     if (paymentMode) {
       setSelectedPaymentMode(paymentMode);
     }
-    if (isSidebarOpen) setIsSidebarOpen(false);
+    if (window.innerWidth < 1024 && isSidebarOpen) setIsSidebarOpen(false);
   };
 
   const getDisabledReason = (tabId: string) => {
@@ -949,54 +1222,49 @@ export default function DashboardJamaah() {
         </div>
       )}
       
-      {/* Floating AI Assistant (Gemini Integration Simulation) */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <button 
-          onClick={() => setActiveTab('bantuan')}
-          className="group relative flex items-center justify-center w-16 h-16 bg-gradient-to-tr from-gray-900 to-gray-700 rounded-full shadow-2xl hover:scale-110 transition-all duration-300 border-2 border-gold-400/50"
-        >
-          <div className="absolute -top-12 right-0 bg-gray-50 text-gray-900 px-4 py-2 rounded-2xl shadow-xl border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap text-sm font-bold">
-            Tanya Asisten AI (Gemini) ✨
-          </div>
-          <Smartphone className="w-8 h-8 text-gold-400" />
-          <div className="absolute inset-0 rounded-full bg-gold-400/20 animate-ping"></div>
-        </button>
-      </div>
+      {/* Floating WhatsApp Support Button */}
+      <FloatingWhatsApp 
+        userName={registration?.fullName || (userConsultation as any)?.user?.name || dbUser?.name || ''} 
+        defaultTopic="Kendala Portal & Layanan Jemaah" 
+      />
 
 
       <aside className={`
-        fixed inset-y-0 left-0 z-40 bg-[#132019] text-white border-r border-white/5 transition-all duration-300 ease-in-out flex flex-col shadow-xl
-        ${isCollapsed ? 'lg:w-20' : 'lg:w-72'}
-        ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full lg:translate-x-0'}
+        fixed inset-y-0 left-0 z-40 bg-[#132019] text-white border-r border-white/5 transition-all duration-300 ease-in-out flex flex-col shadow-2xl w-72
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Sidebar Header */}
         <div className="h-20 flex items-center justify-between px-6 border-b border-white/10 shrink-0 relative">
-          {!isCollapsed && (
-             <div className="flex items-center space-x-3">
-               <img src={logoImg} alt="Logo" className="h-10 w-10 rounded-full border border-white/10 shadow-sm" />
-               <div className="flex flex-col">
-                 <span className="font-bold text-white text-lg leading-tight">PT Golden Tour Haramain</span>
-                 <span className="text-[10px] text-gold-400 font-bold uppercase tracking-wider">Portal Jamaah</span>
-               </div>
-             </div>
-          )}
-          {isCollapsed && (
-             <img src={logoImg} alt="Logo" className="h-10 w-10 mx-auto rounded-full border border-white/10 shadow-sm" />
-          )}
+          <div className="flex items-center space-x-3">
+            <img src={logoImg} alt="Logo" className="h-10 w-10 rounded-full border border-white/10 shadow-sm" />
+            <div className="flex flex-col">
+              <span className="font-bold text-white text-lg leading-tight">Golden Travel</span>
+              <span className="text-[10px] text-gold-400 font-bold uppercase tracking-wider">Portal Jamaah</span>
+            </div>
+          </div>
+          <button 
+            onClick={() => setIsSidebarOpen(false)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+            title="Tutup Menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Sidebar User Info */}
-        <div className={`p-6 border-b border-white/10 shrink-0 ${isCollapsed ? 'flex justify-center' : ''}`}>
-           <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-4'}`}>
-              <div className="w-12 h-12 bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-inner border border-gray-700 shrink-0">
-                {(userConsultation?.user?.name || 'J').charAt(0)}
+        <div className="p-6 border-b border-white/10 shrink-0">
+           <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-gradient-to-br from-gold-500/20 to-amber-600/20 rounded-xl flex items-center justify-center text-gold-300 font-bold text-xl shadow-inner border border-gold-500/30 shrink-0 overflow-hidden relative">
+                {currentAvatarUrl ? (
+                  <img src={currentAvatarUrl} alt={currentUserName} className="w-full h-full object-cover rounded-xl" />
+                ) : (
+                  (currentUserName || 'J').charAt(0).toUpperCase()
+                )}
               </div>
-              {!isCollapsed && (
-                <div className="overflow-hidden">
-                  <h3 className="font-bold text-white truncate">{userConsultation?.user?.name || 'Jamaah'}</h3>
-                  <p className="text-xs text-gold-400 font-medium truncate">{userConsultation?.package?.name ? `Paket ${userConsultation.package.name}` : 'Belum Pilih Paket'}</p>
-                </div>
-              )}
+              <div className="overflow-hidden">
+                <h3 className="font-bold text-white truncate">{currentUserName}</h3>
+                <p className="text-xs text-gold-400 font-medium truncate">{userConsultation?.package?.name ? `Paket ${userConsultation.package.name}` : 'Belum Pilih Paket'}</p>
+              </div>
            </div>
         </div>
 
@@ -1005,7 +1273,7 @@ export default function DashboardJamaah() {
           <nav className="space-y-6">
             {menuGroups.map((group, groupIdx) => (
               <div key={groupIdx}>
-                {!isCollapsed && <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3 px-3">{group.title}</h4>}
+                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-3 px-3">{group.title}</h4>
                 <div className="space-y-1">
                   {group.items.map(item => (
                     <div key={item.id} className="space-y-1">
@@ -1017,28 +1285,20 @@ export default function DashboardJamaah() {
                             handleTabClick(item.id);
                           }
                         }}
-                        title={isCollapsed ? item.label : ''}
-                        className={`w-full flex items-center py-3 rounded-xl font-medium transition-all duration-200 ${isCollapsed ? 'justify-center px-0' : 'px-4'} ${
+                        className={`w-full flex items-center py-3 px-4 rounded-xl font-medium transition-all duration-200 ${
                           ((activeTab === item.id || item.subItems?.some(s => s.id === activeTab)) && !item.subItems)
                             ? 'bg-gold-500 text-gray-900 font-semibold shadow-md ' 
-                            : isTabDisabled(item.id) 
-                              ? 'text-gray-600 cursor-not-allowed opacity-50'
-                              : 'text-slate-300 hover:bg-white/10 hover:text-white'
+                            : 'text-slate-300 hover:bg-white/10 hover:text-white'
                         }`}
                       >
-                        <span className={`${!isCollapsed ? 'mr-3' : ''} ${(activeTab === item.id || item.subItems?.some(s => s.id === activeTab)) ? 'text-inherit' : isTabDisabled(item.id) ? 'text-gray-700' : 'text-slate-400'}`}>{item.icon}</span>
-                        {!isCollapsed && (
-                          <>
-                            <span className="flex-1 text-left">{item.label}</span>
-                            {item.subItems && (
-                              <ChevronRight className={`w-4 h-4 transition-transform ${openSubMenus[item.id] ? 'rotate-90' : ''}`} />
-                            )}
-                            {isTabDisabled(item.id) && <Lock className="w-3 h-3 text-gray-600 ml-2" />}
-                          </>
+                        <span className={`mr-3 ${(activeTab === item.id || item.subItems?.some(s => s.id === activeTab)) ? 'text-inherit' : 'text-slate-400'}`}>{item.icon}</span>
+                        <span className="flex-1 text-left">{item.label}</span>
+                        {item.subItems && (
+                          <ChevronRight className={`w-4 h-4 transition-transform ${openSubMenus[item.id] ? 'rotate-90' : ''}`} />
                         )}
                       </button>
                       
-                      {!isCollapsed && item.subItems && openSubMenus[item.id] && (
+                      {item.subItems && openSubMenus[item.id] && (
                         <div className="ml-9 space-y-1 border-l border-white/10 pl-4 animate-in slide-in-from-top-2 duration-200">
                           {item.subItems.map(sub => (
                             <button
@@ -1047,13 +1307,10 @@ export default function DashboardJamaah() {
                               className={`w-full text-left py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-between ${
                                 activeTab === sub.id 
                                   ? 'text-gold-400 font-bold bg-white/10' 
-                                  : isTabDisabled(sub.id)
-                                    ? 'text-gray-700 cursor-not-allowed'
-                                    : 'text-slate-300 hover:text-white hover:bg-white/10'
+                                  : 'text-slate-300 hover:text-white hover:bg-white/10'
                               }`}
                             >
                               <span>{sub.label}</span>
-                              {isTabDisabled(sub.id) && <Lock className="w-3 h-3" />}
                             </button>
                           ))}
                         </div>
@@ -1077,20 +1334,18 @@ export default function DashboardJamaah() {
                  'Ya, Reset Simulasi'
                );
              }}
-             title={isCollapsed ? 'Reset Simulasi' : ''}
-             className={`w-full flex items-center py-3 rounded-xl font-medium text-gold-400 hover:bg-gold-950/20 hover:text-gold-300 transition-colors ${isCollapsed ? 'justify-center px-0' : 'px-4'}`}
+             className="w-full flex items-center py-3 px-4 rounded-xl font-medium text-gold-400 hover:bg-gold-950/20 hover:text-gold-300 transition-colors"
            >
-             <RefreshCw className={`w-5 h-5 ${!isCollapsed ? 'mr-3' : ''}`} /> 
-             {!isCollapsed && <span>Reset Simulasi</span>}
+             <RefreshCw className="w-5 h-5 mr-3" /> 
+             <span>Reset Simulasi</span>
            </button>
 
            <button 
              onClick={handleLogout}
-             title={isCollapsed ? 'Keluar Akun' : ''}
-             className={`w-full flex items-center py-3 rounded-xl font-medium text-red-400 hover:bg-red-950/30 hover:text-red-300 transition-colors ${isCollapsed ? 'justify-center px-0' : 'px-4'}`}
+             className="w-full flex items-center py-3 px-4 rounded-xl font-medium text-red-400 hover:bg-red-950/30 hover:text-red-300 transition-colors"
            >
-             <LogOut className={`w-5 h-5 ${!isCollapsed ? 'mr-3' : ''}`} /> 
-             {!isCollapsed && <span>Keluar Akun</span>}
+             <LogOut className="w-5 h-5 mr-3" /> 
+             <span>Keluar Akun</span>
            </button>
         </div>
       </aside>
@@ -1105,7 +1360,7 @@ export default function DashboardJamaah() {
 
       {/* Main Content Area */}
       <main className={`flex-1 transition-all duration-300 ease-in-out min-h-screen flex flex-col
-        ${isCollapsed ? 'lg:ml-20' : 'lg:ml-72'}
+        ${isSidebarOpen ? 'lg:ml-72' : 'ml-0'}
       `}>
         {/* Portal Topbar / Header (Responsive) */}
         <header className="portal-topbar">
@@ -1114,13 +1369,8 @@ export default function DashboardJamaah() {
                 <button 
                   className="menu-toggle-btn" 
                   aria-label="Toggle Menu"
-                  onClick={() => {
-                    if (window.innerWidth < 1024) {
-                      setIsSidebarOpen(!isSidebarOpen);
-                    } else {
-                      setIsCollapsed(!isCollapsed);
-                    }
-                  }}
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  title={isSidebarOpen ? "Sembunyikan Menu" : "Tampilkan Menu"}
                 >
                     <Menu className="w-5 h-5" />
                 </button>
@@ -1128,15 +1378,202 @@ export default function DashboardJamaah() {
                 <h1 className="page-title">{allMenuItems.find(m => m.id === activeTab)?.label}</h1>
             </div>
             
-            <div className="topbar-right">
-                <div className="user-greeting-box">
-                    <span className="user-greeting">Selamat Datang, {userConsultation?.user?.name?.split(' ')[0] || dbUser?.name?.split(' ')[0] || user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'Jamaah'}</span>
+            <div className="topbar-right flex items-center gap-3 relative">
+                <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-md border border-white/10 rounded-full py-1.5 px-3.5 shadow-sm">
+                    <div className="w-7 h-7 rounded-full bg-gold-500/20 text-gold-300 font-bold text-xs flex items-center justify-center overflow-hidden border border-gold-500/40 shrink-0">
+                      {currentAvatarUrl ? (
+                        <img src={currentAvatarUrl} alt={currentUserName} className="w-full h-full object-cover" />
+                      ) : (
+                        (currentUserName || 'J').charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <span className="user-greeting text-xs font-bold text-white truncate max-w-[140px] sm:max-w-none">
+                      Selamat Datang, {currentUserName.split(' ')[0]}
+                    </span>
                 </div>
-                {/* Tombol Notifikasi */}
-                <button className="notification-btn" aria-label="Notifikasi">
+                
+                {/* Tombol Notifikasi Aktif */}
+                <button 
+                  className="notification-btn relative" 
+                  aria-label="Notifikasi"
+                  onClick={() => setIsNotifOpen(!isNotifOpen)}
+                  title="Lihat Notifikasi"
+                >
                     <Bell className="w-5 h-5" />
-                    <span className="notif-badge"></span>
+                    {unreadCount > 0 && (
+                      <span className="notif-badge animate-pulse"></span>
+                    )}
                 </button>
+
+                {/* Dropdown / Popover Notifikasi */}
+                <AnimatePresence>
+                  {isNotifOpen && (
+                    <>
+                      {/* Backdrop overlay */}
+                      <div 
+                        className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[1px]" 
+                        onClick={() => setIsNotifOpen(false)} 
+                      />
+
+                      {/* Dropdown Box */}
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute right-0 top-14 w-80 sm:w-96 bg-gray-900 border border-gold-500/40 text-white rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-[85vh]"
+                      >
+                        {/* Header Dropdown */}
+                        <div className="p-4 bg-gray-900/95 border-b border-gray-800 flex items-center justify-between shrink-0">
+                          <div className="flex items-center space-x-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-gold-500/20 text-gold-400 flex items-center justify-center border border-gold-500/30">
+                              <Bell className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                                Notifikasi Portal
+                                {unreadCount > 0 && (
+                                  <span className="px-2 py-0.5 text-[10px] font-black bg-gold-500 text-gray-950 rounded-full">
+                                    {unreadCount} Baru
+                                  </span>
+                                )}
+                              </h3>
+                              <p className="text-[11px] text-gray-400">Informasi & Update Akun Jamaah</p>
+                            </div>
+                          </div>
+                          
+                          <button 
+                            onClick={() => setIsNotifOpen(false)}
+                            className="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Filter Tabs & Mark Read */}
+                        <div className="px-4 py-2.5 bg-gray-900/60 border-b border-gray-800 flex items-center justify-between gap-2 shrink-0 text-xs">
+                          <div className="flex items-center space-x-1 bg-black/40 p-1 rounded-xl border border-gray-800">
+                            <button
+                              onClick={() => setNotifFilter('all')}
+                              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                                notifFilter === 'all' 
+                                  ? 'bg-gold-500 text-gray-950 shadow-sm' 
+                                  : 'text-gray-400 hover:text-white'
+                              }`}
+                            >
+                              Semua ({allNotifications.length})
+                            </button>
+                            <button
+                              onClick={() => setNotifFilter('unread')}
+                              className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                                notifFilter === 'unread' 
+                                  ? 'bg-gold-500 text-gray-950 shadow-sm' 
+                                  : 'text-gray-400 hover:text-white'
+                              }`}
+                            >
+                              Belum Dibaca ({unreadCount})
+                            </button>
+                          </div>
+
+                          {unreadCount > 0 && (
+                            <button
+                              onClick={handleMarkAllAsRead}
+                              className="text-[11px] text-gold-400 hover:text-gold-300 font-semibold hover:underline flex items-center gap-1 transition-colors"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Tandai Dibaca
+                            </button>
+                          )}
+                        </div>
+
+                        {/* List Notifikasi */}
+                        <div className="overflow-y-auto flex-1 divide-y divide-gray-800/60 custom-scrollbar">
+                          {filteredNotifications.length === 0 ? (
+                            <div className="p-8 text-center space-y-3">
+                              <div className="w-12 h-12 rounded-full bg-gray-800/80 text-gray-500 flex items-center justify-center mx-auto border border-gray-700/50">
+                                <Bell className="w-6 h-6" />
+                              </div>
+                              <p className="text-xs text-gray-400 font-medium">
+                                {notifFilter === 'unread' ? 'Tidak ada notifikasi belum dibaca.' : 'Belum ada notifikasi.'}
+                              </p>
+                            </div>
+                          ) : (
+                            filteredNotifications.map((item) => {
+                              const isRead = item.isRead || readNotifIds.includes(item.id);
+                              return (
+                                <div
+                                  key={item.id}
+                                  onClick={() => handleNotifClick(item)}
+                                  className={`p-3.5 transition-all hover:bg-white/5 cursor-pointer flex items-start gap-3 relative group ${
+                                    !isRead ? 'bg-gold-500/10 border-l-2 border-l-gold-500' : 'opacity-85'
+                                  }`}
+                                >
+                                  {/* Icon Type */}
+                                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border mt-0.5 ${
+                                    item.type === 'success' 
+                                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                                      : item.type === 'warning' || item.type === 'alert'
+                                      ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                                      : 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+                                  }`}>
+                                    {item.type === 'success' ? (
+                                      <CheckCircle2 className="w-4 h-4" />
+                                    ) : item.type === 'warning' || item.type === 'alert' ? (
+                                      <AlertTriangle className="w-4 h-4" />
+                                    ) : (
+                                      <Megaphone className="w-4 h-4" />
+                                    )}
+                                  </div>
+
+                                  {/* Message Body */}
+                                  <div className="flex-1 min-w-0 pr-1">
+                                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                                      <h4 className={`text-xs font-bold truncate ${!isRead ? 'text-gold-300' : 'text-gray-200'}`}>
+                                        {item.title}
+                                      </h4>
+                                      {!isRead && (
+                                        <span className="w-2 h-2 rounded-full bg-gold-400 shrink-0"></span>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-gray-300 line-clamp-2 leading-relaxed mb-1.5">
+                                      {item.message}
+                                    </p>
+                                    <div className="flex items-center justify-between text-[10px] text-gray-500">
+                                      <span className="flex items-center gap-1">
+                                        <Clock className="w-3 h-3 text-gray-500" />
+                                        {new Date(item.createdAt).toLocaleDateString('id-ID', {
+                                          day: 'numeric',
+                                          month: 'short',
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        })}
+                                      </span>
+                                      {item.targetTab && (
+                                        <span className="text-gold-400/80 group-hover:text-gold-300 font-semibold flex items-center gap-0.5">
+                                          Buka <ChevronRight className="w-2.5 h-2.5" />
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-2.5 bg-gray-900 border-t border-gray-800 text-center shrink-0">
+                          <button
+                            onClick={() => setIsNotifOpen(false)}
+                            className="text-xs text-gray-400 hover:text-white transition-colors py-0.5 px-3 rounded-lg hover:bg-white/5"
+                          >
+                            Tutup
+                          </button>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
             </div>
         </header>
 
@@ -1690,7 +2127,7 @@ export default function DashboardJamaah() {
                    </div>
                    <button 
                     onClick={() => setActiveTab('pilih_paket')}
-                    className="px-8 py-3 bg-slate-200 text-slate-400 cursor-not-allowed rounded-xl font-bold text-sm transition-all"
+                    className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg rounded-xl font-bold text-sm transition-all cursor-pointer"
                    >
                      Pilih Paket Sekarang
                    </button>
@@ -1727,7 +2164,7 @@ export default function DashboardJamaah() {
                           </div>
                           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{stat.label}</p>
                           <h4 className="text-xl font-bold text-gray-900">
-                            Rp {Number(stat.value).toLocaleString('id-ID')}
+                            Rp {formatCurrency(stat.value)}
                           </h4>
                         </div>
                       </div>
@@ -1783,21 +2220,21 @@ export default function DashboardJamaah() {
                           <Building className="w-4 h-4 mr-2 text-gray-600" /> Rekening Pembayaran
                         </h3>
                         <div className="space-y-4">
-                          <div className="p-4 bg-white shadow-md rounded-xl border border-gray-100">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Bank Mandiri</p>
-                            <p className="text-sm font-bold text-gray-900 flex items-center justify-between">
+                          <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                            <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">Bank Mandiri</p>
+                            <p className="text-sm font-black text-gray-900 flex items-center justify-between">
                               1090064995673
                               <button 
-                                className="text-gray-600 hover:text-gray-700 p-1 transition-colors"
+                                className="text-blue-600 hover:text-blue-700 p-1 transition-colors"
                                 onClick={() => {
                                   navigator.clipboard.writeText("1090064995673");
-                                  toast.success("Nomor rekening berhasil disalin");
+                                  toast.success("Nomor rekening Mandiri berhasil disalin");
                                 }}
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                               </button>
                             </p>
-                            <p className="text-[10px] text-gray-500 mt-1">A.N. PT. Golden Tour Haramain</p>
+                            <p className="text-[10px] text-blue-700 mt-1 font-medium italic">A.N. PT Golden Tour Haramain</p>
                           </div>
                         </div>
                       </div>
@@ -1949,20 +2386,26 @@ export default function DashboardJamaah() {
                               </div>
                               <button 
                                 onClick={handleConfirmPayment}
-                                disabled={!paymentForm.proof}
+                                disabled={!paymentForm.proof || isSubmittingPayment}
                                 className={`w-full py-3.5 rounded-2xl font-bold text-sm shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${
-                                  !paymentForm.proof 
+                                  !paymentForm.proof || isSubmittingPayment
                                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' 
                                     : selectedPaymentMode === 'full'
                                       ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:from-emerald-700 hover:to-teal-700 shadow-emerald-500/20'
                                       : 'bg-matcha-600 text-white hover:bg-matcha-700 shadow-black/20'
                                 }`}
                               >
-                                <CheckCircle className="w-4 h-4" />
+                                {isSubmittingPayment ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="w-4 h-4" />
+                                )}
                                 <span>
-                                  {selectedPaymentMode === 'full' 
-                                    ? `Konfirmasi Pelunasan Full (Rp ${Number(currentPaymentAmount).toLocaleString('id-ID')})`
-                                    : 'Konfirmasi Pembayaran'}
+                                  {isSubmittingPayment
+                                    ? 'Memproses Pembayaran...'
+                                    : selectedPaymentMode === 'full' 
+                                      ? `Konfirmasi Pelunasan Full (Rp ${Number(currentPaymentAmount).toLocaleString('id-ID')})`
+                                      : 'Konfirmasi Pembayaran'}
                                 </span>
                               </button>
                             </div>
@@ -2003,12 +2446,12 @@ export default function DashboardJamaah() {
                                   </td>
                                   <td className="px-6 py-4">
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider
-                                      ${t.status === 'approved' ? 'bg-green-100 text-green-700' : 
-                                        t.status === 'rejected' ? 'bg-red-100 text-red-700' : 
+                                      ${['approved', 'VERIFIED'].includes(t.status) ? 'bg-green-100 text-green-700' : 
+                                        ['rejected', 'REJECTED'].includes(t.status) ? 'bg-red-100 text-red-700' : 
                                         'bg-yellow-100 text-yellow-700'}
                                     `}>
-                                      {t.status === 'approved' ? 'Lunas/Diterima' : 
-                                       t.status === 'rejected' ? 'Ditolak' : 'Menunggu Konfirmasi'}
+                                      {['approved', 'VERIFIED'].includes(t.status) ? 'Lunas/Diterima' : 
+                                       ['rejected', 'REJECTED'].includes(t.status) ? 'Ditolak' : 'Menunggu Konfirmasi'}
                                     </span>
                                     {t.rejectionReason && (
                                       <p className="text-[9px] text-red-500 italic mt-1 max-w-[150px]">"{t.rejectionReason}"</p>
@@ -2363,26 +2806,35 @@ export default function DashboardJamaah() {
                       </p>
                    </div>
                    <button
-                    disabled
-                    className="px-8 py-3 bg-slate-200 text-slate-400 cursor-not-allowed rounded-xl font-bold text-sm transition-all"
+                    onClick={() => setActiveTab('biodata')}
+                    className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white shadow-lg rounded-xl font-bold text-sm transition-all cursor-pointer"
                    >
-                     Mulai Unggah Dokumen
+                     Lengkapi Biodata & Mulai Unggah
                    </button>
                 </div>
               ) : (
                 <div className="space-y-6">
                   {/* PAX TABS FOR DOCUMENTS */}
-                  {userConsultation?.paxData && userConsultation.paxData.length > 1 && (
-                    <div className="flex space-x-2 overflow-x-auto pb-2 scrollbar-hide">
-                      {(userConsultation?.paxData && Array.isArray(userConsultation.paxData) ? userConsultation.paxData : []).map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setActiveDocPaxIdx(i)}
-                          className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all ${activeDocPaxIdx === i ? 'bg-gray-200 text-gray-800 shadow-sm' : 'bg-gray-50 text-gray-400 hover:text-gray-600'}`}
-                        >
-                          Jamaah {i + 1}
-                        </button>
-                      ))}
+                  {paxCount > 1 && (
+                    <div className="flex items-center space-x-2 overflow-x-auto pb-3 pt-1 scrollbar-hide">
+                      {Array.from({ length: paxCount }).map((_, i) => {
+                        const paxName = paxDataList[i]?.fullName || paxDataList[i]?.name || `Jamaah ${i + 1}`;
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setActiveDocPaxIdx(i)}
+                            className={`px-4 py-2.5 rounded-2xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer flex items-center gap-2 ${
+                              activeDocPaxIdx === i 
+                                ? 'bg-amber-500 text-slate-950 shadow-md ring-2 ring-amber-400/50 scale-105' 
+                                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200 shadow-sm'
+                            }`}
+                          >
+                            <User className="w-3.5 h-3.5" />
+                            <span>{paxName}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -2396,34 +2848,43 @@ export default function DashboardJamaah() {
                     ...(paxDataList[activeDocPaxIdx]?.maritalStatus === 'Menikah' ? [{ id: 'Buku Nikah', label: 'Buku Nikah', desc: 'Scan buku nikah asli (halaman biodata).' }] : [])
                   ].map((doc, idx) => {
                     const docKey = `${doc.id}_${activeDocPaxIdx}`;
-                    const docItem = Array.isArray(userConsultation?.documents) ? userConsultation.documents.find((d: any) => d.docType === docKey) : null;
+                    const docItem = Array.isArray(userConsultation?.documents) 
+                      ? userConsultation.documents.find((d: any) => {
+                          if (!d || !d.docType) return false;
+                          if (d.docType === docKey) return true;
+                          if (d.docType.toLowerCase() === docKey.toLowerCase()) return true;
+                          // Legacy support for Jamaah 1 (index 0) where docType might be stored without index suffix
+                          if (activeDocPaxIdx === 0 && (d.docType === doc.id || d.docType.toLowerCase() === doc.id.toLowerCase())) return true;
+                          return false;
+                        }) 
+                      : null;
                     const isUploaded = !!docItem;
                     const docStatus = docItem?.status || 'pending';
                     const rejectionNote = docItem?.rejectionReason;
                     const fileUrl = docItem?.fileUrl;
 
                     return (
-                      <div key={idx} className="bg-white shadow-md rounded-xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all flex flex-col group">
+                      <div key={idx} className="bg-white shadow-md rounded-xl p-6 border border-gray-100 hover:shadow-md transition-all flex flex-col group">
                         <div className="flex items-center justify-between mb-4">
                           <div className="w-10 h-10 bg-gray-50 text-gray-400 group-hover:bg-gray-50 group-hover:text-gray-600 rounded-xl flex items-center justify-center transition-colors">
                             <FileText className="w-5 h-5" />
                           </div>
                           <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
                             ${!isUploaded ? 'bg-gray-100 text-gray-500' : 
-                              docStatus === 'approved' ? 'bg-green-100 text-green-700' :
-                              docStatus === 'rejected' ? 'bg-red-100 text-red-700' :
+                              ['approved', 'VERIFIED'].includes(docStatus) ? 'bg-green-100 text-green-700' :
+                              ['rejected', 'REJECTED'].includes(docStatus) ? 'bg-red-100 text-red-700' :
                               'bg-yellow-100 text-yellow-700'}
                           `}>
                             {!isUploaded ? 'Belum Diunggah' : 
-                             docStatus === 'approved' ? 'Disetujui' :
-                             docStatus === 'rejected' ? 'Ditolak' : 'Menunggu Verifikasi'}
+                             ['approved', 'VERIFIED'].includes(docStatus) ? 'Disetujui' :
+                             ['rejected', 'REJECTED'].includes(docStatus) ? 'Ditolak' : 'Menunggu Verifikasi'}
                           </div>
                         </div>
 
                         <h4 className="font-bold text-gray-900 text-sm mb-1">{doc.label}</h4>
                         <p className="text-[11px] text-gray-400 mb-6 flex-1">{doc.desc}</p>
 
-                        {rejectionNote && docStatus === 'rejected' && (
+                        {rejectionNote && ['rejected', 'REJECTED'].includes(docStatus) && (
                           <div className="mb-4 p-2 bg-red-50 border border-red-100 rounded-lg">
                             <p className="text-[10px] text-red-600 font-bold">Alasan Penolakan:</p>
                             <p className="text-[10px] text-red-500 italic">{rejectionNote}</p>
@@ -2434,20 +2895,48 @@ export default function DashboardJamaah() {
                           {isUploaded ? (
                             <div className="space-y-2">
                               <div className="h-32 w-full rounded-2xl border border-gray-100 overflow-hidden bg-gray-50 relative group/preview">
-                                {fileUrl?.startsWith('data:application/pdf') || fileUrl?.endsWith('.pdf') ? (
-                                  <div className="flex flex-col items-center justify-center h-full text-gray-400 bg-gray-100">
-                                    <FileText className="w-10 h-10 mb-2 opacity-50" />
-                                    <span className="text-xs font-bold uppercase text-gray-500">PDF Document</span>
-                                  </div>
-                                ) : fileUrl?.startsWith('data:image/') || fileUrl?.startsWith('http') ? (
-                                  <img src={fileUrl} className="w-full h-full object-cover object-center rounded-t-xl" alt="Preview" />
-                                ) : (
-                                  <div className="flex items-center justify-center h-full text-gray-300">
-                                    <ShieldCheck className="w-8 h-8 opacity-20" />
-                                  </div>
-                                )}
+                                {(() => {
+                                  const isPdf = docItem?.isPdf || isPdfUrl(fileUrl) || fileUrl?.startsWith('data:application/pdf') || fileUrl?.toLowerCase().endsWith('.pdf') || fileUrl?.toLowerCase().includes('.pdf');
+                                  if (isPdf) {
+                                    return (
+                                      <div className="flex flex-col items-center justify-center h-full text-emerald-600 bg-emerald-50/60 p-2 text-center">
+                                        <FileText className="w-10 h-10 mb-1 opacity-80" />
+                                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800">Dokumen PDF</span>
+                                      </div>
+                                    );
+                                  }
+                                  
+                                  if (fileUrl) {
+                                    return (
+                                      <img 
+                                        src={fileUrl} 
+                                        className="w-full h-full object-cover object-center rounded-t-xl" 
+                                        alt={`Preview ${doc.label}`} 
+                                        onError={(e) => {
+                                          const target = e.target as HTMLImageElement;
+                                          target.onerror = null;
+                                          target.style.display = 'none';
+                                          const parent = target.parentElement;
+                                          if (parent && !parent.querySelector('.fallback-placeholder')) {
+                                            const div = document.createElement('div');
+                                            div.className = 'fallback-placeholder flex flex-col items-center justify-center h-full text-emerald-700 bg-emerald-50/50 p-2 text-center w-full';
+                                            div.innerHTML = '<svg class="w-8 h-8 mb-1 opacity-70 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg><span class="text-[10px] font-extrabold text-emerald-800">Dokumen Terunggah</span>';
+                                            parent.appendChild(div);
+                                          }
+                                        }}
+                                      />
+                                    );
+                                  }
+
+                                  return (
+                                    <div className="flex flex-col items-center justify-center h-full text-emerald-600 bg-emerald-50/50">
+                                      <FileCheck className="w-8 h-8 opacity-60 mb-1" />
+                                      <span className="text-[10px] font-extrabold text-emerald-800">Berkas Terunggah</span>
+                                    </div>
+                                  );
+                                })()}
                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/preview:opacity-100 transition-opacity flex flex-col items-center justify-center space-y-2">
-                                  {(fileUrl?.startsWith('data:application/pdf') || fileUrl?.startsWith('http') || fileUrl?.startsWith('data:image/')) && (
+                                  {fileUrl && (
                                     <button
                                       type="button"
                                       className="cursor-pointer bg-gold-500 hover:bg-gold-600 text-gray-900 text-xs font-bold py-2 px-4 rounded-xl transition-all shadow-lg"
@@ -2456,7 +2945,7 @@ export default function DashboardJamaah() {
                                         e.preventDefault();
                                         setPreviewFile({
                                           url: fileUrl!,
-                                          type: fileUrl?.startsWith('data:application/pdf') || fileUrl?.endsWith('.pdf') ? 'pdf' : 'image',
+                                          type: docItem?.isPdf || isPdfUrl(fileUrl) ? 'pdf' : 'image',
                                           title: doc.id
                                         });
                                       }}
@@ -2534,23 +3023,50 @@ export default function DashboardJamaah() {
                 </div>
               )}
 
-              <div className="bg-gray-100 rounded-xl p-8 text-gray-900 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-gray-50/5 rounded-full -mr-32 -mt-32"></div>
-                <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold mb-2">Semua Dokumen Sudah Lengkap?</h3>
-                    <p className="text-slate-300 text-sm">Tim operasional kami akan memverifikasi dokumen Anda dalam waktu maksimal 1x24 jam kerja.</p>
+              <div className="bg-white shadow-lg rounded-3xl p-8 sm:p-10 text-gray-900 relative overflow-hidden border border-gray-100">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gold-50/30 rounded-full -mr-32 -mt-32"></div>
+                <div className="relative flex flex-col md:flex-row items-center justify-between gap-8">
+                  <div className="flex-1 space-y-2">
+                    <h3 className="text-2xl font-bold text-gray-900">Semua Dokumen Sudah Lengkap?</h3>
+                    <p className="text-gray-500 text-base leading-relaxed max-w-xl">
+                      Tim operasional kami akan segera memverifikasi dokumen Anda dalam waktu maksimal <span className="font-bold text-gold-600">1x24 jam kerja</span> setelah Anda melanjutkan.
+                    </p>
                   </div>
                   <button 
+                    disabled={isUpdatingStatus}
                     onClick={async () => {
-                      if (userConsultation?.status === 'bio_filled') {
-                        await updateConsultation({ ...userConsultation, status: 'documents_uploaded' });
+                      const docs = Array.isArray(userConsultation?.documents) ? userConsultation.documents : [];
+                      const uniqueDocTypes = new Set(docs.map((d: any) => d.docType));
+                      const expectedDocs = paxCount * 5;
+                      
+                      if (uniqueDocTypes.size < expectedDocs) {
+                        toast.info(`Info: Anda baru mengunggah ${uniqueDocTypes.size} dari ${expectedDocs} dokumen yang disarankan. Anda tetap dapat melanjutkan ke pembayaran.`);
                       }
-                      setActiveTab('pembayaran');
+
+                      setIsUpdatingStatus(true);
+                      try {
+                        if (userConsultation?.status === 'UPLOAD_DOKUMEN') {
+                          await updateConsultation({ ...userConsultation, status: 'VERIFIKASI_DOKUMEN' });
+                        }
+                        setActiveTab('pembayaran');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      } finally {
+                        setIsUpdatingStatus(false);
+                      }
                     }}
-                    className="px-8 py-3 bg-gold-500 text-gray-900 rounded-xl font-bold text-sm hover:bg-gold-600 transition-all shadow-lg shadow-black/20"
+                    className={`px-10 py-4 rounded-2xl font-bold text-base transition-all shadow-2xl flex items-center justify-center gap-3 active:scale-95 min-w-[240px] ${
+                      isUpdatingStatus 
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none' 
+                        : 'bg-gradient-to-r from-gold-500 to-amber-500 text-gray-950 hover:from-gold-600 hover:to-amber-600 shadow-gold-500/40 hover:-translate-y-1'
+                    }`}
                   >
-                    Lanjut ke Pembayaran
+                    {isUpdatingStatus ? (
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <CreditCard className="w-5 h-5" />
+                    )}
+                    <span>{isUpdatingStatus ? 'Memproses...' : 'Lanjut ke Pembayaran'}</span>
+                    {!isUpdatingStatus && <ArrowRight className="w-5 h-5 ml-1 group-hover:translate-x-1 transition-transform" />}
                   </button>
                 </div>
               </div>
@@ -2603,47 +3119,117 @@ export default function DashboardJamaah() {
                 <div className="space-y-6">
                   {/* Komponen Manifest yang dibuat */}
                   <PreparationInfo manifest={manifest} registration={userConsultation} />
-                  <div className="bg-white shadow-md rounded-xl p-8 border border-gray-100">
-                    <h3 className="font-bold text-lg text-gray-900 mb-6 flex items-center">
-                      <InventoryIcon className="w-5 h-5 mr-2 text-gold-500" /> Status Perlengkapan & Seragam
-                    </h3>
-                    <div className="space-y-8">
+                  <div className="bg-white shadow-md rounded-2xl p-6 sm:p-8 border border-gray-100">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
+                      <div>
+                        <h3 className="font-bold text-lg text-gray-900 flex items-center">
+                          <InventoryIcon className="w-5 h-5 mr-2 text-emerald-700" /> Status Perlengkapan & Seragam
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">Status pengambilan paket perlengkapan keberangkatan Anda</p>
+                      </div>
+
+                      {/* Download PDF Button for Jamaah */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const userGenderRaw = String(userConsultation?.gender || userConsultation?.paxData?.[0]?.gender || dbUser?.gender || user?.gender || '').toUpperCase();
+                          const isFemale = userGenderRaw.includes('P') || userGenderRaw.includes('WANITA') || userGenderRaw.includes('FEMALE') || userGenderRaw.includes('PEREMPUAN');
+                          generateEquipmentReceiptPdf(
+                            userConsultation || { name: user?.displayName || user?.email, phone: userConsultation?.phone },
+                            inventoryState,
+                            isFemale ? 'P' : 'L'
+                          );
+                        }}
+                        className="inline-flex items-center px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer self-start sm:self-auto"
+                      >
+                        <Download className="w-3.5 h-3.5 mr-1.5 text-emerald-200" />
+                        <span>Unduh Bukti Perlengkapan (PDF)</span>
+                      </button>
+                    </div>
+
+                    <div className="space-y-6">
                       {(() => {
                         const status = inventoryState;
+                        const userGenderRaw = String(userConsultation?.gender || userConsultation?.paxData?.[0]?.gender || dbUser?.gender || user?.gender || '').toUpperCase();
+                        const isFemale = userGenderRaw.includes('P') || userGenderRaw.includes('WANITA') || userGenderRaw.includes('FEMALE') || userGenderRaw.includes('PEREMPUAN');
+                        const isMale = !isFemale;
+
                         const items = [
-                          { key: 'koper', label: 'Koper & Tas Passport', icon: '🧳' },
-                          { key: 'ihram', label: 'Kain Ihram / Seragam Batik', icon: '👔' },
-                          { key: 'mukena', label: 'Mukena / Buku Doa & Panduan', icon: '📖' }
+                          { 
+                            key: 'koper', 
+                            label: 'Koper & Tas Travel', 
+                            sublabel: 'Koper Bagasi 24", Kabin 20", Tas Paspor & ID Card',
+                            icon: '🧳' 
+                          },
+                          { 
+                            key: 'ihram', 
+                            label: isMale ? 'Set Kain Ihram & Sabuk' : 'Set Mukena & Bergo Seragam', 
+                            sublabel: isMale ? 'Set Kain Ihram Katun (2 Pcs) & Sabuk' : 'Set Mukena Premium Travel & Bergo Seragam',
+                            icon: isMale ? '🕋' : '🧕' 
+                          },
+                          { 
+                            key: 'mukena', 
+                            label: 'Seragam Batik & Buku Doa', 
+                            sublabel: 'Kain Batik Seragam Official & Buku Panduan Doa',
+                            icon: '👔' 
+                          }
                         ];
+
                         const completedCount = items.filter(item => status?.[item.key as keyof typeof status]).length;
                         const progressPercent = (completedCount / items.length) * 100;
 
                         return (
                           <>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-bold text-matcha-200 uppercase tracking-widest">Progress Distribusi</span>
-                              <span className="text-sm font-bold text-gray-700">{Math.round(progressPercent)}%</span>
-                            </div>
-                            <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-matcha-600 transition-all duration-1000"
-                                style={{ width: `${progressPercent}%` }}
-                              ></div>
+                            {/* Gender Category Tag */}
+                            <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-gray-100 text-xs">
+                              <div className="flex items-center space-x-2">
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${
+                                  isMale ? 'bg-blue-100 text-blue-800' : 'bg-rose-100 text-rose-800'
+                                }`}>
+                                  <span className="mr-1">{isMale ? '♂' : '♀'}</span>
+                                  {isMale ? 'Kategori Perlengkapan Pria' : 'Kategori Perlengkapan Wanita'}
+                                </span>
+                              </div>
+                              <span className="text-gray-500 font-medium">Progress: <strong className="text-emerald-700 font-bold">{completedCount}/3 Item</strong></span>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+                            {/* Progress Bar */}
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Kelengkapan Distribusi</span>
+                                <span className="text-xs font-bold text-emerald-800">{Math.round(progressPercent)}%</span>
+                              </div>
+                              <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-emerald-600 transition-all duration-1000"
+                                  style={{ width: `${progressPercent}%` }}
+                                ></div>
+                              </div>
+                            </div>
+
+                            {/* Item Cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
                               {items.map(item => {
                                 const isDone = status?.[item.key as keyof typeof status];
                                 return (
-                                  <div key={item.key} className={`p-6 rounded-2xl border transition-all ${isDone ? 'bg-green-50 border-green-100' : 'bg-gray-50 border-gray-100'}`}>
-                                    <div className="text-2xl mb-3">{item.icon}</div>
-                                    <h4 className="font-bold text-sm text-gray-900 mb-1">{item.label}</h4>
-                                    <p className={`text-[10px] font-bold uppercase ${isDone ? 'text-green-600' : 'text-gray-400'}`}>
-                                      {isDone ? 'Sudah Diambil' : 'Menunggu Distribusi'}
-                                    </p>
-                                    {isDone && status?.assignee && (
-                                      <p className="text-[9px] text-gray-500 mt-2 italic">Approved by: {status.assignee}</p>
-                                    )}
+                                  <div key={item.key} className={`p-5 rounded-2xl border transition-all flex flex-col justify-between ${
+                                    isDone ? 'bg-emerald-50/60 border-emerald-200' : 'bg-gray-50 border-gray-100'
+                                  }`}>
+                                    <div>
+                                      <div className="text-2xl mb-2">{item.icon}</div>
+                                      <h4 className="font-bold text-sm text-gray-900 mb-0.5">{item.label}</h4>
+                                      <p className="text-[11px] text-gray-500 leading-tight mb-3">{item.sublabel}</p>
+                                    </div>
+                                    <div>
+                                      <p className={`text-[10px] font-bold uppercase inline-flex items-center px-2 py-0.5 rounded-full ${
+                                        isDone ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-200 text-gray-600'
+                                      }`}>
+                                        {isDone ? '✓ Sudah Diambil' : '• Menunggu Penyerahan'}
+                                      </p>
+                                      {isDone && status?.assignee && (
+                                        <p className="text-[9px] text-gray-500 mt-2 italic">Petugas: {status.assignee}</p>
+                                      )}
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -2657,25 +3243,111 @@ export default function DashboardJamaah() {
 
                 {/* Papan Pengumuman */}
                 <div className="space-y-6">
-                  <div className="bg-white shadow-md rounded-xl p-8 border border-gray-100">
-                    <h3 className="font-bold text-lg text-gray-900 mb-6 flex items-center">
-                      <Megaphone className="w-5 h-5 mr-2 text-gold-500" /> Papan Pengumuman
-                    </h3>
+                  <div className="bg-white shadow-md rounded-2xl p-6 sm:p-8 border border-gray-100">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-gray-100">
+                      <div>
+                        <h3 className="font-bold text-lg text-gray-900 flex items-center">
+                          <Megaphone className="w-5 h-5 mr-2 text-emerald-700" /> Papan Pengumuman Resmi
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">Informasi penting dan pemberitahuan resmi seputar perjalanan ibadah Anda</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-100">
+                          {(announcements || []).length} Pengumuman
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => refreshData(true)}
+                          className="p-1.5 text-gray-400 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-all"
+                          title="Perbarui Pengumuman"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="space-y-4">
-                      {(announcements || []).map((ann) => (
-                        <div key={ann.id} className="p-5 rounded-2xl bg-gray-50 border border-gray-100 relative overflow-hidden group">
-                           <div className={`absolute left-0 top-0 bottom-0 w-1 ${ann.type === 'important' ? 'bg-red-500' : ann.type === 'update' ? 'bg-gold-500' : 'bg-gray-500'}`}></div>
-                           <div className="flex justify-between items-start mb-2">
-                             <h4 className="font-bold text-gray-900">{ann.title}</h4>
-                             <span className="text-[10px] text-gray-400 font-bold">{ann.createdAt ? new Date(ann.createdAt).toLocaleDateString('id-ID') : '-'}</span>
-                           </div>
-                           <p className="text-sm text-gray-600 leading-relaxed">{ann.content}</p>
-                        </div>
-                      ))}
-                      {announcements.length === 0 && (
-                        <div className="py-12 text-center text-gray-400">
-                          <Megaphone className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                          <p className="text-sm font-bold">Belum ada pengumuman terbaru</p>
+                      {(announcements || []).map((ann) => {
+                        const messageText = ann.message || ann.content || ann.description || ann.body || '';
+                        const isImportant = ann.type === 'important';
+                        const isUpdate = ann.type === 'update';
+
+                        return (
+                          <div 
+                            key={ann.id} 
+                            className={`p-5 rounded-2xl border transition-all relative overflow-hidden group ${
+                              isImportant 
+                                ? 'bg-rose-50/50 border-rose-200/70 hover:border-rose-300' 
+                                : isUpdate 
+                                ? 'bg-amber-50/50 border-amber-200/70 hover:border-amber-300' 
+                                : 'bg-slate-50/80 border-gray-200/70 hover:border-emerald-300'
+                            }`}
+                          >
+                            {/* Left Status Bar */}
+                            <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                              isImportant ? 'bg-rose-500' : isUpdate ? 'bg-amber-500' : 'bg-emerald-600'
+                            }`}></div>
+
+                            <div className="pl-1">
+                              {/* Header Badges & Date */}
+                              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                                <div className="flex items-center space-x-2">
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide uppercase ${
+                                    isImportant 
+                                      ? 'bg-rose-100 text-rose-800 border border-rose-200' 
+                                      : isUpdate 
+                                      ? 'bg-amber-100 text-amber-900 border border-amber-200' 
+                                      : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                                  }`}>
+                                    {isImportant && <AlertTriangle className="w-3 h-3 mr-1" />}
+                                    {isUpdate && <CalendarIcon className="w-3 h-3 mr-1" />}
+                                    {!isImportant && !isUpdate && <Bell className="w-3 h-3 mr-1" />}
+                                    {isImportant ? 'Penting & Urgent' : isUpdate ? 'Pembaruan Jadwal' : 'Informasi Umum'}
+                                  </span>
+                                </div>
+
+                                <span className="text-xs text-gray-500 font-medium flex items-center space-x-1">
+                                  <Clock className="w-3.5 h-3.5 text-gray-400" />
+                                  <span>
+                                    {ann.createdAt 
+                                      ? new Date(ann.createdAt).toLocaleDateString('id-ID', { 
+                                          day: 'numeric', 
+                                          month: 'long', 
+                                          year: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        }) + ' WIB'
+                                      : 'Baru saja'
+                                    }
+                                  </span>
+                                </span>
+                              </div>
+
+                              {/* Title */}
+                              <h4 className="font-bold text-base text-gray-900 mb-2 leading-snug">
+                                {ann.title || 'Pengumuman Resmi'}
+                              </h4>
+
+                              {/* Body Content Message */}
+                              {messageText ? (
+                                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line break-words bg-white/60 p-3.5 rounded-xl border border-gray-100/80">
+                                  {messageText}
+                                </p>
+                              ) : (
+                                <p className="text-xs italic text-gray-400 bg-white/40 p-2.5 rounded-xl border border-dashed border-gray-200">
+                                  (Tidak ada rincian pesan tambahan)
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {(!announcements || announcements.length === 0) && (
+                        <div className="py-12 text-center text-gray-400 bg-slate-50/50 rounded-2xl border border-dashed border-gray-200">
+                          <Megaphone className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                          <p className="text-sm font-bold text-gray-600">Belum ada pengumuman terbaru</p>
+                          <p className="text-xs text-gray-400 mt-1">Pengumuman resmi dari pihak travel akan ditampilkan di sini</p>
                         </div>
                       )}
                     </div>
@@ -2748,13 +3420,135 @@ export default function DashboardJamaah() {
 
                     // Helper to check document availability for a pax
                     const getDocForPax = (baseType: string, pIdx: number) => {
-                      const paxDoc = myDocs.find((d: any) => d.docType === `${baseType}_pax_${pIdx}` && d.fileUrl);
-                      const groupDoc = myDocs.find((d: any) => d.docType === baseType && d.fileUrl);
+                      const typesToCheck = [baseType];
+                      if (baseType === 'eticket') {
+                        typesToCheck.push('Tiket Pesawat', 'ticket', 'e-ticket', 'E-Ticket', 'eticket');
+                      } else if (baseType === 'visa') {
+                        typesToCheck.push('E-Visa', 'Visa KSA', 'visa_ksa', 'visa');
+                      } else if (baseType === 'asuransi') {
+                        typesToCheck.push('polis', 'Polis', 'asuransi_perjalanan', 'insurance', 'asuransi');
+                      }
+
+                      let paxDoc: any = null;
+                      let groupDoc: any = null;
+
+                      for (const t of typesToCheck) {
+                        paxDoc = myDocs.find((d: any) => 
+                          d.fileUrl && (
+                            d.docType === `${t}_pax_${pIdx}` ||
+                            d.docType === `${t}_${pIdx}` ||
+                            d.docType?.toLowerCase() === `${t.toLowerCase()}_pax_${pIdx}` ||
+                            d.docType?.toLowerCase() === `${t.toLowerCase()}_${pIdx}` ||
+                            d.docType?.toLowerCase() === `pax_${pIdx}_${t.toLowerCase()}`
+                          )
+                        );
+                        if (paxDoc) break;
+                      }
+
+                      if (!paxDoc) {
+                        for (const t of typesToCheck) {
+                          groupDoc = myDocs.find((d: any) => 
+                            d.fileUrl && (
+                              d.docType === t ||
+                              d.docType?.toLowerCase() === t.toLowerCase() ||
+                              d.docType?.toLowerCase() === baseType.toLowerCase() ||
+                              d.docType?.toLowerCase().includes(baseType.toLowerCase())
+                            )
+                          );
+                          if (groupDoc) break;
+                        }
+                      }
+
                       return {
                         fileUrl: paxDoc?.fileUrl || groupDoc?.fileUrl || null,
                         isGroup: !paxDoc && !!groupDoc,
                         paxDocName: paxDoc ? paxList[pIdx]?.name : (groupDoc ? 'Dokumen Rombongan (Group)' : null)
                       };
+                    };
+
+                    // Handler to open or generate document dynamically
+                    const handleOpenJamaahDoc = async (
+                      type: 'eticket' | 'visa' | 'asuransi' | 'itinerary' | 'manasik',
+                      paxItem: any,
+                      existingUrl?: string | null
+                    ) => {
+                      const paxName = paxItem?.name || userConsultation?.fullName || 'Jamaah';
+                      const docTypeLabel = type === 'eticket' ? 'E-Ticket' : type === 'visa' ? 'Visa KSA' : type === 'asuransi' ? 'Polis Asuransi' : type === 'itinerary' ? 'Itinerary' : 'Panduan Manasik';
+                      const isUploaded = !!existingUrl;
+
+                      if (existingUrl) {
+                        setPreviewFile({
+                          url: existingUrl,
+                          type: isPdfUrl(existingUrl) ? 'pdf' : isImageUrl(existingUrl) ? 'image' : 'pdf',
+                          title: `${docTypeLabel} - ${paxName} ${isUploaded ? '(Resmi Travel)' : ''}`
+                        });
+                        return;
+                      }
+
+                      try {
+                        toast.loading('Menyiapkan dokumen PDF...', { id: 'doc-pdf-gen' });
+                        const pdfData = await generateJamaahDocumentPdf(
+                          type,
+                          {
+                            name: paxName,
+                            nik: paxItem?.nik || userConsultation?.nik,
+                            passport: paxItem?.passport || userConsultation?.passportNumber || userConsultation?.passport,
+                            phone: userConsultation?.phone
+                          },
+                          userSchedule,
+                          currentPackage,
+                          userConsultation?.bookingCode || userConsultation?.id
+                        );
+                        toast.dismiss('doc-pdf-gen');
+                        setPreviewFile({
+                          url: pdfData,
+                          type: 'pdf',
+                          title: `${docTypeLabel} - ${paxName} (E-Dokumen)`
+                        });
+                      } catch (err) {
+                        toast.dismiss('doc-pdf-gen');
+                        toast.error('Gagal memuat dokumen PDF');
+                      }
+                    };
+
+                    // Handler to directly download file without previewing modal
+                    const handleDownloadDirect = async (
+                      type: 'eticket' | 'visa' | 'asuransi' | 'itinerary' | 'manasik',
+                      paxItem: any,
+                      existingUrl?: string | null
+                    ) => {
+                      const paxName = paxItem?.name || userConsultation?.fullName || 'Jamaah';
+                      const docTitle = type === 'eticket' ? 'ETicket' : type === 'visa' ? 'Visa_KSA' : type === 'asuransi' ? 'Polis_Asuransi' : type === 'itinerary' ? 'Itinerary' : 'Panduan_Manasik';
+                      const fileName = `${docTitle}_${paxName.replace(/\s+/g, '_')}`;
+
+                      if (existingUrl) {
+                        const ext = isPdfUrl(existingUrl) ? 'pdf' : isImageUrl(existingUrl) ? 'png' : 'pdf';
+                        downloadFile(existingUrl, `${fileName}.${ext}`);
+                        toast.success(`Mengunduh dokumen travel ${docTitle.replace(/_/g, ' ')}`);
+                        return;
+                      }
+
+                      try {
+                        toast.loading('Menyiapkan PDF untuk diunduh...', { id: 'doc-pdf-dl' });
+                        const pdfData = await generateJamaahDocumentPdf(
+                          type,
+                          {
+                            name: paxName,
+                            nik: paxItem?.nik || userConsultation?.nik,
+                            passport: paxItem?.passport || userConsultation?.passportNumber || userConsultation?.passport,
+                            phone: userConsultation?.phone
+                          },
+                          userSchedule,
+                          currentPackage,
+                          userConsultation?.bookingCode || userConsultation?.id
+                        );
+                        toast.dismiss('doc-pdf-dl');
+                        downloadFile(pdfData, `${fileName}.pdf`);
+                        toast.success(`Berhasil mengunduh PDF ${docTitle.replace(/_/g, ' ')}`);
+                      } catch (err) {
+                        toast.dismiss('doc-pdf-dl');
+                        toast.error('Gagal mengunduh dokumen');
+                      }
                     };
 
                     return (
@@ -2923,58 +3717,70 @@ export default function DashboardJamaah() {
                                         {/* Row Tombol Ikon Ringkas (Compact Icon Buttons Row) */}
                                         <div className="grid grid-cols-3 gap-2 pt-1">
                                           {/* Button Tiket */}
-                                          {tDoc.fileUrl ? (
+                                          <div className="flex items-center gap-1 min-w-0">
                                             <button
                                               type="button"
-                                              onClick={() => setPreviewFile({ url: tDoc.fileUrl!, type: 'pdf', title: `E-Ticket - ${p.name}` })}
-                                              className="py-2.5 px-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm group"
-                                              title={`Unduh E-Ticket ${p.name}`}
+                                              onClick={() => handleOpenJamaahDoc('eticket', p, tDoc.fileUrl)}
+                                              className="flex-1 py-2 px-2 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border border-emerald-500/40 font-bold text-xs flex items-center justify-center gap-1 transition-all shadow-sm group cursor-pointer min-w-0"
+                                              title={`Buka / Pratinjau E-Ticket ${p.name}`}
                                             >
-                                              <Plane className="w-4 h-4 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+                                              <Plane className="w-3.5 h-3.5 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
                                               <span className="truncate">Tiket</span>
+                                              {tDoc.fileUrl && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" title="File Admin Uploaded" />}
                                             </button>
-                                          ) : (
-                                            <div className="py-2.5 px-2 rounded-xl bg-slate-900/90 text-gray-400 border border-white/5 text-[11px] font-medium flex items-center justify-center gap-1 text-center opacity-60">
-                                              <Plane className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                                              <span className="truncate">Tiket -</span>
-                                            </div>
-                                          )}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDownloadDirect('eticket', p, tDoc.fileUrl)}
+                                              className="p-2 rounded-xl bg-white/5 hover:bg-emerald-500/20 text-emerald-400 border border-white/10 hover:border-emerald-500/40 transition-all shrink-0"
+                                              title={`Unduh Direct E-Ticket ${p.name}`}
+                                            >
+                                              <Download className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
 
                                           {/* Button Visa */}
-                                          {vDoc.fileUrl ? (
+                                          <div className="flex items-center gap-1 min-w-0">
                                             <button
                                               type="button"
-                                              onClick={() => setPreviewFile({ url: vDoc.fileUrl!, type: 'pdf', title: `Visa - ${p.name}` })}
-                                              className="py-2.5 px-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm group"
-                                              title={`Unduh Visa KSA ${p.name}`}
+                                              onClick={() => handleOpenJamaahDoc('visa', p, vDoc.fileUrl)}
+                                              className="flex-1 py-2 px-2 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border border-emerald-500/40 font-bold text-xs flex items-center justify-center gap-1 transition-all shadow-sm group cursor-pointer min-w-0"
+                                              title={`Buka / Pratinjau Visa KSA ${p.name}`}
                                             >
-                                              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+                                              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
                                               <span className="truncate">Visa</span>
+                                              {vDoc.fileUrl && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" title="File Admin Uploaded" />}
                                             </button>
-                                          ) : (
-                                            <div className="py-2.5 px-2 rounded-xl bg-slate-900/90 text-gray-400 border border-white/5 text-[11px] font-medium flex items-center justify-center gap-1 text-center opacity-60">
-                                              <ShieldCheck className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                                              <span className="truncate">Visa -</span>
-                                            </div>
-                                          )}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDownloadDirect('visa', p, vDoc.fileUrl)}
+                                              className="p-2 rounded-xl bg-white/5 hover:bg-emerald-500/20 text-emerald-400 border border-white/10 hover:border-emerald-500/40 transition-all shrink-0"
+                                              title={`Unduh Direct Visa ${p.name}`}
+                                            >
+                                              <Download className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
 
                                           {/* Button Asuransi */}
-                                          {aDoc.fileUrl ? (
+                                          <div className="flex items-center gap-1 min-w-0">
                                             <button
                                               type="button"
-                                              onClick={() => setPreviewFile({ url: aDoc.fileUrl!, type: 'pdf', title: `Asuransi - ${p.name}` })}
-                                              className="py-2.5 px-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm group"
-                                              title={`Unduh Polis Asuransi ${p.name}`}
+                                              onClick={() => handleOpenJamaahDoc('asuransi', p, aDoc.fileUrl)}
+                                              className="flex-1 py-2 px-2 rounded-xl bg-gradient-to-r from-emerald-500/20 to-teal-500/20 hover:from-emerald-500/30 hover:to-teal-500/30 text-emerald-300 border border-emerald-500/40 font-bold text-xs flex items-center justify-center gap-1 transition-all shadow-sm group cursor-pointer min-w-0"
+                                              title={`Buka / Pratinjau Polis Asuransi ${p.name}`}
                                             >
-                                              <HeartPulse className="w-4 h-4 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
+                                              <HeartPulse className="w-3.5 h-3.5 text-emerald-400 shrink-0 group-hover:scale-110 transition-transform" />
                                               <span className="truncate">Polis</span>
+                                              {aDoc.fileUrl && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" title="File Admin Uploaded" />}
                                             </button>
-                                          ) : (
-                                            <div className="py-2.5 px-2 rounded-xl bg-slate-900/90 text-gray-400 border border-white/5 text-[11px] font-medium flex items-center justify-center gap-1 text-center opacity-60">
-                                              <HeartPulse className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                                              <span className="truncate">Polis -</span>
-                                            </div>
-                                          )}
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDownloadDirect('asuransi', p, aDoc.fileUrl)}
+                                              className="p-2 rounded-xl bg-white/5 hover:bg-emerald-500/20 text-emerald-400 border border-white/10 hover:border-emerald-500/40 transition-all shrink-0"
+                                              title={`Unduh Direct Polis ${p.name}`}
+                                            >
+                                              <Download className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
                                         </div>
                                       </div>
                                     );
@@ -3048,7 +3854,6 @@ export default function DashboardJamaah() {
                                       {cards.map((c) => {
                                         const IconComp = c.icon;
                                         const hasDoc = !!c.doc?.fileUrl;
-                                        const isLocked = !isLunas;
 
                                         return (
                                           <div
@@ -3068,13 +3873,11 @@ export default function DashboardJamaah() {
                                                 </div>
 
                                                 <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase border shrink-0 ${
-                                                  isLocked
-                                                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                                                    : hasDoc
-                                                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                                                      : 'bg-gray-800/80 text-gray-400 border-gray-700'
+                                                  hasDoc 
+                                                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' 
+                                                    : 'bg-gold-500/20 text-gold-300 border-gold-500/30'
                                                 }`}>
-                                                  {isLocked ? 'Kunci (Belum Lunas)' : hasDoc ? 'PDF Ready' : 'Belum Terbit'}
+                                                  {hasDoc ? '🟢 File Travel' : '⚡ E-Dokumen Ready'}
                                                 </span>
                                               </div>
 
@@ -3082,6 +3885,18 @@ export default function DashboardJamaah() {
                                               <p className="text-xs sm:text-sm text-gray-300 leading-relaxed w-full">
                                                 {c.desc}
                                               </p>
+
+                                              {hasDoc ? (
+                                                <div className="text-[11px] text-emerald-300/90 font-medium bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 flex items-center gap-1.5">
+                                                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                                  <span className="truncate">File resmi diunggah oleh Admin Travel</span>
+                                                </div>
+                                              ) : (
+                                                <div className="text-[11px] text-gold-300/90 font-medium bg-gold-500/10 px-2.5 py-1 rounded-lg border border-gold-500/20 flex items-center gap-1.5">
+                                                  <FileText className="w-3.5 h-3.5 text-gold-400 shrink-0" />
+                                                  <span className="truncate">E-Dokumen digital resmi tergenerasi</span>
+                                                </div>
+                                              )}
 
                                               {c.doc?.isGroup && hasDoc && (
                                                 <div>
@@ -3092,40 +3907,26 @@ export default function DashboardJamaah() {
                                               )}
                                             </div>
 
-                                            {/* Button Row */}
-                                            <div className="w-full pt-2">
+                                            {/* Dual Button Action Row */}
+                                            <div className="w-full pt-3 grid grid-cols-2 gap-2 border-t border-white/10">
                                               <button
                                                 type="button"
-                                                disabled={isLocked || !hasDoc}
-                                                onClick={() => {
-                                                  if (c.doc?.fileUrl) {
-                                                    setPreviewFile({
-                                                      url: c.doc.fileUrl,
-                                                      type: 'pdf',
-                                                      title: `${c.title} - ${activePax.name}`
-                                                    });
-                                                  } else {
-                                                    toast.info(`${c.title} belum diunggah oleh pihak travel.`);
-                                                  }
-                                                }}
-                                                className={`w-full py-3 px-4 rounded-xl text-xs sm:text-sm font-extrabold flex items-center justify-center gap-2 transition-all shadow-md ${
-                                                  isLocked
-                                                    ? 'bg-white/5 border border-white/10 text-gray-400 cursor-not-allowed'
-                                                    : hasDoc
-                                                      ? 'bg-gradient-to-r from-gold-500 via-amber-400 to-gold-500 hover:from-gold-400 hover:to-amber-300 text-slate-950 shadow-gold-500/20 cursor-pointer'
-                                                      : 'bg-white/5 border border-white/10 text-gray-400 cursor-not-allowed'
-                                                }`}
+                                                onClick={() => handleOpenJamaahDoc(c.id as any, activePax, c.doc?.fileUrl)}
+                                                className="py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md bg-gradient-to-r from-gold-500 via-amber-400 to-gold-500 hover:from-gold-400 hover:to-amber-300 text-slate-950 shadow-gold-500/20 cursor-pointer"
+                                                title="Lihat Pratinjau"
                                               >
-                                                {isLocked ? (
-                                                  <span>Lunasi Tagihan Untuk Akses</span>
-                                                ) : hasDoc ? (
-                                                  <>
-                                                    <Eye className="w-4 h-4 shrink-0" />
-                                                    <span>Lihat / Unduh PDF</span>
-                                                  </>
-                                                ) : (
-                                                  <span>Belum Diunggah Travel</span>
-                                                )}
+                                                <Eye className="w-3.5 h-3.5 shrink-0" />
+                                                <span className="truncate">Pratinjau</span>
+                                              </button>
+
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDownloadDirect(c.id as any, activePax, c.doc?.fileUrl)}
+                                                className="py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/40 hover:border-emerald-400 cursor-pointer"
+                                                title="Unduh File Langsung"
+                                              >
+                                                <Download className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                                                <span className="truncate">Unduh Direct</span>
                                               </button>
                                             </div>
                                           </div>
@@ -3171,11 +3972,11 @@ export default function DashboardJamaah() {
                                         </h4>
                                       </div>
                                       <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase border shrink-0 ${
-                                        currentPackage?.manasikPdfUrl 
-                                          ? 'bg-purple-500/20 text-purple-200 border-purple-500/30' 
-                                          : 'bg-gray-800/80 text-gray-300 border-gray-700'
+                                        currentPackage?.manasikPdfUrl
+                                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                                          : 'bg-purple-500/20 text-purple-200 border-purple-500/30'
                                       }`}>
-                                        {currentPackage?.manasikPdfUrl ? 'Digital PDF Ready' : 'Belum Tersedia'}
+                                        {currentPackage?.manasikPdfUrl ? '🟢 File Travel' : '⚡ E-Book Ready'}
                                       </span>
                                     </div>
 
@@ -3184,25 +3985,28 @@ export default function DashboardJamaah() {
                                     </p>
                                   </div>
 
-                                  <button
-                                    type="button"
-                                    disabled={!currentPackage?.manasikPdfUrl}
-                                    onClick={() => {
-                                      if (currentPackage?.manasikPdfUrl) {
-                                        setPreviewFile({ url: currentPackage.manasikPdfUrl, type: 'pdf', title: 'Buku Panduan Manasik' });
-                                      } else {
-                                        toast.info('Buku panduan manasik belum tersedia untuk paket ini.');
-                                      }
-                                    }}
-                                    className={`w-full py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${
-                                      currentPackage?.manasikPdfUrl
-                                        ? 'bg-gradient-to-r from-gold-500 via-amber-400 to-gold-500 hover:from-gold-400 hover:to-amber-300 text-slate-950 shadow-gold-500/20 cursor-pointer'
-                                        : 'bg-white/5 border border-white/10 text-gray-400 cursor-not-allowed'
-                                    }`}
-                                  >
-                                    <BookOpen className="w-4 h-4 shrink-0" />
-                                    <span>{currentPackage?.manasikPdfUrl ? 'Buka & Unduh Buku Manasik (PDF)' : 'Buku Belum Tersedia'}</span>
-                                  </button>
+                                  {/* Dual Button Action Row */}
+                                  <div className="w-full pt-3 grid grid-cols-2 gap-2 border-t border-white/10">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenJamaahDoc('manasik', { name: userConsultation?.fullName || 'Jamaah Utama' }, currentPackage?.manasikPdfUrl)}
+                                      className="py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md bg-gradient-to-r from-gold-500 via-amber-400 to-gold-500 hover:from-gold-400 hover:to-amber-300 text-slate-950 shadow-gold-500/20 cursor-pointer"
+                                      title="Pratinjau Buku Manasik"
+                                    >
+                                      <Eye className="w-3.5 h-3.5 shrink-0" />
+                                      <span className="truncate">Pratinjau</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadDirect('manasik', { name: userConsultation?.fullName || 'Jamaah Utama' }, currentPackage?.manasikPdfUrl)}
+                                      className="py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md bg-slate-800 hover:bg-slate-700 text-purple-300 border border-purple-500/40 hover:border-purple-400 cursor-pointer"
+                                      title="Unduh Buku Manasik Direct"
+                                    >
+                                      <Download className="w-3.5 h-3.5 shrink-0 text-purple-300" />
+                                      <span className="truncate">Unduh Direct</span>
+                                    </button>
+                                  </div>
                                 </div>
 
                                 {/* Card Itinerary Perjalanan */}
@@ -3220,9 +4024,9 @@ export default function DashboardJamaah() {
                                       <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full uppercase border shrink-0 ${
                                         userSchedule?.itineraryPdfUrl
                                           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                                          : 'bg-gray-800/80 text-gray-300 border-gray-700'
+                                          : 'bg-pink-500/20 text-pink-200 border-pink-500/30'
                                       }`}>
-                                        {userSchedule?.itineraryPdfUrl ? 'PDF Ready' : 'Belum Diterbitkan'}
+                                        {userSchedule?.itineraryPdfUrl ? '🟢 File Travel' : '⚡ PDF Ready'}
                                       </span>
                                     </div>
 
@@ -3231,25 +4035,28 @@ export default function DashboardJamaah() {
                                     </p>
                                   </div>
 
-                                  <button
-                                    type="button"
-                                    disabled={!userSchedule?.itineraryPdfUrl}
-                                    onClick={() => {
-                                      if (userSchedule?.itineraryPdfUrl) {
-                                        setPreviewFile({ url: userSchedule.itineraryPdfUrl, type: 'pdf', title: 'Itinerary Perjalanan' });
-                                      } else {
-                                        toast.info('Itinerary perjalanan belum diterbitkan oleh pihak travel.');
-                                      }
-                                    }}
-                                    className={`w-full py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${
-                                      userSchedule?.itineraryPdfUrl
-                                        ? 'bg-gradient-to-r from-gold-500 via-amber-400 to-gold-500 hover:from-gold-400 hover:to-amber-300 text-slate-950 shadow-gold-500/20 cursor-pointer'
-                                        : 'bg-white/5 border border-white/10 text-gray-400 cursor-not-allowed'
-                                    }`}
-                                  >
-                                    <MapPin className="w-4 h-4 shrink-0" />
-                                    <span>{userSchedule?.itineraryPdfUrl ? 'Buka & Unduh PDF Itinerary' : 'Itinerary Belum Diterbitkan'}</span>
-                                  </button>
+                                  {/* Dual Button Action Row */}
+                                  <div className="w-full pt-3 grid grid-cols-2 gap-2 border-t border-white/10">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenJamaahDoc('itinerary', { name: userConsultation?.fullName || 'Jamaah Utama' }, userSchedule?.itineraryPdfUrl)}
+                                      className="py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md bg-gradient-to-r from-gold-500 via-amber-400 to-gold-500 hover:from-gold-400 hover:to-amber-300 text-slate-950 shadow-gold-500/20 cursor-pointer"
+                                      title="Pratinjau Itinerary"
+                                    >
+                                      <Eye className="w-3.5 h-3.5 shrink-0" />
+                                      <span className="truncate">Pratinjau</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDownloadDirect('itinerary', { name: userConsultation?.fullName || 'Jamaah Utama' }, userSchedule?.itineraryPdfUrl)}
+                                      className="py-2.5 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md bg-slate-800 hover:bg-slate-700 text-pink-300 border border-pink-500/40 hover:border-pink-400 cursor-pointer"
+                                      title="Unduh Itinerary Direct"
+                                    >
+                                      <Download className="w-3.5 h-3.5 shrink-0 text-pink-300" />
+                                      <span className="truncate">Unduh Direct</span>
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
 
@@ -3375,6 +4182,8 @@ export default function DashboardJamaah() {
 
           {activeTab === 'dashboard' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              
+              {/* Greeting Banner */}
               <div className="bg-gradient-to-r from-[#1a2f24] to-[#132019] rounded-3xl p-8 sm:p-10 text-white shadow-lg relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-gold-400/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none"></div>
                 <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -3395,36 +4204,7 @@ export default function DashboardJamaah() {
                 </div>
               </div>
 
-              {/* Status Tracking Stepper */}
-              <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm overflow-hidden relative group">
-                  <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">
-                    <ShieldCheck className="w-40 h-40 text-emerald-900" />
-                  </div>
-                  <div className="relative z-10">
-                    <div className="flex items-center justify-between mb-8">
-                      <div>
-                        <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
-                          <Sparkles className="w-5 h-5 text-gold-500" /> Progres Pendaftaran Anda
-                        </h3>
-                        <p className="text-sm text-gray-500 mt-1">Selesaikan seluruh tahapan untuk keberangkatan Umroh yang mabrur.</p>
-                      </div>
-                    </div>
-                    
-                    <RegistrationStepper 
-                      currentStatus={currentStatus as RegistrationStatus}
-                      pendingPaymentStep={pendingPaymentStep}
-                      computedPaymentStep={computedPaymentStep}
-                      isDocumentPending={registration?.documents?.some((d: any) => d.status === 'pending')}
-                      onNavigate={(tabId) => setActiveTab(tabId)}
-                      onResetPackage={handleResetPackage}
-                      selectedPackageName={registration?.package?.name}
-                      paxCount={paxCount}
-                      packagePrice={Number(registration?.package?.price)}
-                    />
-                  </div>
-              </div>
-
-              {/* Smart Alerts */}
+              {/* Status Kelengkapan Data (Smart Alerts) */}
               {alerts.length > 0 && (
                 <section className="portal-alert-section">
                     <div className="alert-header-area">
@@ -3472,105 +4252,250 @@ export default function DashboardJamaah() {
                 </section>
               )}
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Left Column: Progress & Status */}
-                <div className="lg:col-span-2 space-y-8">
-                  {/* Status Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div className="bg-white shadow-md rounded-xl p-6 border border-gray-100 shadow-sm flex items-center group hover:border-gray-200 transition-all">
-                      <div className="w-14 h-14 bg-gray-50 text-gray-600 rounded-2xl flex items-center justify-center mr-5 shrink-0 group-hover:scale-110 transition-transform">
-
-
-                        <CreditCard className="w-7 h-7" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-gray-500 font-medium text-sm mb-1">Status Pembayaran</h4>
-                        <p className="font-bold text-gray-900 text-xl">
-                          {(!computedPaymentStep || computedPaymentStep === 'none') ? 'Menunggu DP 1' : 
-                           computedPaymentStep === 'dp1' ? 'Menunggu DP 2' : 
-                           computedPaymentStep === 'dp2' ? 'Menunggu Pelunasan' : 'Lunas'}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-white shadow-md rounded-xl p-6 border border-gray-100 shadow-sm flex items-center group hover:border-gray-200 transition-all">
-                      <div className="w-14 h-14 bg-gray-50 text-gray-600 rounded-2xl flex items-center justify-center mr-5 shrink-0 group-hover:scale-110 transition-transform">
-                        <FileText className="w-7 h-7" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-gray-500 font-medium text-sm mb-1">Kelengkapan Dokumen</h4>
-                        <p className="font-bold text-gray-900 text-xl">{(Array.isArray(userConsultation?.documents) ? userConsultation.documents.length : 0)} dari {(userConsultation?.paxData?.length || 1) * 5} Berkas</p>
-                      </div>
-                    </div>
+              {/* Status Summary Cards: Status Pembayaran, Kelengkapan Dokumen, Pembimbing Mutawif */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Status Pembayaran */}
+                <div className="bg-white shadow-md rounded-2xl p-6 border border-gray-100 flex items-center group hover:border-gold-300 transition-all">
+                  <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mr-4 shrink-0 group-hover:scale-105 transition-transform">
+                    <CreditCard className="w-7 h-7 text-emerald-700" />
                   </div>
-
-                  {/* Registration Stepper */}
-                  <RegistrationStepper isDocumentPending={registration?.status === 'documents_uploaded'} 
-                    currentStatus={registration?.status || 'package_selected'} 
-                    pendingPaymentStep={pendingPaymentStep}
-                    computedPaymentStep={computedPaymentStep}
-                    onNavigate={(tabId, paymentMode) => handleTabClick(tabId, paymentMode)}
-                    onResetPackage={handleResetPackage}
-                    selectedPackageName={registration?.package?.name || ''}
-                    paxCount={paxCount}
-                    packagePrice={Number(currentPackage?.price || 36000000)}
-                  />
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-gray-500 font-medium text-xs mb-1 uppercase tracking-wider">Status Pembayaran</h4>
+                    <p className="font-bold text-gray-900 text-lg truncate">
+                      {(!computedPaymentStep || computedPaymentStep === 'none') ? 'Menunggu DP 1' : 
+                       computedPaymentStep === 'dp1' ? 'Menunggu DP 2' : 
+                       computedPaymentStep === 'dp2' ? 'Menunggu Pelunasan' : 'Lunas'}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Kelengkapan Dokumen */}
+                <div className="bg-white shadow-md rounded-2xl p-6 border border-gray-100 flex items-center group hover:border-gold-300 transition-all">
+                  <div className="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mr-4 shrink-0 group-hover:scale-105 transition-transform">
+                    <FileText className="w-7 h-7 text-amber-700" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-gray-500 font-medium text-xs mb-1 uppercase tracking-wider">Kelengkapan Dokumen</h4>
+                    <p className="font-bold text-gray-900 text-lg truncate">
+                      {(Array.isArray(userConsultation?.documents) ? userConsultation.documents.length : 0)} dari {(userConsultation?.paxData?.length || 1) * 5} Berkas
+                    </p>
+                  </div>
                 </div>
 
-                {/* Right Column: Muthawwif Info & Support */}
-                <div className="space-y-8">
-                  {/* Muthawwif Profile */}
-                  <div className="bg-white shadow-md rounded-xl p-6 border border-gray-100 shadow-sm">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6">Pembimbing & Muthawwif</h3>
-                    <div className="flex items-center mb-6">
-                      <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mr-4 shrink-0 overflow-hidden">
-                        <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80" alt="Muthawwif" className="w-full h-full object-cover object-center rounded-t-xl" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-gray-900 text-lg">Ustadz Hanan Attaki</h4>
-                        <p className="text-xs text-gray-500 font-bold bg-gray-50 px-2 py-0.5 rounded inline-block">Muthawwif Utama</p>
-                      </div>
+                {/* Pembimbing & Muthawwif */}
+                <div 
+                  onClick={() => setIsMuthawwifModalOpen(true)}
+                  className="bg-white shadow-md rounded-2xl p-5 sm:p-6 border border-gray-100 flex items-center justify-between group hover:border-gold-300 transition-all cursor-pointer relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-amber-500/10 via-transparent to-transparent pointer-events-none" />
+                  <div className="flex items-center space-x-4 min-w-0">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center shrink-0 overflow-hidden border border-amber-200 shadow-sm relative">
+                      <img src={muthawwifAvatar} alt={muthawwifName} className="w-full h-full object-cover object-top" />
+                      <span className="absolute bottom-1 right-1 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full" title="Status: Standby"></span>
                     </div>
-                    <div className="space-y-4">
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Smartphone className="w-4 h-4 mr-3 text-gray-600" />
-                        <span>+62 812-3456-7890</span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 mb-0.5">
+                        <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Pembimbing & Muthawwif</h4>
+                        <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded shadow-sm">Kloter</span>
                       </div>
-                      <div className="flex items-center text-sm text-gray-600">
-                        <CheckCircle2 className="w-4 h-4 mr-3 text-gray-600" />
-                        <span>Lisensi Kemenag Aktif</span>
-                      </div>
-                      <button 
-                      onClick={() => window.open('https://wa.me/6281234567890', '_blank')}
-                      className="w-full py-3 bg-gray-50 text-gray-700 rounded-xl font-bold text-sm hover:bg-gray-100 transition-colors flex items-center justify-center"
-                    >
-                         Hubungi via WhatsApp
-                      </button>
+                      <p className="font-bold text-gray-900 text-base sm:text-lg group-hover:text-amber-700 transition-colors leading-tight mb-0.5">{muthawwifName}</p>
+                      <p className="text-[11px] sm:text-xs text-emerald-600 font-semibold flex items-center gap-1 leading-tight">
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        {muthawwifRole}
+                      </p>
                     </div>
                   </div>
-
-                  {/* AI Support Info Card */}
-                  <div className="bg-gradient-to-br from-gold-50 to-gold-100 rounded-3xl p-6 border border-gold-200 shadow-sm relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 text-gold-300 opacity-20 group-hover:rotate-12 transition-transform">
-                      <Smartphone className="w-20 h-20" />
-                    </div>
-                    <h3 className="font-bold text-gold-800 text-lg mb-2 flex items-center">
-                      <Smartphone className="w-5 h-5 mr-2" /> Asisten AI Haji
-                    </h3>
-                    <p className="text-sm text-gold-700 leading-relaxed mb-4">
-                      Ada pertanyaan seputar manasik, perlengkapan, atau tata cara ibadah? Tanyakan langsung ke Asisten AI kami yang didukung oleh Gemini.
-                    </p>
+                  <div className="flex items-center gap-2 shrink-0 ml-3">
                     <button 
-                      onClick={() => setActiveTab('bantuan')}
-                      className="bg-gray-50/80 backdrop-blur-sm text-gold-800 px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-gray-50 transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(`https://wa.me/${muthawwifPhone.replace(/^0/, '62')}`, '_blank');
+                      }}
+                      className="p-3 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-xl transition-all shadow-sm active:scale-95"
+                      title="Hubungi WhatsApp Pembimbing"
                     >
-                      Mulai Bertanya ✨
+                      <Smartphone className="w-5 h-5" />
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsMuthawwifModalOpen(true);
+                      }}
+                      className="p-3 bg-amber-50 text-amber-800 hover:bg-amber-500 hover:text-slate-950 rounded-xl transition-all shadow-sm hidden sm:flex items-center gap-1 font-bold text-xs active:scale-95"
+                      title="Lihat Profil & Pesan Bimbingan"
+                    >
+                      <Eye className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
               </div>
+
+              {/* Status Tracking Stepper */}
+              <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm overflow-hidden relative group">
+                  <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity">
+                    <ShieldCheck className="w-40 h-40 text-emerald-900" />
+                  </div>
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between mb-8">
+                      <div>
+                        <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-gold-500" /> Progres Pendaftaran Anda
+                        </h3>
+                        <p className="text-sm text-gray-500 mt-1">Selesaikan seluruh tahapan untuk keberangkatan Umroh yang mabrur.</p>
+                      </div>
+                    </div>
+                    
+                    <RegistrationStepper 
+                      currentStatus={currentStatus as RegistrationStatus}
+                      pendingPaymentStep={pendingPaymentStep}
+                      computedPaymentStep={computedPaymentStep}
+                      isDocumentPending={registration?.documents?.some((d: any) => d.status === 'pending')}
+                      isDocsComplete={isDocsComplete}
+                      onNavigate={(tabId, paymentMode) => handleTabClick(tabId, paymentMode)}
+                      onResetPackage={handleResetPackage}
+                      selectedPackageName={registration?.package?.name || currentPackage?.name || userConsultation?.selectedPackageName || ''}
+                      paxCount={paxCount}
+                      packagePrice={Number(registration?.package?.price || currentPackage?.price || 36000000)}
+                      approvedTotal={approvedTotal}
+                      sisaTagihan={Math.max(0, packagePriceTotal - approvedTotal)}
+                    />
+                  </div>
+              </div>
+
+              {/* AI Support Info Card */}
+              <div className="bg-gradient-to-br from-gold-50 to-gold-100 rounded-3xl p-6 border border-gold-200 shadow-sm relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 text-gold-300 opacity-20 group-hover:rotate-12 transition-transform">
+                  <Smartphone className="w-20 h-20" />
+                </div>
+                <h3 className="font-bold text-gold-800 text-lg mb-2 flex items-center">
+                  <Smartphone className="w-5 h-5 mr-2" /> Asisten AI Haji
+                </h3>
+                <p className="text-sm text-gold-700 leading-relaxed mb-4">
+                  Ada pertanyaan seputar manasik, perlengkapan, atau tata cara ibadah? Tanyakan langsung ke Asisten AI kami yang didukung oleh Gemini.
+                </p>
+                <button 
+                  onClick={() => setActiveTab('bantuan')}
+                  className="bg-gray-50/80 backdrop-blur-sm text-gold-800 px-4 py-2 rounded-xl text-xs font-bold shadow-sm hover:bg-gray-50 transition-colors"
+                >
+                  Mulai Bertanya ✨
+                </button>
+              </div>
+
             </div>
           )}
+
+        {/* MODAL INFORMASI & PESAN PEMBIMBING / MUTHAWWIF */}
+        {isMuthawwifModalOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <div 
+              className="absolute inset-0 bg-slate-950/70 backdrop-blur-md animate-in fade-in duration-300"
+              onClick={() => setIsMuthawwifModalOpen(false)}
+            ></div>
+            <div className="bg-white w-full max-w-lg rounded-[32px] overflow-hidden shadow-2xl relative z-10 animate-in zoom-in-95 duration-300 border border-amber-100">
+              {/* Header Banner */}
+              <div className="bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 p-6 text-white relative">
+                <button 
+                  onClick={() => setIsMuthawwifModalOpen(false)}
+                  className="absolute top-5 right-5 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-[10px] font-extrabold tracking-wider bg-amber-400 text-slate-950 px-2.5 py-0.5 rounded-full uppercase">
+                    PEMBIMBING IBADAH & MUTHAWWIF KLOTER
+                  </span>
+                </div>
+                <div className="flex items-start gap-4">
+                  <div className="relative shrink-0">
+                    <img 
+                      src={muthawwifAvatar} 
+                      alt={muthawwifName} 
+                      className="w-20 h-20 rounded-2xl object-cover border-2 border-amber-300 shadow-md" 
+                    />
+                    <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full"></span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-extrabold text-white leading-snug">{muthawwifName}</h3>
+                    <p className="text-amber-200 text-xs font-semibold mt-0.5 flex items-center gap-1">
+                      <Award className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                      {muthawwifRole}
+                    </p>
+                    <p className="text-[11px] text-amber-100/80 mt-1">
+                      Kloter: <span className="font-bold text-white">{activeSchedule?.name || userConsultation?.package?.name || 'Kloter Keberangkatan'}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Body Content */}
+              <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+                {/* Pesan Khusus dari Ustaz */}
+                <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4 relative">
+                  <div className="flex items-center gap-2 text-amber-900 font-extrabold text-xs uppercase tracking-wider mb-2">
+                    <Megaphone className="w-4 h-4 text-amber-600 shrink-0" />
+                    Pesan & Panduan dari Ustaz Pembimbing:
+                  </div>
+                  <p className="text-sm text-slate-700 italic leading-relaxed font-medium bg-white/80 p-3 rounded-xl border border-amber-100 shadow-xs">
+                    "{muthawwifNotes}"
+                  </p>
+                </div>
+
+                {/* Layanan & Keunggulan Pembimbing */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Fasilitas & Pendampingan Jemaah:</h4>
+                  <div className="grid grid-cols-1 gap-2 text-xs">
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 font-bold">
+                        1
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900">Bimbingan Manasik Syariah Sesuai Sunnah</p>
+                        <p className="text-gray-500 text-[11px]">Penjelasan rukun, wajib, dan sunnah umrah/haji secara komprehensif.</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 font-bold">
+                        2
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900">Pendampingan Langsung di Tanah Suci</p>
+                        <p className="text-gray-500 text-[11px]">Memimpin pelaksanaan Tawaf, Sa'i, serta Ziarah Makkah & Madinah.</p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0 font-bold">
+                        3
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900">Konsultasi Syariah & Doa 24 Jam</p>
+                        <p className="text-gray-500 text-[11px]">Siap menjawab pertanyaan seputar hukum ibadah selama perjalanan.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                  <button 
+                    onClick={() => window.open(`https://wa.me/${muthawwifPhone.replace(/^0/, '62')}?text=${encodeURIComponent(`Assalamu'alaikum Ustaz ${muthawwifName}, saya ${userConsultation?.fullName || 'Jemaah'} ingin berkonsultasi seputar jadwal dan manasik ibadah.`)}`, '_blank')}
+                    className="flex-1 py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition-all active:scale-95"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    Hubungi WhatsApp Ustaz
+                  </button>
+                  <button 
+                    onClick={() => setIsMuthawwifModalOpen(false)}
+                    className="px-5 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-bold text-sm transition-all"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL: PILIH JUMLAH JAMAAH */}
         {isPaxModalOpen && (
@@ -3650,23 +4575,23 @@ export default function DashboardJamaah() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Profile Section */}
                 <div className="lg:col-span-1">
-                  <div className="bg-white shadow-md rounded-xl p-8 border border-gray-100 shadow-sm text-center">
+                  <div className="bg-white shadow-md rounded-xl p-8 border border-gray-100 text-center">
                     <div className="relative inline-block mb-6">
-                      <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-50 border-4 border-white shadow-xl mx-auto">
-                        {accountForm.avatarUrl ? (
-                          <img src={accountForm.avatarUrl} alt="Avatar" className="w-full h-full object-cover object-center rounded-t-xl" />
+                      <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-50 border-4 border-white shadow-xl mx-auto flex items-center justify-center">
+                        {accountForm.avatarUrl || currentAvatarUrl ? (
+                          <img src={accountForm.avatarUrl || currentAvatarUrl} alt="Avatar" className="w-full h-full object-cover object-center rounded-full" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-300">
-                            <UserCircle className="w-20 h-20" />
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gold-500/20 to-amber-600/20 text-gold-600 font-bold text-4xl">
+                            {(currentUserName || 'J').charAt(0).toUpperCase()}
                           </div>
                         )}
                       </div>
-                      <label className="absolute bottom-0 right-0 p-2 bg-gold-500 text-gray-900 rounded-full shadow-lg cursor-pointer hover:bg-gold-600 transition-all border-2 border-white">
+                      <label className="absolute bottom-0 right-0 p-2.5 bg-gold-500 text-slate-950 rounded-full shadow-lg cursor-pointer hover:bg-amber-400 transition-all border-2 border-white hover:scale-105 active:scale-95" title="Unggah Foto Profil">
                         <Edit2 className="w-4 h-4" />
                         <input type="file" className="hidden" accept="image/*" onChange={handleUploadAvatar} />
                       </label>
                     </div>
-                    <h3 className="font-bold text-xl text-gray-900">{accountForm.name}</h3>
+                    <h3 className="font-bold text-xl text-gray-900">{accountForm.name || currentUserName}</h3>
                     <p className="text-sm text-gray-500">{userConsultation?.role === 'mitra' ? 'Mitra' : 'Jamaah'}</p>
                     
                     <div className="mt-8 pt-8 border-t border-gray-50 space-y-4">
@@ -3685,14 +4610,14 @@ export default function DashboardJamaah() {
 
                 {/* Edit Form Section */}
                 <div className="lg:col-span-2 space-y-6">
-                  <div className="bg-white shadow-md rounded-xl p-8 border border-gray-100 shadow-sm">
+                  <div className="bg-white shadow-md rounded-xl p-8 border border-gray-100">
                     <h3 className="font-bold text-lg text-gray-900 mb-8 border-b border-gray-50 pb-4">Informasi Personal</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-gray-500 uppercase">Nama Lengkap</label>
                         <input 
                           type="text" 
-                          className="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:border-gray-500 transition-all font-medium"
+                          className="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:border-gold-500 focus:bg-white transition-all font-medium text-sm"
                           value={accountForm.name}
                           onChange={e => setAccountForm({...accountForm, name: e.target.value})}
                         />
@@ -3701,7 +4626,7 @@ export default function DashboardJamaah() {
                         <label className="text-xs font-bold text-gray-500 uppercase">Nomor WhatsApp</label>
                         <input 
                           type="text" 
-                          className="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:border-gray-500 transition-all font-medium"
+                          className="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:border-gold-500 focus:bg-white transition-all font-medium text-sm"
                           value={accountForm.phone}
                           onChange={e => setAccountForm({...accountForm, phone: e.target.value})}
                         />
@@ -3710,7 +4635,7 @@ export default function DashboardJamaah() {
                         <label className="text-xs font-bold text-gray-500 uppercase">Alamat Email</label>
                         <input 
                           type="email" 
-                          className="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:border-gray-500 transition-all font-medium"
+                          className="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:border-gold-500 focus:bg-white transition-all font-medium text-sm"
                           value={accountForm.email}
                           onChange={e => setAccountForm({...accountForm, email: e.target.value})}
                         />
@@ -3718,30 +4643,48 @@ export default function DashboardJamaah() {
                     </div>
                   </div>
 
-                  <div className="bg-white shadow-md rounded-xl p-8 border border-gray-100 shadow-sm">
+                  <div className="bg-white shadow-md rounded-xl p-8 border border-gray-100">
                     <h3 className="font-bold text-lg text-gray-900 mb-8 border-b border-gray-50 pb-4 flex items-center">
-                      <Lock className="w-5 h-5 mr-2 text-gray-600" /> Keamanan Akun
+                      <Lock className="w-5 h-5 mr-2 text-gold-600" /> Keamanan Akun
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-gray-500 uppercase">Kata Sandi Baru</label>
-                        <input 
-                          type="password" 
-                          placeholder="••••••••"
-                          className="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:border-gray-500 transition-all font-medium"
-                          value={accountForm.password}
-                          onChange={e => setAccountForm({...accountForm, password: e.target.value})}
-                        />
+                        <div className="relative">
+                          <input 
+                            type={showPassword ? "text" : "password"} 
+                            placeholder="Minimal 6 karakter"
+                            className="w-full px-4 py-3 pr-10 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:border-gold-500 focus:bg-white transition-all font-medium text-sm"
+                            value={accountForm.password}
+                            onChange={e => setAccountForm({...accountForm, password: e.target.value})}
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-gray-500 uppercase">Konfirmasi Sandi</label>
-                        <input 
-                          type="password" 
-                          placeholder="••••••••"
-                          className="w-full px-4 py-3 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:border-gray-500 transition-all font-medium"
-                          value={accountForm.confirmPassword}
-                          onChange={e => setAccountForm({...accountForm, confirmPassword: e.target.value})}
-                        />
+                        <div className="relative">
+                          <input 
+                            type={showConfirmPassword ? "text" : "password"} 
+                            placeholder="Ulangi kata sandi baru"
+                            className="w-full px-4 py-3 pr-10 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:border-gold-500 focus:bg-white transition-all font-medium text-sm"
+                            value={accountForm.confirmPassword}
+                            onChange={e => setAccountForm({...accountForm, confirmPassword: e.target.value})}
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                          >
+                            {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3750,7 +4693,7 @@ export default function DashboardJamaah() {
                     <button 
                       onClick={handleUpdateAccount}
                       disabled={isUpdatingAccount}
-                      className={`px-10 py-4 ${isUpdatingAccount ? 'bg-gray-400 cursor-not-allowed' : 'bg-gray-100 hover:bg-slate-800'} text-gray-900 rounded-2xl font-bold transition-all shadow-xl shadow-black/20 active:scale-95 flex items-center gap-2`}
+                      className={`px-10 py-4 ${isUpdatingAccount ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-gold-500 hover:bg-gold-600 text-slate-950'} rounded-2xl font-bold transition-all shadow-xl active:scale-95 flex items-center gap-2`}
                     >
                       {isUpdatingAccount ? (
                         <>
@@ -3877,34 +4820,20 @@ export default function DashboardJamaah() {
                             Diterbitkan {new Date(cert.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                           </p>
 
-                          <div className="grid grid-cols-1 gap-2 w-full mt-auto">
-                            <div className="grid grid-cols-2 gap-2">
-                              <button 
-                                onClick={() => openDataUrlInNewTab(cert.certificateUrl)}
-                                className="py-3 px-3 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
-                                title="Lihat Sertifikat"
-                              >
-                                <Eye className="w-4 h-4" /> Buka
-                              </button>
-                              <button 
-                                onClick={() => downloadFile(cert.certificateUrl, certFileName)}
-                                className="py-3 px-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5"
-                                title="Unduh Sertifikat"
-                              >
-                                <Download className="w-4 h-4" /> Unduh
-                              </button>
-                            </div>
-                            
+                          <div className="grid grid-cols-2 gap-2 w-full mt-auto">
                             <button 
-                              onClick={() => setShowCertPreview({
-                                namaJamaah: recipientName,
-                                noRegistrasi: registration?.id?.substring(0, 10).toUpperCase() || 'GT-REG-001',
-                                tahunIbadah: registration?.departureDate ? new Date(registration.departureDate).getFullYear().toString() : new Date().getFullYear().toString(),
-                                tanggalCetak: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-                              })}
-                              className="w-full py-3 bg-gold-500 hover:bg-gold-600 text-black rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 border-2 border-gold-600 shadow-lg shadow-gold-500/30"
+                              onClick={() => openDataUrlInNewTab(cert.certificateUrl, `Sertifikat Umroh - ${user?.name || 'Jamaah'}`)}
+                              className="py-3 px-3 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                              title="Lihat Sertifikat"
                             >
-                              <Award className="w-4 h-4" /> PRATINJAU EKSKLUSIF
+                              <Eye className="w-4 h-4" /> Buka
+                            </button>
+                            <button 
+                              onClick={() => downloadFile(cert.certificateUrl, certFileName)}
+                              className="py-3 px-3 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5"
+                              title="Unduh Sertifikat"
+                            >
+                              <Download className="w-4 h-4" /> Unduh
                             </button>
                           </div>
                         </div>
@@ -4273,7 +5202,7 @@ export default function DashboardJamaah() {
                   </button>
                 </div>
                 <p className="text-[9px] text-gray-400 mt-4 text-center uppercase tracking-widest font-bold">
-                  Balasan Anda akan dikirim langsung ke tim Customer Service PT Golden Tour Haramain
+                  Balasan Anda akan dikirim langsung ke tim Customer Service Golden Travel
                 </p>
               </div>
             ) : (
@@ -4302,21 +5231,34 @@ export default function DashboardJamaah() {
                 </div>
               </div>
               
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
-                    openDataUrlInNewTab(previewFile.url);
+                    const isPdf = isPdfUrl(previewFile.url) || previewFile.type === 'pdf';
+                    const ext = isPdf ? 'pdf' : (isImageUrl(previewFile.url) ? 'png' : 'pdf');
+                    downloadFile(previewFile.url, `${previewFile.title.replace(/\s+/g, '_')}.${ext}`);
                   }}
-                  className="flex items-center px-4 py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl transition-all border border-gray-200 text-[10px] font-black uppercase tracking-wider group"
+                  className="flex items-center px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold rounded-xl transition-all shadow-md text-[10px] sm:text-xs uppercase tracking-wider group shrink-0"
+                  title="Unduh File"
+                >
+                  <Download className="w-3.5 h-3.5 mr-1.5 group-hover:scale-110 transition-transform" />
+                  Unduh PDF
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openDataUrlInNewTab(previewFile.url, previewFile.title);
+                  }}
+                  className="flex items-center px-3.5 py-2 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl transition-all border border-gray-200 text-[10px] sm:text-xs font-black uppercase tracking-wider group shrink-0"
                   title="Buka di Tab Baru"
                 >
-                  <ExternalLink className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform text-gold-600" />
-                  Buka di Tab Baru
+                  <ExternalLink className="w-3.5 h-3.5 mr-1.5 group-hover:scale-110 transition-transform text-gold-600" />
+                  Buka Tab Baru
                 </button>
                 <button 
                   onClick={() => setPreviewFile(null)} 
-                  className="w-10 h-10 bg-gray-900 text-white rounded-xl flex items-center justify-center hover:bg-black transition-all shadow-lg shadow-black/20"
+                  className="w-9 h-9 bg-gray-900 text-white rounded-xl flex items-center justify-center hover:bg-black transition-all shadow-lg shadow-black/20 shrink-0"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -4324,35 +5266,54 @@ export default function DashboardJamaah() {
             </div>
             
             {/* Modal Body */}
-            <div className="flex-1 bg-slate-50 relative overflow-auto flex items-center justify-center p-6 md:p-12 scrollbar-thin scrollbar-thumb-gray-300">
-              {previewFile.type === 'pdf' ? (
-                <div className="w-full h-full bg-white shadow-2xl rounded-2xl overflow-hidden border border-gray-200">
-                  <iframe 
-                    src={previewFile.url} 
-                    title="PDF Preview" 
-                    className="w-full h-full border-0"
-                  />
-                </div>
-              ) : previewFile.type === 'image' ? (
-                <div className="relative group max-h-full">
-                   <img 
-                    src={previewFile.url} 
-                    alt="Doc Preview" 
-                    className="max-w-full max-h-[80vh] w-auto h-auto object-contain rounded-xl shadow-2xl border border-gray-200 bg-white"
-                  />
-                  <div className="absolute inset-0 rounded-xl border border-white/20 pointer-events-none"></div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center text-gray-400 space-y-6 py-20">
-                  <div className="w-24 h-24 rounded-full bg-gray-50 flex items-center justify-center border border-gray-100">
-                    <ShieldCheck className="w-12 h-12 opacity-20" />
-                  </div>
-                  <div className="text-center">
-                    <p className="font-black text-gray-900 uppercase tracking-widest">Preview Tidak Tersedia</p>
-                    <p className="text-xs text-gray-500 mt-2">Format file tidak didukung untuk pratinjau langsung.</p>
-                  </div>
-                </div>
-              )}
+            <div className="flex-1 bg-slate-950 relative overflow-hidden flex items-center justify-center p-2 sm:p-4">
+              {(() => {
+                const isPdf = isPdfUrl(previewFile.url) || previewFile.type === 'pdf';
+                const isImage = isImageUrl(previewFile.url) || previewFile.type === 'image';
+                const blobUrl = getBlobUrlFromDataUrl(previewFile.url);
+
+                if (isImage && !isPdf) {
+                  return (
+                    <div className="relative group max-h-full flex items-center justify-center p-2 overflow-auto w-full h-full">
+                      <img 
+                        src={blobUrl} 
+                        alt="Doc Preview" 
+                        className="max-w-full max-h-[80vh] w-auto h-auto object-contain rounded-xl shadow-2xl border border-slate-800 bg-white mx-auto my-auto"
+                      />
+                    </div>
+                  );
+                } else if (isPdf || !isImage) {
+                  return (
+                    <PdfViewer url={previewFile.url} title={previewFile.title} className="h-full w-full" />
+                  );
+                } else {
+                  return (
+                    <div className="flex flex-col items-center justify-center text-gray-400 space-y-6 py-20">
+                      <div className="w-24 h-24 rounded-full bg-slate-900 flex items-center justify-center border border-slate-800">
+                        <FileText className="w-12 h-12 text-amber-400" />
+                      </div>
+                      <div className="text-center space-y-3">
+                        <p className="font-black text-white uppercase tracking-widest">{previewFile.title}</p>
+                        <p className="text-xs text-slate-400">Dokumen siap untuk dibuka atau diunduh.</p>
+                        <div className="flex items-center justify-center gap-3 pt-2">
+                          <button
+                            onClick={() => openDataUrlInNewTab(previewFile.url, previewFile.title)}
+                            className="px-5 py-2.5 bg-amber-500 text-slate-950 font-bold text-xs rounded-xl shadow-md flex items-center gap-2"
+                          >
+                            <ExternalLink className="w-4 h-4" /> Buka Dokumen
+                          </button>
+                          <button
+                            onClick={() => downloadFile(previewFile.url, `${previewFile.title.replace(/\s+/g, '_')}.pdf`)}
+                            className="px-5 py-2.5 bg-slate-800 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-2"
+                          >
+                            <Download className="w-4 h-4" /> Unduh Dokumen
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+              })()}
             </div>
           </div>
         </div>

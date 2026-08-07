@@ -8,7 +8,11 @@ const { Pool } = pg;
 
 declare global {
   var _postgresPool: pg.Pool | undefined;
+  var _drizzleDb: any | undefined;
 }
+
+// Global process handlers are removed to allow fatal errors (like EADDRINUSE) to correctly terminate the process,
+// enabling the environment to restart the container or the dev server correctly.
 
 export const createPool = () => {
   if (!global._postgresPool) {
@@ -23,11 +27,13 @@ export const createPool = () => {
     console.log(`[DB Pool] Initializing pool: host=${host}, port=${port}, user=${user}, db=${dbName}, DATABASE_URL=${rawDbUrl ? 'SET' : 'UNSET'}`);
     
     const poolConfig: pg.PoolConfig = {
-      max: 15,
-      min: 1,
-      connectionTimeoutMillis: 5000,
-      idleTimeoutMillis: 2000, // Drop idle connections after 2s to prevent dead socket errors
-      maxUses: 100, // Recycle connection after 100 queries
+      max: 15, // Safe pool size for container environment to prevent Postgres max_connections error
+      min: 2,  
+      connectionTimeoutMillis: 10000,
+      idleTimeoutMillis: 30000, 
+      maxUses: 5000, 
+      statement_timeout: 30000,
+      idle_in_transaction_session_timeout: 30000,
     };
 
     const isPlaceholderUrl = rawDbUrl && (
@@ -66,12 +72,19 @@ export const createPool = () => {
 
     global._postgresPool = new Pool(poolConfig);
 
+    global._postgresPool.on('connect', () => {
+      // Client connected
+    });
+
+    global._postgresPool.on('remove', () => {
+      // Client removed
+    });
+
     global._postgresPool.on('error', (err: any) => {
-      // Log as warning if it's a common transient connection issue
       if (err.message?.includes('terminated unexpectedly') || err.message?.includes('closed') || err.code === 'ECONNRESET') {
-        console.warn(`[DB Pool Warning] Transient idle connection issue: ${err.message}`);
+        console.warn(`[DB Pool Warning] Transient connection issue handled: ${err.message}`);
       } else {
-        console.error('Unexpected error on idle SQL pool client:', err.message);
+        console.warn('[DB Pool Warning] Handled idle client error:', err.message);
       }
     });
   }
@@ -80,7 +93,11 @@ export const createPool = () => {
 
 const pool = createPool();
 
-export const db = drizzle(pool, { schema });
+if (!global._drizzleDb) {
+  global._drizzleDb = drizzle(pool, { schema });
+}
+
+export const db: any = global._drizzleDb;
 
 export async function dbQueryWithRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   let attempt = 0;

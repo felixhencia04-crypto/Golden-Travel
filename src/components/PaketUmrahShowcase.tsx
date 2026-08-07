@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
   Compass, 
@@ -278,6 +278,81 @@ const DEFAULT_UMRAH_PACKAGES: UmrahPackage[] = [
 ];
 
 export default function PaketUmrahShowcase() {
+
+  const [packages, setPackages] = useState<UmrahPackage[]>(DEFAULT_UMRAH_PACKAGES);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isError, setIsError] = useState<boolean>(false);
+
+  useEffect(() => {
+    const fetchPackages = async () => {
+      setIsLoading(true);
+      setIsError(false);
+      try {
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        const response = await fetch(`${baseUrl}/api/packages`);
+        if (response.ok) {
+          const data = await response.json();
+          const umrahPackages = data.filter((p: any) => p.type?.toLowerCase() === 'umroh' || !p.type);
+          if (umrahPackages.length > 0) {
+             const mapped = umrahPackages.map((p: any) => {
+                const hotels = (p.hotel || '').split(',').map((s: string) => s.trim());
+                const hMakkah = hotels[0] || 'Hotel Pilihan Makkah';
+                const hMadinah = hotels[1] || 'Hotel Pilihan Madinah';
+                
+                return {
+                id: p.id,
+                name: p.name,
+                category: p.type === 'haji' ? 'Haji' : 'Umrah',
+                categoryLabel: p.type === 'haji' ? 'Haji' : 'Umrah',
+                duration: p.duration || '9 Hari',
+                price: Number(p.price) || 0,
+                dpAmount: 'DP Rp 5.000.000',
+                imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+                airline: 'Saudia Airlines',
+                hotelMakkah: hMakkah,
+                hotelMakkahStars: 5,
+                hotelMakkahDistance: '±100m',
+                hotelMadinah: hMadinah,
+                hotelMadinahStars: 5,
+                hotelMadinahDistance: '±100m',
+                departureSchedule: p.departureDate ? new Date(p.departureDate).toLocaleDateString('id-ID', {month: 'long', year: 'numeric'}) : 'Lihat Jadwal',
+                seatsLeft: p.remainingSeats ?? (p.quota || 45),
+                highlights: (p.facilities || '').split(',').map((f:string)=>f.trim()).filter(Boolean),
+                includes: Array.isArray(p.description) ? p.description : [],
+                excludes: (() => {
+                  try {
+                    return Array.isArray(p.excludes) ? p.excludes : (typeof p.excludes === 'string' ? JSON.parse(p.excludes || '[]') : ['Pembuatan Paspor', 'Vaksin Meningitis', 'Pengeluaran Pribadi']);
+                  } catch(e) {
+                    return ['Pembuatan Paspor', 'Vaksin Meningitis', 'Pengeluaran Pribadi'];
+                  }
+                })(),
+                itinerary: p.itinerary || []
+             }});
+             setPackages(mapped);
+          }
+        } else {
+          setIsError(true);
+        }
+      } catch (error) {
+        console.error('Failed to fetch packages', error);
+        setIsError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchPackages();
+    
+    try {
+      const channel = new BroadcastChannel('golden_travel_updates');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'CATALOG_UPDATED') {
+          fetchPackages();
+        }
+      };
+      return () => channel.close();
+    } catch(e) {}
+  }, []);
+
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [selectedPkg, setSelectedPkg] = useState<UmrahPackage | null>(null);
   const [modalTab, setModalTab] = useState<'facilities' | 'itinerary' | 'terms'>('facilities');
@@ -289,7 +364,7 @@ export default function PaketUmrahShowcase() {
   const [activeIndex, setActiveIndex] = useState<number>(0);
 
   // Filtered packages
-  const filteredPackages = DEFAULT_UMRAH_PACKAGES.filter(pkg => {
+  const filteredPackages = packages.filter(pkg => {
     if (activeCategory === 'all') return true;
     return pkg.category === activeCategory;
   });
@@ -350,7 +425,7 @@ export default function PaketUmrahShowcase() {
   }, [isAutoplay, isHovered, filteredPackages.length]);
 
   const getWhatsAppUrl = (pkgName: string, price: number) => {
-    const formattedPrice = `Rp ${price.toLocaleString('id-ID')}`;
+    const formattedPrice = `Rp ${(price || 0).toLocaleString('id-ID')}`;
     const text = encodeURIComponent(
       `Assalamu'alaikum Golden Travel, saya tertarik dengan "${pkgName}" (${formattedPrice}). Mohon informasi ketersediaan seat dan jadwal rincinya.`
     );
@@ -473,9 +548,30 @@ export default function PaketUmrahShowcase() {
           </div>
         </div>
 
-        {/* Horizontal Slider Track Container */}
-        <div className="relative group/carousel">
-          {/* Side Floating Next/Prev Buttons for Desktop */}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-[#D4AF37]">
+            <div className="animate-spin w-12 h-12 border-4 border-[#D4AF37] border-t-transparent rounded-full mb-4"></div>
+            <p className="text-[#F3E5AB] text-lg font-medium">Memuat paket umrah...</p>
+          </div>
+        ) : isError ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center px-4">
+            <div className="w-16 h-16 bg-[#D4AF37]/20 rounded-full flex items-center justify-center mb-4">
+              <Info className="w-8 h-8 text-[#D4AF37]" />
+            </div>
+            <h3 className="text-xl font-bold text-[#F3E5AB] mb-2">Gagal Terhubung ke Server</h3>
+            <p className="text-[#D4AF37]/80 max-w-md">Mohon maaf, kami tidak dapat mengambil data paket saat ini. Silakan periksa koneksi Anda atau coba lagi nanti.</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="mt-6 px-6 py-2.5 bg-[#D4AF37] hover:bg-[#B8860B] text-[#011E15] font-bold rounded-full transition-colors"
+            >
+              Coba Lagi
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Horizontal Slider Track Container */}
+            <div className="relative group/carousel">
+              {/* Side Floating Next/Prev Buttons for Desktop */}
           <button
             onClick={scrollPrev}
             className="hidden xl:flex absolute left-[-24px] top-1/2 -translate-y-1/2 z-20 w-12 h-12 rounded-full bg-[#011E15]/95 border-2 border-[#D4AF37] text-[#F3E5AB] hover:bg-[#D4AF37] hover:text-[#011E15] transition-all items-center justify-center shadow-2xl backdrop-blur-md opacity-0 group-hover/carousel:opacity-100 hover:scale-110"
@@ -555,7 +651,7 @@ export default function PaketUmrahShowcase() {
 
                       <div className="flex flex-wrap items-baseline gap-2 pt-1">
                         <span className="font-serif text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-[#F3E5AB] via-[#D4AF37] to-[#B8860B] bg-clip-text text-transparent">
-                          Rp {pkg.price.toLocaleString('id-ID')}
+                          Rp {pkg.price?.toLocaleString('id-ID')}
                         </span>
                         <span className="text-stone-300 text-xs font-light">/ pax</span>
                         
@@ -655,6 +751,8 @@ export default function PaketUmrahShowcase() {
             ))}
           </div>
         </div>
+        </>
+        )}
 
         {/* Bottom Guarantee Banner */}
         <div className="bg-gradient-to-r from-[#022A1F] via-[#043d2d] to-[#022A1F] rounded-3xl p-6 sm:p-8 border border-[#D4AF37]/50 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 backdrop-blur-md">
@@ -709,7 +807,7 @@ export default function PaketUmrahShowcase() {
                     {selectedPkg.name}
                   </h3>
                   <div className="text-xl sm:text-2xl font-bold text-[#F3E5AB] mt-1 font-serif">
-                    Rp {selectedPkg.price.toLocaleString('id-ID')} <span className="text-xs font-sans text-stone-300 font-normal">/ pax</span>
+                    Rp {selectedPkg.price?.toLocaleString('id-ID')} <span className="text-xs font-sans text-stone-300 font-normal">/ pax</span>
                   </div>
                 </div>
 
@@ -873,7 +971,7 @@ export default function PaketUmrahShowcase() {
                       <ul className="space-y-2 text-xs text-stone-200">
                         <li className="flex items-start gap-2">
                           <span className="text-[#D4AF37] font-bold">1.</span>
-                          <span><strong>Paspor Asli:</strong> Masih berlaku minimal 7 bulan sebelum tanggal keberangkatan dengan nama minimal 2-3 kata (contoh: Muhammad Felix Hencia).</span>
+                          <span><strong>Paspor Asli:</strong> Masih berlaku minimal 7 bulan sebelum tanggal keberangkatan dengan nama minimal 2-3 kata (contoh: Ahmad Abdullah).</span>
                         </li>
                         <li className="flex items-start gap-2">
                           <span className="text-[#D4AF37] font-bold">2.</span>
@@ -898,7 +996,7 @@ export default function PaketUmrahShowcase() {
                       <div className="space-y-2 text-xs text-stone-200">
                         <p>• <strong>Pembayaran DP:</strong> Minimal {selectedPkg.dpAmount} per jemaah saat booking seat.</p>
                         <p>• <strong>Pelunasan:</strong> Wajib dilunasi paling lambat 30 hari sebelum tanggal keberangkatan.</p>
-                        <p>• <strong>Legalitas PPIU:</strong> PT Golden Tour Haramain terdaftar resmi Kemenag RI dengan Izin No. 91202028128320002.</p>
+                        <p>• <strong>Legalitas PPIU:</strong> Golden Travel terdaftar resmi Kemenag RI dengan Izin No. 91202028128320002.</p>
                       </div>
                     </div>
                   </div>
@@ -911,7 +1009,7 @@ export default function PaketUmrahShowcase() {
                 <div>
                   <div className="text-xs text-stone-300">Total Biaya Paket:</div>
                   <div className="font-serif font-bold text-2xl text-[#F3E5AB]">
-                    Rp {selectedPkg.price.toLocaleString('id-ID')} <span className="text-xs font-sans text-stone-300 font-normal">/ pax</span>
+                    Rp {selectedPkg.price?.toLocaleString('id-ID')} <span className="text-xs font-sans text-stone-300 font-normal">/ pax</span>
                   </div>
                 </div>
 

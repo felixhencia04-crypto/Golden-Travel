@@ -78,33 +78,53 @@ CREATE TABLE documents (
 );
 ```
 
-## 2. Contoh Query SQL
+## 3. Perbaikan Ownership & Migrasi (Best Practices)
 
-### Mendapatkan daftar pendaftaran beserta nama jamaah dan paketnya
+Jika Anda menemui error `must be owner of table` atau `relation does not exist` saat melakukan sinkronisasi otomatis, ikuti langkah-langkah berikut:
+
+### A. Perbaikan Ownership (SQL)
+Jalankan query berikut di konsol database (PostgreSQL) untuk memberikan hak kepemilikan tabel kepada user aplikasi Anda (`ai_studio_app_user`):
+
 ```sql
-SELECT 
-    r.id AS registration_id,
-    u.name AS jamaah_name,
-    p.name AS package_name,
-    r.status
-FROM registrations r
-JOIN users u ON r.user_id = u.id
-JOIN packages p ON r.package_id = p.id;
+-- Mengubah owner tabel utama
+ALTER TABLE packages OWNER TO ai_studio_app_user;
+ALTER TABLE users OWNER TO ai_studio_app_user;
+ALTER TABLE registrations OWNER TO ai_studio_app_user;
+ALTER TABLE payments OWNER TO ai_studio_app_user;
+ALTER TABLE documents OWNER TO ai_studio_app_user;
+
+-- Jika tabel baru (CMS) sudah dibuat oleh user lain
+ALTER TABLE package_itineraries OWNER TO ai_studio_app_user;
+ALTER TABLE gallery_photos OWNER TO ai_studio_app_user;
+ALTER TABLE gallery_videos OWNER TO ai_studio_app_user;
+ALTER TABLE memories OWNER TO ai_studio_app_user;
+
+-- Opsional: Mengubah owner semua tabel di schema public secara massal
+DO $$ 
+DECLARE 
+    r RECORD;
+BEGIN
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+        EXECUTE 'ALTER TABLE ' || quote_ident(r.tablename) || ' OWNER TO ai_studio_app_user';
+    END LOOP;
+END $$;
 ```
 
-### Melihat total pembayaran yang sudah disetujui untuk satu pendaftaran
-```sql
-SELECT 
-    registration_id, 
-    SUM(amount) AS total_paid
-FROM payments
-WHERE registration_id = 'YOUR_REGISTRATION_ID' AND status = 'approved'
-GROUP BY registration_id;
-```
+### B. Sinkronisasi Skema dengan Drizzle CLI
+Alih-alih mengandalkan script `auto-sync` saat runtime (yang sering gagal karena masalah permission), gunakan perintah CLI berikut dari terminal:
 
-### Update status pendaftaran menjadi 'DP 1 Paid' setelah admin menyetujui pembayaran
-```sql
-UPDATE registrations 
-SET status = 'dp1_paid', updated_at = NOW() 
-WHERE id = 'YOUR_REGISTRATION_ID';
-```
+1. **Push Skema Langsung (Cepat & Direkomendasikan untuk Dev):**
+   ```bash
+   npm run db:push
+   ```
+   *Perintah ini akan memaksa skema di database sesuai dengan yang ada di `src/db/schema.ts`.*
+
+2. **Generate Migrasi (Untuk Production):**
+   ```bash
+   npx drizzle-kit generate --config=src/db/drizzle.config.ts
+   ```
+
+### C. Evaluasi & Best Practice Pengelolaan Database
+1. **Pemisahan Proses (CI/CD):** Jangan jalankan `ALTER TABLE` atau migrasi skema di dalam kode aplikasi utama (`server.ts`) saat startup di lingkungan production. Gunakan proses terpisah (seperti `init container` atau step migrasi di pipeline CI/CD).
+2. **User Least Privilege:** User aplikasi (`app_user`) idealnya hanya memiliki hak DML (`SELECT`, `INSERT`, `UPDATE`, `DELETE`). Gunakan user terpisah (`migration_user`) yang memiliki hak DDL (`ALTER`, `CREATE`) dan merupakan Owner dari tabel untuk menjalankan migrasi.
+3. **Audit Log:** Selalu simpan history migrasi di folder `drizzle/` agar perubahan skema dapat di-track dan di-rollback jika terjadi kegagalan.

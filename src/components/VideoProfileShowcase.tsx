@@ -57,7 +57,7 @@ export const VIDEO_CATALOG: VideoItem[] = [
     resolution: '4K Ultra HD',
     batchOrEvent: 'Official Company Profile',
     releaseDate: '2024',
-    description: 'Profil lengkap PT. Golden Tour Haramain (Mitra PT. Sederhana Almaidani Group, Izin PPIU: 08012300040570002). Menampilkan komitmen pelayanan dari Direktur Utama, tim pembimbing ibadah alumni UIM Madinah, serta jaminan fasilitas hotel Ring 1 Masjidil Haram.',
+    description: 'Profil lengkap Golden Travel (Mitra PT. Sederhana Almaidani Group, Izin PPIU: 08012300040570002). Menampilkan komitmen pelayanan dari Direktur Utama, tim pembimbing ibadah alumni UIM Madinah, serta jaminan fasilitas hotel Ring 1 Masjidil Haram.',
     viewsCount: '45,200+',
     highlights: ['Izin Resmi Kemenag RI', 'Hotel Ring 1 Masjidil Haram', 'Bimbingan Syariah Alumni Madinah'],
     featured: true
@@ -76,7 +76,7 @@ export const VIDEO_CATALOG: VideoItem[] = [
     resolution: '4K Ultra HD',
     batchOrEvent: 'Musim Haji 1445 H / 2024 M',
     releaseDate: 'Juni 2024',
-    description: 'Dokumentasi sinematik perjalanan jemaah Haji Khusus Furoda Golden Tour Haramain saat wukuf di Arafah, bermalam di Muzdalifah, dan melontar Jumrah di Mina. Menampilkan fasilitas Maktab VIP ber-AC, prasmanan kuliner Indonesia 24 jam, serta bimbingan manasik intensif.',
+    description: 'Dokumentasi sinematik perjalanan jemaah Haji Khusus Furoda Golden Travel saat wukuf di Arafah, bermalam di Muzdalifah, dan melontar Jumrah di Mina. Menampilkan fasilitas Maktab VIP ber-AC, prasmanan kuliner Indonesia 24 jam, serta bimbingan manasik intensif.',
     viewsCount: '62,800+',
     highlights: ['Maktab AC Khusus Armuzna', 'Prasmanan Khas Indonesia 24 Jam', 'Pendampingan Tim Medis Mandiri'],
     featured: true
@@ -131,7 +131,7 @@ export const VIDEO_CATALOG: VideoItem[] = [
     resolution: '4K Ultra HD',
     batchOrEvent: 'Edukasi Syariah Jemaah',
     releaseDate: 'Januari 2024',
-    description: 'Video edukasi manasik interaktif yang dibawakan oleh Pembimbing Syariah PT. Golden Tour Haramain. Menjelaskan rukun, wajib, tata cara ihram di Miqat, serta kiat mudah memasuki Raudhah Madinah.',
+    description: 'Video edukasi manasik interaktif yang dibawakan oleh Pembimbing Syariah Golden Travel. Menjelaskan rukun, wajib, tata cara ihram di Miqat, serta kiat mudah memasuki Raudhah Madinah.',
     viewsCount: '51,900+',
     highlights: ['Edukasi Sunnah Shahih', 'Panduan Tasreh Raudhah', 'Kiat Ibadah Khusyuk']
   },
@@ -191,7 +191,7 @@ export const VideoProfileShowcase: React.FC = () => {
           </h2>
 
           <p className="text-stone-300 text-sm sm:text-base md:text-lg leading-relaxed font-light">
-            Saksikan tayangan otentik perjalanan ibadah jemaah, tur fasilitas hotel & Kereta Cepat Haramain, serta bimbingan syariat lengkap langsung dari kanal resmi YouTube <strong className="text-white font-semibold">PT. Golden Tour Haramain</strong>.
+            Saksikan tayangan otentik perjalanan ibadah jemaah, tur fasilitas hotel & Kereta Cepat Haramain, serta bimbingan syariat lengkap langsung dari kanal resmi YouTube <strong className="text-white font-semibold">Golden Travel</strong>.
           </p>
         </div>
 
@@ -413,7 +413,7 @@ export const VideoProfileShowcase: React.FC = () => {
                   Katalog Resmi Video Profil & Dokumenter YouTube
                 </h3>
                 <p className="text-stone-400 text-xs">
-                  Daftar lengkap dokumentasi perjalanan ibadah dan video profil PT. Golden Tour Haramain
+                  Daftar lengkap dokumentasi perjalanan ibadah dan video profil Golden Travel
                 </p>
               </div>
               <span className="px-3 py-1 rounded-full bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#D4AF37] text-xs font-bold font-mono">

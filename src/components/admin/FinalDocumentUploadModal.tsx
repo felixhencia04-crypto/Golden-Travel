@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { openDataUrlInNewTab } from '../../utils/file';
+import { api } from '../../lib/api';
 
 interface FinalDocumentUploadModalProps {
   isOpen: boolean;
@@ -152,7 +153,7 @@ export default function FinalDocumentUploadModal({
   const modifiedCount = (Object.values(stagedDocs) as StagedDoc[]).filter(d => d.isModified).length;
   const totalStagedCount = (Object.values(stagedDocs) as StagedDoc[]).filter(d => d.fileUrl).length;
 
-  const handleFileForTarget = (target: 'group' | number, file: File) => {
+  const handleFileForTarget = async (target: 'group' | number, file: File) => {
     if (file.size > 150 * 1024 * 1024) {
       toast.error('Ukuran file terlalu besar. Maksimal 150MB.');
       return;
@@ -169,37 +170,35 @@ export default function FinalDocumentUploadModal({
     const sizeInMb = (file.size / (1024 * 1024)).toFixed(1);
 
     setProcessingFileName(`${file.name} (${sizeInMb} MB)`);
-    setFileProcessingProgress(0);
+    setFileProcessingProgress(50);
 
-    const reader = new FileReader();
-    reader.onprogress = (e) => {
-      if (e.lengthComputable) {
-        const percent = Math.round((e.loaded / e.total) * 100);
-        setFileProcessingProgress(percent);
+    try {
+      const uploadRes = await api.upload('/upload', file);
+      const fileUrl = uploadRes.url || uploadRes.fileUrl;
+
+      if (!fileUrl) {
+        throw new Error('Gagal mendapatkan URL file dari server.');
       }
-    };
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
+
       setStagedDocs(prev => ({
         ...prev,
         [key]: {
-          fileUrl: dataUrl,
+          fileUrl: fileUrl,
           fileName: `${file.name} (${sizeInMb} MB)`,
           isModified: true
         }
       }));
-      setFileProcessingProgress(null);
-      setProcessingFileName('');
-      toast.success(`File ${file.name} (${sizeInMb} MB) berhasil disiapkan untuk ${targetName}. Klik "Simpan Semua" jika sudah selesai.`, {
+
+      toast.success(`File ${file.name} (${sizeInMb} MB) berhasil diunggah untuk ${targetName}. Klik "Simpan Semua" jika sudah selesai.`, {
         duration: 4000
       });
-    };
-    reader.onerror = () => {
+    } catch (err: any) {
+      console.error("Gagal upload file:", err);
+      toast.error(err.message || 'Gagal mengunggah file ke server. Silakan coba lagi.');
+    } finally {
       setFileProcessingProgress(null);
       setProcessingFileName('');
-      toast.error('Gagal membaca file. Silakan coba lagi.');
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleUrlForTarget = (target: 'group' | number, url: string) => {
@@ -252,25 +251,35 @@ export default function FinalDocumentUploadModal({
   const handleSubmitAll = async () => {
     const itemsToSubmit: Array<{ docType: string; fileUrl: string }> = [];
 
-    // Check all possible targets
-    // 1. Group
-    if (stagedDocs[docType]) {
-      itemsToSubmit.push({
-        docType,
-        fileUrl: stagedDocs[docType].fileUrl || ''
-      });
-    }
-
-    // 2. Each pax
-    passengers.forEach((p) => {
-      const key = `${docType}_pax_${p.idx}`;
-      if (stagedDocs[key]) {
-        itemsToSubmit.push({
-          docType: key,
-          fileUrl: stagedDocs[key].fileUrl || ''
-        });
+    // 1. Collect all non-empty staged documents matching this docType family
+    Object.keys(stagedDocs).forEach(key => {
+      if (key === docType || key.startsWith(`${docType}_pax_`)) {
+        const doc = stagedDocs[key];
+        if (doc && doc.fileUrl && doc.fileUrl.trim().length > 0) {
+          itemsToSubmit.push({
+            docType: key,
+            fileUrl: doc.fileUrl.trim()
+          });
+        }
       }
     });
+
+    // 2. Collect any previously existing documents that were cleared/deleted in this modal session
+    if (documents && Array.isArray(documents)) {
+      documents.forEach((d: any) => {
+        if (d.docType && (d.docType === docType || d.docType.startsWith(`${docType}_pax_`))) {
+          const currentInStaged = stagedDocs[d.docType];
+          if (!currentInStaged || !currentInStaged.fileUrl) {
+            if (!itemsToSubmit.some(i => i.docType === d.docType)) {
+              itemsToSubmit.push({
+                docType: d.docType,
+                fileUrl: '' // signal backend to remove
+              });
+            }
+          }
+        }
+      });
+    }
 
     if (itemsToSubmit.length === 0) {
       toast.error('Belum ada dokumen yang dipilih atau diunggah.');
@@ -279,22 +288,9 @@ export default function FinalDocumentUploadModal({
 
     setLoading(true);
     try {
-      const adminToken = localStorage.getItem('admin_token');
-      const response = await fetch(`/api/admin/final-documents/${registrationId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${adminToken}`
-        },
-        body: JSON.stringify({
-          items: itemsToSubmit
-        })
+      await api.post(`/admin/final-documents/${registrationId}`, {
+        items: itemsToSubmit
       });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || 'Gagal menyimpan dokumen batch');
-      }
 
       toast.success(`Berhasil menyimpan seluruh ${config.title}!`);
       onSuccess();
@@ -316,17 +312,7 @@ export default function FinalDocumentUploadModal({
     if (!targetToDelete) return;
     setLoading(true);
     try {
-      const adminToken = localStorage.getItem('admin_token');
-      const response = await fetch(`/api/admin/final-documents/${registrationId}/${targetToDelete}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${adminToken}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Gagal menghapus dokumen di server');
-      }
+      await api.delete(`/admin/final-documents/${registrationId}/${targetToDelete}`);
 
       handleClearDocForTarget(targetToDelete);
       toast.success(`Dokumen berhasil dihapus dari server.`);
@@ -393,13 +379,24 @@ export default function FinalDocumentUploadModal({
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
-                  <ListFilter className="w-3.5 h-3.5" /> Fosil Target tunggal
+                  <ListFilter className="w-3.5 h-3.5" /> Target Tunggal
                 </button>
               </div>
             </div>
           )}
 
           <div className="p-6 space-y-5 overflow-y-auto flex-1">
+            {/* File Processing Alert */}
+            {processingFileName && (
+              <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-center gap-3 text-xs text-indigo-900 animate-pulse">
+                <Loader2 className="w-4 h-4 text-indigo-600 animate-spin flex-shrink-0" />
+                <div className="flex-1">
+                  <div className="font-bold">Mengunggah file ke server storage...</div>
+                  <div className="text-[10px] text-indigo-700 truncate">{processingFileName}</div>
+                </div>
+              </div>
+            )}
+
             {/* Recommendation info */}
             <div className="p-3.5 bg-blue-50/80 border border-blue-100 rounded-2xl flex items-start gap-3 text-xs text-blue-900">
               <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
