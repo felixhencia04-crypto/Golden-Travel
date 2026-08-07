@@ -10,7 +10,7 @@ import {
   GraduationCap, Target, Mic, Megaphone, Compass
 } from 'lucide-react';
 import { HEADER_BG_DATA } from '../assets/headerBgData';
-import bgKemitraanHero from '../assets/kemitraan-hero-bg.webp';
+import { KEMITRAAN_BG_DATA } from '../assets/kemitraanBgData';
 
 export default function Kemitraan() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -49,11 +49,8 @@ export default function Kemitraan() {
 
       {/* Hero Section / Slide Pertama Kemitraan */}
       <section 
-        className="relative py-16 sm:py-24 lg:py-28 bg-[#d6daba] text-stone-900 border-b-4 border-[#D4AF37] overflow-hidden"
+        className="relative py-16 sm:py-24 lg:py-28 bg-[#d6daba] text-stone-900 bg-cover bg-center lg:bg-right-top bg-fixed border-b-4 border-[#D4AF37] overflow-hidden" style={{ backgroundImage: `url(${KEMITRAAN_BG_DATA})` }}
         >
-        <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img src={bgKemitraanHero} alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
-        </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center lg:text-left max-w-3xl space-y-7 my-2">
             {/* Badge Title */}
@@ -168,11 +165,8 @@ export default function Kemitraan() {
       {/* Kenapa Harus Berbisnis Umroh Section */}
       <section 
         id="keunggulan" 
-        className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 border-b-4 border-[#D4AF37] overflow-hidden"
+        className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 bg-cover bg-center lg:bg-right-top bg-fixed border-b-4 border-[#D4AF37] overflow-hidden" style={{ backgroundImage: `url(${KEMITRAAN_BG_DATA})` }}
         >
-        <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img src={bgKemitraanHero} alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
-        </div>
         {/* Background Subtle Patterns */}
         <div className="absolute inset-0 bg-[radial-gradient(#063b2c_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.04] pointer-events-none"></div>
 
@@ -425,11 +419,8 @@ export default function Kemitraan() {
       {/* Mengapa Harus Bermitra Dengan Golden Travel Section (Slide 3) */}
       <section 
         id="mengapa-bermitra" 
-        className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 border-b-4 border-[#D4AF37] overflow-hidden"
+        className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 bg-cover bg-center lg:bg-right-top bg-fixed border-b-4 border-[#D4AF37] overflow-hidden" style={{ backgroundImage: `url(${KEMITRAAN_BG_DATA})` }}
         >
-        <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img src={bgKemitraanHero} alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
-        </div>
         {/* Subtle background highlight for optimal clarity */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-white/30 backdrop-blur-[0.5px] pointer-events-none"></div>
         <div className="absolute inset-0 bg-[radial-gradient(#063b2c_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.03] pointer-events-none"></div>
@@ -701,11 +692,8 @@ export default function Kemitraan() {
 
       {/* Alur Pendaftaran Mitra Section (Slide 4) */}
       <section 
-        className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 border-b-4 border-[#D4AF37] overflow-hidden"
+        className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 bg-cover bg-center lg:bg-right-top bg-fixed border-b-4 border-[#D4AF37] overflow-hidden" style={{ backgroundImage: `url(${KEMITRAAN_BG_DATA})` }}
         >
-        <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img src={bgKemitraanHero} alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
-        </div>
         {/* Subtle background highlight for optimal clarity */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-white/30 backdrop-blur-[0.5px] pointer-events-none"></div>
         <div className="absolute inset-0 bg-[radial-gradient(#063b2c_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.03] pointer-events-none"></div>
@@ -856,11 +844,8 @@ export default function Kemitraan() {
       {/* Syarat & Promo Starter Kit Mitra Section (Slide 5) */}
       <section 
         id="syarat-mitra"
-        className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 border-b-4 border-[#D4AF37] overflow-hidden"
+        className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 bg-cover bg-center lg:bg-right-top bg-fixed border-b-4 border-[#D4AF37] overflow-hidden" style={{ backgroundImage: `url(${KEMITRAAN_BG_DATA})` }}
         >
-        <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img src={bgKemitraanHero} alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
-        </div>
         {/* Subtle background highlight for optimal clarity */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-white/30 backdrop-blur-[0.5px] pointer-events-none"></div>
         <div className="absolute inset-0 bg-[radial-gradient(#063b2c_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.03] pointer-events-none"></div>
@@ -1142,11 +1127,8 @@ export default function Kemitraan() {
       {/* FAQ Accordion Section */}
       <section 
         id="faq"
-        className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 border-b-4 border-[#D4AF37] overflow-hidden"
+        className="relative py-20 sm:py-28 bg-[#d6daba] text-stone-900 bg-cover bg-center lg:bg-right-top bg-fixed border-b-4 border-[#D4AF37] overflow-hidden" style={{ backgroundImage: `url(${KEMITRAAN_BG_DATA})` }}
         >
-        <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
-          <img src={bgKemitraanHero} alt="Background" className="w-full h-full object-cover object-center lg:object-right-top opacity-100" loading="eager" fetchPriority="high" />
-        </div>
         {/* Subtle background highlight for optimal clarity */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-transparent to-white/30 backdrop-blur-[0.5px] pointer-events-none"></div>
         <div className="absolute inset-0 bg-[radial-gradient(#063b2c_1px,transparent_1px)] [background-size:24px_24px] opacity-[0.03] pointer-events-none"></div>
