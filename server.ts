@@ -6772,7 +6772,7 @@ async function startServer() {
       }));
       res.json(photos);
     } catch (error) {
-      res.status(500).json({ error: "Failed to fetch photos" });
+      console.error("Gallery fetch error:", error); res.status(500).json({ error: "Failed to fetch photos", details: String(error) });
     }
   });
 
