@@ -7320,22 +7320,7 @@ async function startServer() {
 
   httpServer.listen(Number(PORT), "0.0.0.0", async () => {
     
-    // Ensure gallery_photos table exists to prevent 500 error if db:push fails in production
-    try {
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS gallery_photos (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          workspace_id UUID REFERENCES workspaces(id),
-          title TEXT,
-          description TEXT,
-          image_url TEXT NOT NULL,
-          created_at TIMESTAMP NOT NULL DEFAULT NOW()
-        );
-      `);
-      console.log("Successfully ensured gallery_photos table exists.");
-    } catch (e) {
-      console.error("Failed to ensure gallery_photos table exists:", e);
-    }
+    // DDL dihapus: Migrasi akan dilakukan via npm run db:push
 
       // Seed gallery if empty
       try {

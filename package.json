@@ -9,11 +9,13 @@
     "dev": "tsx server.ts --host 0.0.0.0",
     "dev:safe": "run-s clean:ports dev",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "start": "npm run db:push || echo \"Skipping migration\" && node dist/server.cjs",
+    "start": "node dist/server.cjs",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "db:push": "drizzle-kit push --config=src/db/drizzle.config.ts --force",
-    "db:seed": "tsx src/db/seed.ts"
+    "db:seed": "tsx src/db/seed.ts",
+    "start:prod": "npx drizzle-kit push --config=src/db/drizzle.config.ts --force && node dist/server.cjs",
+    "railway:migrate": "npx drizzle-kit push --config=src/db/drizzle.config.ts --force"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
