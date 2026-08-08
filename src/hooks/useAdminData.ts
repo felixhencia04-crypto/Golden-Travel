@@ -130,5 +130,5 @@ export function useAdminData() {
     }
   }, []);
 
-  return { users, setUsers, registrations, setRegistrations, packages, setPackages, schedules, setSchedules, dashboardStats, actionCenter, equipment, broadcast, manifest, loading, currentUser, refreshData };
+  return { users, setUsers, registrations, setRegistrations, packages, setPackages, schedules, setSchedules, dashboardStats, actionCenter, equipment, broadcast, manifest, loading, currentUser, setCurrentUser, refreshData };
 }

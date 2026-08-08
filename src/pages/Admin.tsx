@@ -87,7 +87,7 @@ export const matchDocumentCategory = (docTypeStr: string | null | undefined, cat
 
 export default function Admin() {
   const logoImg = useLogo();
-  const { users, registrations, setRegistrations, packages, setPackages, schedules, dashboardStats, actionCenter, equipment: inventory, broadcast: announcements, manifest, loading, currentUser, refreshData } = useAdminData();
+  const { users, registrations, setRegistrations, packages, setPackages, schedules, dashboardStats, actionCenter, equipment: inventory, broadcast: announcements, manifest, loading, currentUser, setCurrentUser, refreshData } = useAdminData();
   const onDataUpdated = React.useCallback(() => {
     console.log("Admin: Received real-time update signal.");
     refreshData(true);
@@ -1796,6 +1796,9 @@ export default function Admin() {
         role: 'admin'
       };
 
+      // Real-time immediate update of currentUser state
+      setCurrentUser(updatedUserObj);
+
       try {
         const rawCache = sessionStorage.getItem("cached_admin_portal_data");
         const existingCache = rawCache ? JSON.parse(rawCache) : {};
@@ -1816,6 +1819,9 @@ export default function Admin() {
       });
 
       toast.success("Profil dan kata sandi admin berhasil diperbarui!");
+
+      // Sync backend
+      refreshData(true, true);
 
       // Optionally update password in Firebase if logged in via Firebase
       if (adminProfileForm.password) {
