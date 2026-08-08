@@ -4591,17 +4591,18 @@ async function startServer() {
 
   // Helper function to assemble complete mitra list with profiles and uploaded documents
   async function getComprehensiveMitraList(statusFilter?: string) {
-    // 1. Fetch all mitraUsers records
-    const allMitraUsers = await withRetry(() => db.select().from(schema.mitraUsers)) as any[];
-    
-    // 2. Fetch all users from main users table (filter by role 'mitra' or those with matching emails)
-    const allAuthUsers = await withRetry(() => db.select().from(schema.users)) as any[];
+    try {
+      // 1. Fetch all mitraUsers records
+      const allMitraUsers = await withRetry(() => db.select().from(schema.mitraUsers)).catch(() => []) as any[];
+      
+      // 2. Fetch all users from main users table (filter by role 'mitra' or those with matching emails)
+      const allAuthUsers = await withRetry(() => db.select().from(schema.users)).catch(() => []) as any[];
 
-    // 3. Fetch all profiles
-    const allProfiles = await withRetry(() => db.select().from(schema.mitraProfiles)) as any[];
+      // 3. Fetch all profiles
+      const allProfiles = await withRetry(() => db.select().from(schema.mitraProfiles)).catch(() => []) as any[];
 
-    // 4. Fetch all KYC documents
-    const allDocs = await withRetry(() => db.select().from(schema.kycDocuments)) as any[];
+      // 4. Fetch all KYC documents
+      const allDocs = await withRetry(() => db.select().from(schema.kycDocuments)).catch(() => []) as any[];
 
     // Build unified map of mitras keyed by ID or email
     const mapById = new Map<string, any>();
@@ -4738,8 +4739,12 @@ async function startServer() {
       }
     }
 
-    resultList.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-    return resultList;
+      resultList.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      return resultList;
+    } catch (err: any) {
+      console.error("Error in getComprehensiveMitraList:", err);
+      return [];
+    }
   }
 
   // --- Admin Mitra Management ---
@@ -7464,13 +7469,323 @@ async function startServer() {
     });
   });
 
+async function ensureTablesExist() {
+  try {
+    console.log("[DB Auto-Init] Verifying/creating all PostgreSQL tables...");
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "workspaces" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "name" TEXT NOT NULL,
+        "slug" TEXT UNIQUE NOT NULL DEFAULT gen_random_uuid()::text,
+        "domain" TEXT UNIQUE,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "users" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "uid" TEXT UNIQUE,
+        "email" TEXT NOT NULL UNIQUE,
+        "name" TEXT NOT NULL,
+        "phone" TEXT,
+        "avatar_url" TEXT,
+        "role" TEXT NOT NULL DEFAULT 'jamaah',
+        "status" TEXT NOT NULL DEFAULT 'active',
+        "mitra_id" UUID,
+        "referral_code" TEXT UNIQUE,
+        "password" TEXT,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updated_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "deleted_at" TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS "packages" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "name" TEXT NOT NULL,
+        "description" TEXT NOT NULL,
+        "price" DECIMAL(12, 2) NOT NULL,
+        "departure_date" TIMESTAMP,
+        "duration" TEXT NOT NULL,
+        "image_url" TEXT,
+        "facilities" TEXT,
+        "excludes" TEXT,
+        "hotel" TEXT,
+        "type" TEXT NOT NULL DEFAULT 'umroh',
+        "is_available" BOOLEAN NOT NULL DEFAULT true,
+        "quota" INTEGER NOT NULL DEFAULT 45,
+        "manasik_pdf_url" TEXT,
+        "muthawwif_name" TEXT,
+        "muthawwif_role" TEXT,
+        "muthawwif_phone" TEXT,
+        "muthawwif_avatar_url" TEXT,
+        "muthawwif_notes" TEXT,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "schedules" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "package_id" UUID REFERENCES "packages"("id") NOT NULL,
+        "departure_date" TIMESTAMP NOT NULL,
+        "name" TEXT,
+        "airline" TEXT,
+        "total_seats" INTEGER NOT NULL,
+        "available_seats" INTEGER NOT NULL,
+        "itinerary_pdf_url" TEXT,
+        "muthawwif_name" TEXT,
+        "muthawwif_role" TEXT,
+        "muthawwif_phone" TEXT,
+        "muthawwif_avatar_url" TEXT,
+        "muthawwif_notes" TEXT,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "registrations" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "user_id" UUID REFERENCES "users"("id") NOT NULL,
+        "package_id" UUID REFERENCES "packages"("id") NOT NULL,
+        "schedule_id" UUID REFERENCES "schedules"("id"),
+        "status" TEXT NOT NULL DEFAULT 'DRAFT',
+        "orderer_name" TEXT,
+        "orderer_phone" TEXT,
+        "orderer_email" TEXT,
+        "orderer_notes" TEXT,
+        "adult_count" TEXT NOT NULL DEFAULT '1',
+        "child_count" TEXT NOT NULL DEFAULT '0',
+        "infant_count" TEXT NOT NULL DEFAULT '0',
+        "total_amount" DECIMAL(12, 2) NOT NULL DEFAULT '0',
+        "pax_data" JSONB,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "payments" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "registration_id" UUID REFERENCES "registrations"("id") NOT NULL,
+        "payment_type" TEXT NOT NULL,
+        "amount" DECIMAL(12, 2) NOT NULL,
+        "proof_url" TEXT NOT NULL,
+        "status" TEXT NOT NULL DEFAULT 'PENDING',
+        "admin_notes" TEXT,
+        "verified_at" TIMESTAMP,
+        "verified_by" UUID REFERENCES "users"("id"),
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "documents" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "registration_id" UUID REFERENCES "registrations"("id") NOT NULL,
+        "doc_type" TEXT NOT NULL,
+        "file_url" TEXT NOT NULL,
+        "status" TEXT NOT NULL DEFAULT 'PENDING',
+        "admin_notes" TEXT,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "notifications" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "user_id" UUID REFERENCES "users"("id"),
+        "title" TEXT NOT NULL,
+        "message" TEXT NOT NULL,
+        "type" TEXT NOT NULL,
+        "is_read" TEXT NOT NULL DEFAULT 'false',
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "package_itineraries" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "package_id" UUID REFERENCES "packages"("id") ON DELETE CASCADE NOT NULL,
+        "day" INTEGER NOT NULL,
+        "title" TEXT NOT NULL,
+        "description" TEXT NOT NULL,
+        "location" TEXT,
+        "meals" TEXT,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "gallery_photos" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "title" TEXT,
+        "description" TEXT,
+        "image_url" TEXT NOT NULL,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "gallery_videos" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "title" TEXT,
+        "description" TEXT,
+        "video_url" TEXT NOT NULL,
+        "thumbnail_url" TEXT,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "buku_kas_mutasi" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "payment_id" UUID REFERENCES "payments"("id"),
+        "amount" DECIMAL(12, 2) NOT NULL,
+        "transaction_type" TEXT NOT NULL,
+        "description" TEXT NOT NULL,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "manifest_keberangkatan" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "package_id" UUID REFERENCES "packages"("id") NOT NULL,
+        "registration_id" UUID REFERENCES "registrations"("id") NOT NULL,
+        "bus_number" TEXT,
+        "hotel_room" TEXT,
+        "airplane_seat" TEXT,
+        "pax_manifest" JSONB,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "helpdesk_tiket" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "user_id" UUID REFERENCES "users"("id") NOT NULL,
+        "subject" TEXT NOT NULL,
+        "message" TEXT NOT NULL,
+        "replies" JSONB NOT NULL DEFAULT '[]'::jsonb,
+        "status" TEXT NOT NULL DEFAULT 'open',
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "sertifikat_kenangan" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "registration_id" UUID REFERENCES "registrations"("id"),
+        "recipient_name" TEXT,
+        "certificate_url" TEXT NOT NULL,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "equipment_status" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "registration_id" UUID REFERENCES "registrations"("id") NOT NULL,
+        "koper" BOOLEAN NOT NULL DEFAULT false,
+        "ihram" BOOLEAN NOT NULL DEFAULT false,
+        "mukena" BOOLEAN NOT NULL DEFAULT false,
+        "assignee" TEXT,
+        "updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "memories" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "package_id" UUID REFERENCES "packages"("id"),
+        "schedule_id" UUID REFERENCES "schedules"("id"),
+        "registration_id" UUID REFERENCES "registrations"("id"),
+        "image_url" TEXT NOT NULL,
+        "caption" TEXT,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "activities" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id") ON DELETE CASCADE,
+        "registration_id" UUID REFERENCES "registrations"("id") ON DELETE CASCADE NOT NULL,
+        "user_id" UUID REFERENCES "users"("id") ON DELETE SET NULL,
+        "action" TEXT NOT NULL,
+        "details" TEXT,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "mitra_users" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "name" TEXT NOT NULL,
+        "email" TEXT UNIQUE NOT NULL,
+        "no_wa" TEXT NOT NULL,
+        "password_hash" TEXT NOT NULL,
+        "status_akun" TEXT NOT NULL DEFAULT 'incomplete_profile',
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "mitra_profiles" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" UUID REFERENCES "mitra_users"("id") ON DELETE CASCADE UNIQUE NOT NULL,
+        "nama_lengkap" TEXT,
+        "nik" TEXT UNIQUE,
+        "tempat_lahir" TEXT,
+        "tanggal_lahir" TEXT,
+        "alamat_lengkap" TEXT,
+        "nama_bank" TEXT,
+        "no_rekening" TEXT,
+        "nama_pemilik_rekening" TEXT,
+        "npwp" TEXT,
+        "jenis_kelamin" TEXT,
+        "status_perkawinan" TEXT,
+        "pekerjaan" TEXT,
+        "provinsi" TEXT,
+        "kota" TEXT,
+        "kecamatan" TEXT,
+        "kode_pos" TEXT,
+        "whatsapp" TEXT,
+        "bukti_transfer" TEXT,
+        "review_notes" TEXT,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "kyc_documents" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" UUID REFERENCES "mitra_users"("id") ON DELETE CASCADE NOT NULL,
+        "document_type" TEXT NOT NULL,
+        "file_url" TEXT NOT NULL,
+        "status" TEXT NOT NULL DEFAULT 'pending',
+        "uploaded_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS "mitra_commission_payouts" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "workspace_id" UUID REFERENCES "workspaces"("id"),
+        "mitra_user_id" UUID,
+        "mitra_name" TEXT NOT NULL,
+        "mitra_phone" TEXT,
+        "jamaah_name" TEXT,
+        "package_name" TEXT,
+        "amount" DECIMAL(12, 2) NOT NULL,
+        "bank_name" TEXT NOT NULL,
+        "account_number" TEXT NOT NULL,
+        "account_holder" TEXT NOT NULL,
+        "status" TEXT NOT NULL DEFAULT 'PENDING',
+        "mitra_notes" TEXT,
+        "admin_notes" TEXT,
+        "proof_of_transfer_url" TEXT,
+        "transfer_date" TIMESTAMP,
+        "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updated_at" TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+    `);
+    console.log("[DB Auto-Init] All PostgreSQL tables verified/created.");
+  } catch (err: any) {
+    console.warn("[DB Auto-Init Warning] auto-create tables:", err?.message);
+  }
+}
+
   httpServer.listen(Number(PORT), "0.0.0.0", async () => {
     
-    
     try {
+      await ensureTablesExist();
+
       console.log("Menjalankan migrasi Drizzle secara programatis...");
-      await migrate(db, { migrationsFolder: path.join(process.cwd(), 'drizzle') });
-      console.log("Migrasi database berhasil.");
+      await migrate(db, { migrationsFolder: path.join(process.cwd(), 'drizzle') }).catch(e => {
+        console.warn("Drizzle migrate skipped/warning:", e?.message);
+      });
+      console.log("Migrasi database diselesaikan.");
 
       // Seeding Admin
       console.log("Memeriksa apakah tabel users kosong...");
