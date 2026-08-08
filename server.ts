@@ -566,6 +566,62 @@ async function startServer() {
       }
     };
 
+    // 0. Update Postgres ENUM values and alter role/status columns to text to prevent 22P02 invalid input value errors
+    await runSql(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+          BEGIN ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'super_admin'; EXCEPTION WHEN OTHERS THEN NULL; END;
+          BEGIN ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'admin'; EXCEPTION WHEN OTHERS THEN NULL; END;
+          BEGIN ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'mitra'; EXCEPTION WHEN OTHERS THEN NULL; END;
+          BEGIN ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'jamaah'; EXCEPTION WHEN OTHERS THEN NULL; END;
+          BEGIN ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'keuangan'; EXCEPTION WHEN OTHERS THEN NULL; END;
+          BEGIN ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'operasional'; EXCEPTION WHEN OTHERS THEN NULL; END;
+          BEGIN ALTER TYPE "user_role" ADD VALUE IF NOT EXISTS 'marketing'; EXCEPTION WHEN OTHERS THEN NULL; END;
+        END IF;
+      END $$;
+    `);
+
+    await runSql(`
+      DO $$
+      BEGIN
+        BEGIN
+          ALTER TABLE "users" ALTER COLUMN "role" DROP DEFAULT;
+          ALTER TABLE "users" ALTER COLUMN "role" TYPE text USING "role"::text;
+          ALTER TABLE "users" ALTER COLUMN "role" SET DEFAULT 'jamaah';
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
+
+        BEGIN
+          ALTER TABLE "users" ALTER COLUMN "status" DROP DEFAULT;
+          ALTER TABLE "users" ALTER COLUMN "status" TYPE text USING "status"::text;
+          ALTER TABLE "users" ALTER COLUMN "status" SET DEFAULT 'active';
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
+
+        BEGIN
+          ALTER TABLE "registrations" ALTER COLUMN "status" DROP DEFAULT;
+          ALTER TABLE "registrations" ALTER COLUMN "status" TYPE text USING "status"::text;
+          ALTER TABLE "registrations" ALTER COLUMN "status" SET DEFAULT 'DRAFT';
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
+
+        BEGIN
+          ALTER TABLE "payments" ALTER COLUMN "status" DROP DEFAULT;
+          ALTER TABLE "payments" ALTER COLUMN "status" TYPE text USING "status"::text;
+          ALTER TABLE "payments" ALTER COLUMN "status" SET DEFAULT 'PENDING';
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
+
+        BEGIN
+          ALTER TABLE "documents" ALTER COLUMN "status" DROP DEFAULT;
+          ALTER TABLE "documents" ALTER COLUMN "status" TYPE text USING "status"::text;
+          ALTER TABLE "documents" ALTER COLUMN "status" SET DEFAULT 'PENDING';
+        EXCEPTION WHEN OTHERS THEN NULL;
+        END;
+      END $$;
+    `);
+
     // 1. Workspaces
     await runSql(`
       CREATE TABLE IF NOT EXISTS "workspaces" (
