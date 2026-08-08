@@ -305,6 +305,10 @@ export default function Admin() {
           const bc = new BroadcastChannel('mitra_catalog_realtime');
           bc.postMessage({ type: 'MUTATED', timestamp: Date.now() });
           bc.close();
+
+          const bc2 = new BroadcastChannel('golden_travel_updates');
+          bc2.postMessage({ type: 'CATALOG_UPDATED', timestamp: Date.now() });
+          bc2.close();
         } catch (e) {}
       };
 
@@ -314,11 +318,11 @@ export default function Admin() {
       }
       toast.success('Paket berhasil diperbarui.');
       notifyRealtimeCatalogChange();
-      refreshData(true);
+      refreshData(true, true);
     } catch (error: any) {
       console.error('Error updating package:', error);
       toast.error(error.message || 'Gagal memperbarui paket.');
-      refreshData(true);
+      refreshData(true, true);
     }
   };
 
@@ -366,12 +370,16 @@ export default function Admin() {
         const bc = new BroadcastChannel('mitra_catalog_realtime');
         bc.postMessage({ type: 'MUTATED', timestamp: Date.now() });
         bc.close();
+
+        const bc2 = new BroadcastChannel('golden_travel_updates');
+        bc2.postMessage({ type: 'CATALOG_UPDATED', timestamp: Date.now() });
+        bc2.close();
       } catch (e) {}
-      refreshData(true);
+      refreshData(true, true);
     } catch (error: any) {
       console.error('Error adding package:', error);
       toast.error(error.message || 'Gagal menambahkan paket.');
-      refreshData(true);
+      refreshData(true, true);
     }
   };
   const deletePackage = async (id: string) => {
@@ -384,12 +392,16 @@ export default function Admin() {
         const bc = new BroadcastChannel('mitra_catalog_realtime');
         bc.postMessage({ type: 'MUTATED', timestamp: Date.now() });
         bc.close();
+
+        const bc2 = new BroadcastChannel('golden_travel_updates');
+        bc2.postMessage({ type: 'CATALOG_UPDATED', timestamp: Date.now() });
+        bc2.close();
       } catch (e) {}
-      refreshData(true);
+      refreshData(true, true);
     } catch (error: any) {
       console.error('Error deleting package:', error);
       toast.error(error.message || 'Gagal menghapus paket.');
-      refreshData(true);
+      refreshData(true, true);
     }
   };
   
@@ -812,14 +824,27 @@ export default function Admin() {
   const [certSearchQuery, setCertSearchQuery] = useState('');
 
   const toBase64 = (file: File) => new Promise<string>(async (resolve, reject) => {
-    // If it's an image and larger than 500KB, try to compress it
-    if (file.type.startsWith('image/') && file.size > 500 * 1024) {
+    // Try uploading to /api/upload endpoint first
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadRes = await api.post('/upload', formData);
+      if (uploadRes && uploadRes.url) {
+        resolve(uploadRes.url);
+        return;
+      }
+    } catch (upErr) {
+      console.warn("Notice: /api/upload endpoint skipped, falling back to compressed base64", upErr);
+    }
+
+    // Fallback: Compress image to small JPEG
+    if (file.type.startsWith('image/')) {
       try {
         const compressedDataUrl = await compressImage(file);
         resolve(compressedDataUrl);
         return;
       } catch (err) {
-        console.warn('Compression failed, falling back to original', err);
+        console.warn('Compression failed, falling back to original reader', err);
       }
     }
 
@@ -842,8 +867,8 @@ export default function Admin() {
             let width = img.width;
             let height = img.height;
             
-            // Max dimension
-            const MAX_DIM = 1200;
+            // Max dimension for fast storage and zero lag
+            const MAX_DIM = 800;
             if (width > height && width > MAX_DIM) {
               height *= MAX_DIM / width;
               width = MAX_DIM;
@@ -858,7 +883,7 @@ export default function Admin() {
             if (!ctx) return reject('No canvas context');
             
             ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.8));
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
           } catch (e) {
             reject(e);
           }

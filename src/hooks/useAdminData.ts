@@ -78,18 +78,40 @@ export function useAdminData() {
       if (me !== undefined && !(me as any)?.__error) setCurrentUser(me);
 
       const cached = getAdminCache() || {};
-      sessionStorage.setItem(ADMIN_CACHE_KEY, JSON.stringify({
-        users: u !== undefined && !(u as any)?.__error ? u : cached.users,
-        registrations: r !== undefined && !(r as any)?.__error ? r : cached.registrations,
-        packages: p !== undefined && !(p as any)?.__error ? p : cached.packages,
-        schedules: s !== undefined && !(s as any)?.__error ? s : cached.schedules,
-        dashboardStats: ds !== undefined && !(ds as any)?.__error ? ds : cached.dashboardStats,
-        actionCenter: ac !== undefined && !(ac as any)?.__error ? ac : cached.actionCenter,
-        equipment: eqData !== undefined && !(eqData as any)?.__error ? eqData : cached.equipment,
-        broadcast: brData !== undefined && !(brData as any)?.__error ? brData : cached.broadcast,
-        manifest: mnData !== undefined && !(mnData as any)?.__error ? mnData : cached.manifest,
-        currentUser: me !== undefined && !(me as any)?.__error ? me : cached.currentUser
-      }));
+      const sanitizeList = (list: any[]) => {
+        if (!Array.isArray(list)) return [];
+        return list.map(item => {
+          if (!item || typeof item !== 'object') return item;
+          const copy = { ...item };
+          if (typeof copy.imageUrl === 'string' && copy.imageUrl.startsWith('data:image')) {
+            copy.imageUrl = 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80';
+          }
+          if (typeof copy.image === 'string' && copy.image.startsWith('data:image')) {
+            copy.image = 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80';
+          }
+          if (typeof copy.avatarUrl === 'string' && copy.avatarUrl.startsWith('data:image')) {
+            copy.avatarUrl = 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80';
+          }
+          return copy;
+        });
+      };
+
+      try {
+        sessionStorage.setItem(ADMIN_CACHE_KEY, JSON.stringify({
+          users: sanitizeList(u !== undefined && !(u as any)?.__error ? u : cached.users),
+          registrations: sanitizeList(r !== undefined && !(r as any)?.__error ? r : cached.registrations),
+          packages: sanitizeList(p !== undefined && !(p as any)?.__error ? p : cached.packages),
+          schedules: sanitizeList(s !== undefined && !(s as any)?.__error ? s : cached.schedules),
+          dashboardStats: ds !== undefined && !(ds as any)?.__error ? ds : cached.dashboardStats,
+          actionCenter: ac !== undefined && !(ac as any)?.__error ? ac : cached.actionCenter,
+          equipment: eqData !== undefined && !(eqData as any)?.__error ? eqData : cached.equipment,
+          broadcast: brData !== undefined && !(brData as any)?.__error ? brData : cached.broadcast,
+          manifest: mnData !== undefined && !(mnData as any)?.__error ? mnData : cached.manifest,
+          currentUser: me !== undefined && !(me as any)?.__error ? me : cached.currentUser
+        }));
+      } catch (cacheErr) {
+        console.warn("Notice: sessionStorage write skipped (QuotaExceeded):", cacheErr);
+      }
 
       return { 
         users: u !== undefined && !(u as any)?.__error ? u : cached.users,
@@ -99,7 +121,6 @@ export function useAdminData() {
       };
     } catch (error: any) {
       console.error("Failed to fetch admin data", error);
-      setCurrentUser(null);
       if (error?.message?.includes('Sesi') || error?.message?.includes('login') || error?.message?.includes('Akses ditolak')) {
         localStorage.removeItem('admin_token');
         sessionStorage.removeItem('admin_token');

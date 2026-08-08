@@ -46,8 +46,17 @@ export default defineConfig(() => {
               if (id.includes('firebase')) {
                 return 'vendor-firebase';
               }
-              if (id.includes('xlsx') || id.includes('jszip')) {
+              if (id.includes('xlsx') || id.includes('jszip') || id.includes('archiver')) {
                 return 'vendor-data';
+              }
+              if (id.includes('recharts') || id.includes('d3-')) {
+                return 'vendor-charts';
+              }
+              if (id.includes('motion') || id.includes('framer-motion')) {
+                return 'vendor-motion';
+              }
+              if (id.includes('react-router') || id.includes('@tanstack')) {
+                return 'vendor-framework';
               }
             }
           },
