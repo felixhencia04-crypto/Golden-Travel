@@ -1,0 +1,8 @@
+const fs = require('fs');
+
+let pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+
+pkg.scripts['build'] = 'vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && esbuild src/db/migrate.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/migrate.cjs';
+pkg.scripts['start'] = 'node dist/migrate.cjs && node dist/server.cjs';
+
+fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));

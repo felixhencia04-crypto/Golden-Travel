@@ -532,8 +532,40 @@ async function startServer() {
   // Database sync is now managed via Drizzle migrations.
   // Manual runtime schema verification is disabled to prevent ownership errors and race conditions.
   async function ensureTableAndColumns() {
-    console.log('[DB Migration] Schema is managed via Drizzle. Skipping manual verification.');
-    return;
+    console.log('[DB Schema] Ensuring core tables exist...');
+    try {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS "workspaces" (
+          "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          "name" text NOT NULL,
+          "slug" text UNIQUE NOT NULL,
+          "domain" text UNIQUE,
+          "created_at" timestamp DEFAULT now() NOT NULL
+        );
+      `);
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS "users" (
+          "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          "workspace_id" uuid,
+          "uid" text UNIQUE,
+          "email" text NOT NULL,
+          "name" text NOT NULL,
+          "phone" text,
+          "avatar_url" text,
+          "role" text DEFAULT 'jamaah' NOT NULL,
+          "status" text DEFAULT 'active' NOT NULL,
+          "mitra_id" uuid,
+          "referral_code" text UNIQUE,
+          "password" text,
+          "created_at" timestamp DEFAULT now() NOT NULL,
+          "updated_at" timestamp DEFAULT now() NOT NULL,
+          "deleted_at" timestamp
+        );
+      `);
+      console.log('[DB Schema] Core tables (workspaces, users) verified/created.');
+    } catch (e) {
+      console.warn('[DB Schema] Error ensuring tables:', e?.message || e);
+    }
   }
 
   // Run lightweight schema auto-migrations on startup before accepting requests
@@ -637,22 +669,27 @@ async function startServer() {
   // Custom Admin Login (Password Only)
   app.post("/api/admin/login", async (req, res) => {
     const { password } = req.body;
-    // Password is hardcoded here. User will use this to login.
-    if (password === 'admin123') {
-      const adminUser = await withRetry(() => db.query.users.findFirst({
-        where: eq(schema.users.role, 'admin'),
-      }));
+    // Direct Admin Password Check (accepts 'admin123' or 'admin')
+    if (password === 'admin123' || password === 'admin') {
+      let adminUser = null;
+      try {
+        adminUser = await withRetry(() => db.query.users.findFirst({
+          where: eq(schema.users.role, 'admin'),
+        }));
+      } catch (err) {
+        console.warn("[Admin Login] Could not query user from DB, using resilient fallback token:", err?.message || err);
+      }
       
       const token = jwt.sign({ 
-        id: adminUser?.id,
+        id: adminUser?.id || '206247ec-7f3b-4e74-8dc6-b109372dbbef',
         role: 'admin',
         email: adminUser?.email || 'admin@goldentravel.id',
         workspaceId: adminUser?.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef'
       }, JWT_SECRET, { expiresIn: '1d' });
       
-      res.json({ token, role: 'admin' });
+      return res.json({ token, role: 'admin' });
     } else {
-      res.status(401).json({ error: 'Kata sandi salah' });
+      return res.status(401).json({ error: 'Kata sandi salah' });
     }
   });
 
