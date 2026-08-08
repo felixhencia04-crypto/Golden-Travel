@@ -636,34 +636,55 @@ async function startServer() {
 
   // Custom Admin Login (Password Only)
   app.post("/api/admin/login", async (req, res) => {
-    const { password } = req.body;
+    const { password, email } = req.body;
     if (!password) {
       return res.status(400).json({ error: 'Kata sandi harus diisi.' });
     }
 
     try {
-      const adminUser = await withRetry(() => db.query.users.findFirst({
-        where: eq(schema.users.role, 'admin'),
-      }));
+      // Query active admin users from DB
+      let adminUsers = await withRetry(() => db.select().from(schema.users)
+        .where(and(eq(schema.users.role, 'admin'), isNull(schema.users.deletedAt)))
+      ).catch(() => []);
 
-      let isValid = false;
-      if (adminUser && adminUser.password) {
-        isValid = verifyPassword(password, adminUser.password);
-      }
-      // Fallback for default password
-      if (!isValid && (password === 'admin123' || password === 'admin')) {
-        isValid = true;
+      if (email) {
+        const filteredByEmail = adminUsers.filter((u: any) => u.email?.toLowerCase().trim() === String(email).toLowerCase().trim());
+        if (filteredByEmail.length > 0) {
+          adminUsers = filteredByEmail;
+        }
       }
 
-      if (isValid) {
+      let matchedAdmin: any = null;
+      for (const u of adminUsers) {
+        if (u.password && verifyPassword(password, u.password)) {
+          matchedAdmin = u;
+          break;
+        }
+      }
+
+      // Fallback for default admin passwords
+      if (!matchedAdmin && (password === 'admin123' || password === 'admin')) {
+        matchedAdmin = adminUsers.find((u: any) => u.email === 'admin@goldentravel.id') || adminUsers[0] || {
+          id: '00000000-0000-0000-0000-000000000000',
+          email: 'admin@goldentravel.id',
+          name: 'Super Admin',
+          workspaceId: '206247ec-7f3b-4e74-8dc6-b109372dbbef'
+        };
+      }
+
+      if (matchedAdmin) {
         const token = jwt.sign({ 
-          id: adminUser?.id || '00000000-0000-0000-0000-000000000000',
+          id: matchedAdmin.id || '00000000-0000-0000-0000-000000000000',
           role: 'admin',
-          email: adminUser?.email || 'admin@goldentravel.id',
-          workspaceId: adminUser?.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef'
+          email: matchedAdmin.email || 'admin@goldentravel.id',
+          name: matchedAdmin.name || 'Super Admin',
+          workspaceId: matchedAdmin.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef'
         }, JWT_SECRET, { expiresIn: '1d' });
         
-        return res.json({ token, role: 'admin' });
+        // Invalidate cached auth so new session reads fresh DB values
+        invalidateUserCache();
+
+        return res.json({ token, role: 'admin', user: matchedAdmin });
       } else {
         return res.status(401).json({ error: 'Kata sandi salah.' });
       }
@@ -674,8 +695,10 @@ async function startServer() {
           id: '00000000-0000-0000-0000-000000000000',
           role: 'admin',
           email: 'admin@goldentravel.id',
+          name: 'Super Admin',
           workspaceId: '206247ec-7f3b-4e74-8dc6-b109372dbbef'
         }, JWT_SECRET, { expiresIn: '1d' });
+        invalidateUserCache();
         return res.json({ token, role: 'admin' });
       }
       return res.status(401).json({ error: 'Kata sandi salah.' });
@@ -7073,14 +7096,14 @@ async function startServer() {
 
       let targetUserId = req.user?.id;
 
-      // If user is admin, locate the primary admin user ID in DB
+      // If user is admin, locate and update ALL admin user records in DB
       if (req.user?.role === 'admin') {
-        const [adminByRole] = await withRetry(() => db.select().from(schema.users)
+        const adminRows = await withRetry(() => db.select().from(schema.users)
           .where(and(eq(schema.users.role, 'admin'), isNull(schema.users.deletedAt)))
-          .limit(1)).catch(() => [null]);
+        ).catch(() => []);
 
-        if (adminByRole) {
-          targetUserId = adminByRole.id;
+        if (adminRows.length > 0) {
+          targetUserId = adminRows[0].id;
         } else if (!targetUserId) {
           targetUserId = '00000000-0000-0000-0000-000000000000';
         }
@@ -7103,7 +7126,7 @@ async function startServer() {
             .where(sql`LOWER(${schema.users.email}) = LOWER(${newEmail})`)).catch(() => []);
 
           for (const exist of existingUsers) {
-            if (exist.id !== targetUserId) {
+            if (exist.role !== 'admin' && exist.id !== targetUserId) {
               const renamedEmail = `${exist.email}.old_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
               await withRetry(() => db.update(schema.users)
                 .set({ email: renamedEmail, updatedAt: new Date() })
@@ -7119,14 +7142,21 @@ async function startServer() {
       }
 
       let updatedUser: any = null;
-      try {
-        const [u] = (await withRetry(() => db.update(schema.users)
-          .set(setData)
-          .where(eq(schema.users.id, targetUserId))
-          .returning())) as any[];
-        updatedUser = u;
-      } catch (dbErr: any) {
-        console.warn("Drizzle update error in PATCH /users/me, fallback to raw SQL:", dbErr?.message);
+      if (req.user?.role === 'admin') {
+        // Update ALL admin records in the DB
+        try {
+          const updatedAdmins = (await withRetry(() => db.update(schema.users)
+            .set(setData)
+            .where(eq(schema.users.role, 'admin'))
+            .returning())) as any[];
+          if (updatedAdmins && updatedAdmins.length > 0) {
+            updatedUser = updatedAdmins[0];
+          }
+        } catch (e: any) {
+          console.warn("Notice: drizzle bulk admin update error:", e?.message);
+        }
+
+        // Also execute raw SQL bulk update for ALL admin rows
         try {
           await withRetry(() => db.execute(sql`
             UPDATE "users"
@@ -7136,12 +7166,38 @@ async function startServer() {
                 avatar_url = COALESCE(${setData.avatarUrl || null}, avatar_url),
                 password = COALESCE(${setData.password || null}, password),
                 updated_at = NOW()
-            WHERE id::text = ${String(targetUserId)};
+            WHERE role = 'admin' OR id::text = ${String(targetUserId)};
           `));
           const [u] = (await withRetry(() => db.select().from(schema.users).where(eq(schema.users.id, targetUserId)))) as any[];
-          updatedUser = u;
+          if (u) updatedUser = u;
         } catch (rawErr: any) {
-          console.error("Fallback raw SQL update error:", rawErr?.message);
+          console.warn("Raw SQL bulk admin update error:", rawErr?.message);
+        }
+      } else {
+        try {
+          const [u] = (await withRetry(() => db.update(schema.users)
+            .set(setData)
+            .where(eq(schema.users.id, targetUserId))
+            .returning())) as any[];
+          updatedUser = u;
+        } catch (dbErr: any) {
+          console.warn("Drizzle update error in PATCH /users/me, fallback to raw SQL:", dbErr?.message);
+          try {
+            await withRetry(() => db.execute(sql`
+              UPDATE "users"
+              SET name = COALESCE(${setData.name || null}, name),
+                  phone = COALESCE(${setData.phone || null}, phone),
+                  email = COALESCE(${setData.email || null}, email),
+                  avatar_url = COALESCE(${setData.avatarUrl || null}, avatar_url),
+                  password = COALESCE(${setData.password || null}, password),
+                  updated_at = NOW()
+              WHERE id::text = ${String(targetUserId)};
+            `));
+            const [u] = (await withRetry(() => db.select().from(schema.users).where(eq(schema.users.id, targetUserId)))) as any[];
+            updatedUser = u;
+          } catch (rawErr: any) {
+            console.error("Fallback raw SQL update error:", rawErr?.message);
+          }
         }
       }
 
