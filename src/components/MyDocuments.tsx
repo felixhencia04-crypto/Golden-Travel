@@ -34,7 +34,15 @@ export default function MyDocuments() {
     loadDocuments();
   }, []);
 
-  const loadDocuments = async (silent = false) => {
+  const lastLoadRef = React.useRef<number>(0);
+
+  const loadDocuments = async (silent = false, force = false) => {
+    const now = Date.now();
+    if (!force && silent && now - lastLoadRef.current < 4000) {
+      return;
+    }
+    lastLoadRef.current = now;
+
     try {
       if (!silent) setLoading(true);
       const data = await api.getJamaahDocuments();

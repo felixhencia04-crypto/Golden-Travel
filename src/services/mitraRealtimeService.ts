@@ -74,8 +74,14 @@ export const mitraRealtimeService = {
           }
         };
 
+        let errorCount = 0;
         eventSource.onerror = (err) => {
-          console.warn('[RealtimeService] SSE connection closed/reconnecting...', err);
+          errorCount++;
+          console.warn('[RealtimeService] SSE error count:', errorCount, err);
+          if (errorCount > 5) {
+            console.warn('[RealtimeService] Closing SSE connection after repeated failures to protect rate limits.');
+            eventSource?.close();
+          }
         };
       }
     } catch (err) {

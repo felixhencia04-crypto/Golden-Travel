@@ -22,7 +22,15 @@ export default function KatalogPaket() {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<'semua' | 'umroh' | 'haji'>('semua');
 
-  const fetchPackages = useCallback(async () => {
+  const lastFetchRef = React.useRef<number>(0);
+
+  const fetchPackages = useCallback(async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastFetchRef.current < 4000) {
+      return;
+    }
+    lastFetchRef.current = now;
+
     try {
       const data = await api.get('/packages');
       setPackages(Array.isArray(data) ? data : []);

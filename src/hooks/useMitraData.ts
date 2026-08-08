@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../lib/api';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -14,7 +14,16 @@ export function useMitraData() {
   const [user, setUser] = useState<any>(null);
   const [mitraStatus, setMitraStatus] = useState<string | null>(null);
 
-  const refreshData = async (silent = false) => {
+  const lastRefreshRef = useRef<number>(0);
+
+  const refreshData = useCallback(async (silent = false, force = false) => {
+    const now = Date.now();
+    if (!force && silent && now - lastRefreshRef.current < 5000) {
+      console.log("[Mitra] Skipping silent refresh - throttled");
+      return;
+    }
+    lastRefreshRef.current = now;
+
     if (!silent) setLoading(true);
     try {
       const token = localStorage.getItem('mitra_token') || localStorage.getItem('jamaah_token') || localStorage.getItem('admin_token');
@@ -82,7 +91,7 @@ export function useMitraData() {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     let unsubscribeRealtime: (() => void) | null = null;

@@ -24,16 +24,22 @@ export function useRegistration() {
   const [notifications, setNotifications] = useState<any[]>(cache?.notifications || []);
   const [manifest, setManifest] = useState<any>(cache?.manifest || null);
   const [equipment, setEquipment] = useState<any>(cache?.equipment || null);
+  const lastRefreshRef = React.useRef<number>(0);
   const [loading, setLoading] = useState<boolean>(!cache);
   const [user, setUser] = useState<any>(null);
   const [dbUser, setDbUser] = useState<any>(cache?.dbUser || null);
 
-  const refreshData = React.useCallback(async (silent = false) => {
+  const refreshData = React.useCallback(async (silent = false, force = false) => {
+    const now = Date.now();
+    if (!force && silent && now - lastRefreshRef.current < 5000) {
+      return;
+    }
+    lastRefreshRef.current = now;
+
     if (!silent) setLoading(true);
     try {
       const results = await Promise.all([
         api.get('/jamaah/registration').catch((err) => {
-          console.error("refreshData: Registration fetch failed", err);
           if (err.status === 401 || err.message?.includes('Unauthorized')) {
             const hasToken = !!localStorage.getItem('jamaah_token');
             if (!hasToken) {
@@ -43,14 +49,8 @@ export function useRegistration() {
           }
           return { __error: true };
         }),
-        api.get('/packages').catch((err) => {
-          console.error("refreshData: Packages fetch failed", err);
-          return { __error: true };
-        }),
-        api.get('/schedules').catch((err) => {
-          console.error("refreshData: Schedules fetch failed", err);
-          return { __error: true };
-        }),
+        api.get('/packages').catch(() => ({ __error: true })),
+        api.get('/schedules').catch(() => ({ __error: true })),
         api.get('/jamaah/notifications').catch(() => ({ __error: true })),
         api.get('/jamaah/manifest').catch(() => ({ __error: true })),
         api.get('/jamaah/equipment').catch(() => ({ __error: true })),

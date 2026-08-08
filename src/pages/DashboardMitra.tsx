@@ -371,7 +371,15 @@ export default function DashboardMitra() {
     setActiveTab('daftar_jamaah_biodata');
   };
 
-  const fetchPackagesAndSchedules = async (isSilent = false) => {
+  const lastFetchRef = useRef<number>(0);
+
+  const fetchPackagesAndSchedules = async (isSilent = false, force = false) => {
+    const now = Date.now();
+    if (!force && isSilent && now - lastFetchRef.current < 5000) {
+      return;
+    }
+    lastFetchRef.current = now;
+
     if (!isSilent) setLoadingPackages(true);
     try {
       const [pkgData, schData] = await Promise.all([

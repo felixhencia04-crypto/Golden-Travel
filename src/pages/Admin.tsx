@@ -1,6 +1,6 @@
 import { useLogo } from '../utils/logo';
 import { toast } from 'sonner';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { updateLogo } from '../utils/logo';
 import { Package } from '../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -186,19 +186,20 @@ export default function Admin() {
   const [helpTickets, setHelpTickets] = useState<any[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   
-  const fetchTickets = async () => {
+  const fetchTickets = useCallback(async () => {
     try {
       const data = await api.get('/admin/support/tickets');
       const tickets = Array.isArray(data) ? data : [];
       setHelpTickets(tickets);
-      if (selectedTicket) {
-        const updated = tickets.find((t: any) => t.id === selectedTicket.id);
-        if (updated) setSelectedTicket(updated);
-      }
+      setSelectedTicket((prev: any) => {
+        if (!prev) return prev;
+        const updated = tickets.find((t: any) => t.id === prev.id);
+        return updated || prev;
+      });
     } catch (error) {
       console.error("Failed to fetch tickets:", error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchTickets();
@@ -208,7 +209,7 @@ export default function Admin() {
       fetchTickets();
     }, 30000);
     return () => clearInterval(interval);
-  }, [selectedTicket?.id]);
+  }, [fetchTickets]);
 
   const [memories, setMemories] = useState<any[]>([]);
   const [certificates, setCertificates] = useState<any[]>([]);

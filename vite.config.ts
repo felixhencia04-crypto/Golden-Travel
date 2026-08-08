@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
@@ -12,11 +12,7 @@ export default defineConfig(() => {
       },
     },
     server: {
-      hmr: process.env.DISABLE_HMR === 'true' ? false : {
-        port: 24678,
-        strictPort: false, // Membiarkan Vite otomatis mencari port 24679, dst. jika bentrok
-        timeout: 5000 // Menambahkan toleransi timeout untuk HMR
-      },
+      hmr: false,
       watch: {
         ignored: [
           '**/uploads/**',
@@ -33,6 +29,29 @@ export default defineConfig(() => {
           '**/*.cjs',
           '**/tmp/**',
         ],
+      },
+    },
+    build: {
+      chunkSizeWarningLimit: 1200,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              if (id.includes('jspdf') || id.includes('html2canvas') || id.includes('pdfjs-dist')) {
+                return 'vendor-pdf';
+              }
+              if (id.includes('lucide-react')) {
+                return 'vendor-icons';
+              }
+              if (id.includes('firebase')) {
+                return 'vendor-firebase';
+              }
+              if (id.includes('xlsx') || id.includes('jszip')) {
+                return 'vendor-data';
+              }
+            }
+          },
+        },
       },
     },
   };

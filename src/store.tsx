@@ -2,6 +2,20 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Package, Consultation, Schedule, Announcement, InventoryStatus, HelpTicket, TripMemory } from './types';
 import { umrohPackages, hajjPackages } from './data/homeData';
 
+const safeGetItem = (key: string) => {
+  try {
+    return safeGetItem(key);
+  } catch (e) {
+    return null;
+  }
+};
+const safeSetItem = (key: string, value: string) => {
+  try {
+    safeSetItem(key, value);
+  } catch (e) {}
+};
+
+
 interface AppState {
   packages: Package[];
   updatePackage: (pkg: Package) => void;
@@ -39,7 +53,7 @@ const AppContext = createContext<AppState | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [packages, setPackages] = useState<Package[]>(() => {
-    const saved = localStorage.getItem('golden_travel_packages');
+    const saved = safeGetItem('golden_travel_packages');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -51,7 +65,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [schedules, setSchedules] = useState<Schedule[]>(() => {
-    const saved = localStorage.getItem('golden_travel_schedules');
+    const saved = safeGetItem('golden_travel_schedules');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -81,7 +95,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
-    const saved = localStorage.getItem('golden_travel_announcements');
+    const saved = safeGetItem('golden_travel_announcements');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -101,7 +115,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [inventory, setInventory] = useState<InventoryStatus[]>(() => {
-    const saved = localStorage.getItem('golden_travel_inventory');
+    const saved = safeGetItem('golden_travel_inventory');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -113,7 +127,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [helpTickets, setHelpTickets] = useState<HelpTicket[]>(() => {
-    const saved = localStorage.getItem('golden_travel_help_tickets');
+    const saved = safeGetItem('golden_travel_help_tickets');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -136,7 +150,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [memories, setMemories] = useState<TripMemory[]>(() => {
-    const saved = localStorage.getItem('golden_travel_memories');
+    const saved = safeGetItem('golden_travel_memories');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -165,7 +179,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [consultations, setConsultations] = useState<Consultation[]>(() => {
-    const saved = localStorage.getItem('golden_travel_consultations');
+    const saved = safeGetItem('golden_travel_consultations');
     let initialConsultations: Consultation[] = [];
     if (saved) {
       try {
@@ -194,31 +208,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    localStorage.setItem('golden_travel_packages', JSON.stringify(packages));
+    safeSetItem('golden_travel_packages', JSON.stringify(packages));
   }, [packages]);
 
   useEffect(() => {
-    localStorage.setItem('golden_travel_schedules', JSON.stringify(schedules));
+    safeSetItem('golden_travel_schedules', JSON.stringify(schedules));
   }, [schedules]);
 
   useEffect(() => {
-    localStorage.setItem('golden_travel_consultations', JSON.stringify(consultations));
+    safeSetItem('golden_travel_consultations', JSON.stringify(consultations));
   }, [consultations]);
 
   useEffect(() => {
-    localStorage.setItem('golden_travel_announcements', JSON.stringify(announcements));
+    safeSetItem('golden_travel_announcements', JSON.stringify(announcements));
   }, [announcements]);
 
   useEffect(() => {
-    localStorage.setItem('golden_travel_inventory', JSON.stringify(inventory));
+    safeSetItem('golden_travel_inventory', JSON.stringify(inventory));
   }, [inventory]);
 
   useEffect(() => {
-    localStorage.setItem('golden_travel_help_tickets', JSON.stringify(helpTickets));
+    safeSetItem('golden_travel_help_tickets', JSON.stringify(helpTickets));
   }, [helpTickets]);
 
   useEffect(() => {
-    localStorage.setItem('golden_travel_memories', JSON.stringify(memories));
+    safeSetItem('golden_travel_memories', JSON.stringify(memories));
   }, [memories]);
 
   useEffect(() => {

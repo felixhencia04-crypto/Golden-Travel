@@ -1,24 +1,44 @@
-import { useEffect } from 'react';
-import { io } from 'socket.io-client';
+import { useEffect, useRef } from 'react';
+import { io, Socket } from 'socket.io-client';
 
-const socket = io();
+let socket: Socket | null = null;
+
+function getSocket(): Socket | null {
+  if (typeof window === 'undefined') return null;
+  if (!socket) {
+    socket = io({
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 3000,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: 10,
+      timeout: 15000,
+    });
+  }
+  return socket;
+}
 
 export function useSocket(onDataUpdated?: (data: any) => void) {
+  const callbackRef = useRef(onDataUpdated);
+  callbackRef.current = onDataUpdated;
+
   useEffect(() => {
-    if (!onDataUpdated) return;
+    const s = getSocket();
+    if (!s) return;
 
     const handleDataUpdated = (data: any) => {
-      console.log('Real-time update received:', data);
-      onDataUpdated(data);
+      if (callbackRef.current) {
+        callbackRef.current(data);
+      }
     };
 
-    socket.on('data_updated', handleDataUpdated);
+    s.on('data_updated', handleDataUpdated);
 
     return () => {
-      socket.off('data_updated', handleDataUpdated);
+      s.off('data_updated', handleDataUpdated);
     };
-  }, [onDataUpdated]);
+  }, []);
 
-  return socket;
+  return getSocket();
 }
 

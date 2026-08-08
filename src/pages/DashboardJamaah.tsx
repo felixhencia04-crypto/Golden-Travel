@@ -1,6 +1,6 @@
 import { useLogo } from '../utils/logo';
 import { toast } from 'sonner';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   LogOut, User, FileText, CreditCard, CheckCircle2,
@@ -121,7 +121,7 @@ export default function DashboardJamaah() {
   const [isUpdatingAccount, setIsUpdatingAccount] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
-  const fetchMemories = async () => {
+  const fetchMemories = useCallback(async () => {
     try {
       const pkgId = registration?.packageId;
       const data = await api.get(`/memories${pkgId ? `?packageId=${pkgId}` : ''}`);
@@ -129,31 +129,39 @@ export default function DashboardJamaah() {
     } catch (error) {
       console.error("Failed to fetch memories:", error);
     }
-  };
+  }, [registration?.packageId]);
 
-  const fetchCertificates = async () => {
+  const fetchCertificates = useCallback(async () => {
     try {
       const data = await api.get('/certificates');
       setCertificates(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to fetch certificates:", error);
     }
-  };
+  }, []);
 
-  const fetchTickets = async () => {
+  const fetchTickets = useCallback(async () => {
     try {
       const data = await api.get('/support/tickets');
       const tickets = Array.isArray(data) ? data : [];
       setHelpTickets(tickets);
       // Update selected ticket if it's open to refresh replies
-      if (selectedTicket) {
-        const updated = tickets.find((t: any) => t.id === selectedTicket.id);
-        if (updated) setSelectedTicket(updated);
-      }
+      setSelectedTicket((prev: any) => {
+        if (!prev) return prev;
+        const updated = tickets.find((t: any) => t.id === prev.id);
+        // Only return new reference if something actually changed (naive check, or just return updated if exists)
+        // Actually, returning `updated || prev` is fine, but it might still cause re-render if updated is a new ref.
+        // Let's just avoid adding selectedTicket to dependency array.
+        if (updated) {
+           // We just use functional state update
+           return updated;
+        }
+        return prev;
+      });
     } catch (error) {
       console.error("Failed to fetch tickets:", error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchTickets();
@@ -161,9 +169,9 @@ export default function DashboardJamaah() {
     fetchCertificates();
     const interval = setInterval(() => {
       fetchTickets();
-    }, 30000);
+    }, 30000); // 30s minimum polling
     return () => clearInterval(interval);
-  }, [selectedTicket?.id, registration?.id]);
+  }, [fetchTickets, fetchMemories, fetchCertificates]);
   
   const updateConsultation = async (data: any, silentToast = false) => {
     try {

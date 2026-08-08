@@ -1,6 +1,5 @@
 import React from 'react';
-import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'motion/react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from '../pages/Home';
 import Login from '../pages/Login';
 import LoginAdmin from '../pages/LoginAdmin';
@@ -14,53 +13,22 @@ import Blog from '../pages/Blog';
 import KatalogPaket from '../pages/KatalogPaket';
 import Kemitraan from '../pages/Kemitraan';
 
-const pageVariants = {
-  initial: { opacity: 0, y: 15 },
-  in: { opacity: 1, y: 0 },
-  out: { opacity: 0, y: -15 }
-};
-
-const pageTransition = {
-  type: "tween",
-  ease: "anticipate",
-  duration: 0.3
-};
-
-const AnimatedPage = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <motion.div
-      initial="initial"
-      animate="in"
-      exit="out"
-      variants={pageVariants}
-      transition={pageTransition}
-      className="w-full"
-    >
-      {children}
-    </motion.div>
-  );
-};
-
 export default function AnimatedRoutes() {
-  const location = useLocation();
-
   return (
-    <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
-        <Route path="/" element={<AnimatedPage><Home /></AnimatedPage>} />
-        <Route path="/login" element={<AnimatedPage><Login /></AnimatedPage>} />
-        <Route path="/mitra" element={<Navigate to="/mitra/login" replace />} />
-        <Route path="/mitra/login" element={<AnimatedPage><LoginMitra /></AnimatedPage>} />
-        <Route path="/admin/login" element={<AnimatedPage><LoginAdmin /></AnimatedPage>} />
-        <Route path="/admin" element={<AnimatedPage><Admin /></AnimatedPage>} />
-        <Route path="/paket/:id" element={<AnimatedPage><PackageDetail /></AnimatedPage>} />
-        <Route path="/mitra/dashboard" element={<AnimatedPage><DashboardMitra /></AnimatedPage>} />
-        <Route path="/dashboard" element={<AnimatedPage><DashboardJamaah /></AnimatedPage>} />
-        <Route path="/legalitas" element={<AnimatedPage><Legalitas /></AnimatedPage>} />
-        <Route path="/blog" element={<AnimatedPage><Blog /></AnimatedPage>} />
-        <Route path="/katalog" element={<AnimatedPage><KatalogPaket /></AnimatedPage>} />
-        <Route path="/kemitraan" element={<AnimatedPage><Kemitraan /></AnimatedPage>} />
-      </Routes>
-    </AnimatePresence>
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/mitra" element={<Navigate to="/mitra/login" replace />} />
+      <Route path="/mitra/login" element={<LoginMitra />} />
+      <Route path="/admin/login" element={<LoginAdmin />} />
+      <Route path="/admin" element={<Admin />} />
+      <Route path="/paket/:id" element={<PackageDetail />} />
+      <Route path="/mitra/dashboard" element={<DashboardMitra />} />
+      <Route path="/dashboard" element={<DashboardJamaah />} />
+      <Route path="/legalitas" element={<Legalitas />} />
+      <Route path="/blog" element={<Blog />} />
+      <Route path="/katalog" element={<KatalogPaket />} />
+      <Route path="/kemitraan" element={<Kemitraan />} />
+    </Routes>
   );
 }
