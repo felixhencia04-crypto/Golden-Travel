@@ -5,7 +5,7 @@ const ADMIN_CACHE_KEY = 'cached_admin_portal_data';
 
 function getAdminCache() {
   try {
-    const raw = sessionStorage.getItem(ADMIN_CACHE_KEY);
+    const raw = sessionStorage.getItem(ADMIN_CACHE_KEY) || localStorage.getItem(ADMIN_CACHE_KEY);
     if (raw) return JSON.parse(raw);
   } catch (e) {
     console.warn('Failed to parse admin cache', e);
@@ -48,7 +48,12 @@ export function useAdminData() {
       const fetchPackages = async () => {
         try {
           const res = await api.get('/admin/packages');
-          if (Array.isArray(res)) return res;
+          if (Array.isArray(res) && res.length > 0) return res;
+          if (Array.isArray(res)) {
+            const res2 = await api.get('/packages');
+            if (Array.isArray(res2) && res2.length > 0) return res2;
+            return res;
+          }
         } catch (e) {
           console.warn("Failed to fetch /admin/packages:", e);
         }
@@ -100,21 +105,17 @@ export function useAdminData() {
         return list.map(item => {
           if (!item || typeof item !== 'object') return item;
           const copy = { ...item };
-          if (typeof copy.imageUrl === 'string' && copy.imageUrl.startsWith('data:image')) {
-            copy.imageUrl = 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80';
-          }
-          if (typeof copy.image === 'string' && copy.image.startsWith('data:image')) {
-            copy.image = 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80';
-          }
-          if (typeof copy.avatarUrl === 'string' && copy.avatarUrl.startsWith('data:image')) {
-            copy.avatarUrl = 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80';
-          }
+          ['imageUrl', 'image', 'avatarUrl', 'manasikPdfUrl', 'itineraryPdfUrl', 'proofOfTransferUrl'].forEach(key => {
+            if (typeof copy[key] === 'string' && (copy[key].startsWith('data:') || copy[key].length > 500)) {
+              copy[key] = 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80';
+            }
+          });
           return copy;
         });
       };
 
       try {
-        sessionStorage.setItem(ADMIN_CACHE_KEY, JSON.stringify({
+        const cachePayload = JSON.stringify({
           users: sanitizeList(u !== undefined && !(u as any)?.__error ? u : cached.users),
           registrations: sanitizeList(r !== undefined && !(r as any)?.__error ? r : cached.registrations),
           packages: sanitizeList(p !== undefined && !(p as any)?.__error ? p : cached.packages),
@@ -125,9 +126,11 @@ export function useAdminData() {
           broadcast: brData !== undefined && !(brData as any)?.__error ? brData : cached.broadcast,
           manifest: mnData !== undefined && !(mnData as any)?.__error ? mnData : cached.manifest,
           currentUser: me !== undefined && !(me as any)?.__error ? me : cached.currentUser
-        }));
+        });
+        sessionStorage.setItem(ADMIN_CACHE_KEY, cachePayload);
+        localStorage.setItem(ADMIN_CACHE_KEY, cachePayload);
       } catch (cacheErr) {
-        console.warn("Notice: sessionStorage write skipped (QuotaExceeded):", cacheErr);
+        console.warn("Notice: storage write skipped:", cacheErr);
       }
 
       return { 

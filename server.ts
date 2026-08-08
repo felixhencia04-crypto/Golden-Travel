@@ -6854,22 +6854,47 @@ async function startServer() {
       return res.status(403).json({ error: "Forbidden" });
     }
     try {
+      await ensureTableAndColumns().catch(e => console.error("ensureTableAndColumns error in GET admin packages:", e));
       let allPackages: any[] = [];
       try {
         allPackages = await withRetry(() => 
-          db.select().from(schema.packages).orderBy(desc(schema.packages.createdAt))
+          db.select({
+            id: schema.packages.id,
+            workspaceId: schema.packages.workspaceId,
+            name: schema.packages.name,
+            description: schema.packages.description,
+            price: schema.packages.price,
+            departureDate: schema.packages.departureDate,
+            duration: schema.packages.duration,
+            imageUrl: schema.packages.imageUrl,
+            type: schema.packages.type,
+            isAvailable: schema.packages.isAvailable,
+            quota: schema.packages.quota,
+            manasikPdfUrl: schema.packages.manasikPdfUrl,
+            facilities: schema.packages.facilities,
+            excludes: schema.packages.excludes,
+            hotel: schema.packages.hotel,
+            createdAt: schema.packages.createdAt
+          })
+          .from(schema.packages)
+          .orderBy(desc(schema.packages.createdAt))
         );
       } catch (err) {
         console.warn("GET /api/admin/packages primary query failed, trying raw SQL...", err);
-        const rawRes: any = await db.execute(sql`
-          SELECT id, workspace_id as "workspaceId", name, description, price, 
-                 departure_date as "departureDate", duration, image_url as "imageUrl", 
-                 type, is_available as "isAvailable", quota, 
-                 manasik_pdf_url as "manasikPdfUrl", facilities, excludes, hotel, created_at as "createdAt"
-          FROM packages
-          ORDER BY created_at DESC
-        `);
-        allPackages = Array.isArray(rawRes) ? rawRes : (rawRes.rows || []);
+        try {
+          const rawRes: any = await db.execute(sql`
+            SELECT id, workspace_id as "workspaceId", name, description, price, 
+                   departure_date as "departureDate", duration, image_url as "imageUrl", 
+                   type, is_available as "isAvailable", quota, 
+                   manasik_pdf_url as "manasikPdfUrl", facilities, excludes, hotel, created_at as "createdAt"
+            FROM packages
+            ORDER BY created_at DESC
+          `);
+          allPackages = Array.isArray(rawRes) ? rawRes : (rawRes?.rows || []);
+        } catch (rawErr) {
+          console.error("GET /api/admin/packages raw SQL query failed:", rawErr);
+          allPackages = [];
+        }
       }
 
       let regCounts: any[] = [];
@@ -6883,32 +6908,53 @@ async function startServer() {
       } catch (e) {}
 
       const formatted = (allPackages || []).map((pkg) => {
-        const pkgRegs = (regCounts || []).filter(r => r && r.packageId === pkg.id);
-        const takenSeats = pkgRegs.reduce((acc, r) => 
-          acc + (parseInt(r?.adultCount) || 0) + (parseInt(r?.childCount) || 0) + (parseInt(r?.infantCount) || 0), 0);
-        
-        const quotaNum = Number(pkg.quota) || 45;
-        const remainingSeats = Math.max(0, quotaNum - takenSeats);
+        try {
+          const pkgId = pkg.id;
+          const pkgRegs = (regCounts || []).filter(r => r && r.packageId === pkgId);
+          const takenSeats = pkgRegs.reduce((acc, r) => 
+            acc + (parseInt(r?.adultCount) || 0) + (parseInt(r?.childCount) || 0) + (parseInt(r?.infantCount) || 0), 0);
+          
+          const quotaNum = Number(pkg.quota) || 45;
+          const remainingSeats = Math.max(0, quotaNum - takenSeats);
 
-        let desc: any = pkg.description;
-        if (typeof desc === 'string') {
-          try { desc = JSON.parse(desc); } catch (e) { desc = desc ? desc.split('\n') : ["Fasilitas Bintang 5"]; }
-        }
-        let exc: any = pkg.excludes;
-        if (typeof exc === 'string') {
-          try { exc = JSON.parse(exc); } catch (e) { exc = exc ? exc.split('\n') : []; }
-        }
+          let desc: any = pkg.description;
+          if (typeof desc === 'string') {
+            try { desc = JSON.parse(desc); } catch (e) { desc = desc ? desc.split('\n') : ["Fasilitas Bintang 5"]; }
+          }
+          let exc: any = pkg.excludes;
+          if (typeof exc === 'string') {
+            try { exc = JSON.parse(exc); } catch (e) { exc = exc ? exc.split('\n') : []; }
+          }
 
-        return { 
-          ...pkg, 
-          description: Array.isArray(desc) ? desc : [String(desc || "Fasilitas Bintang 5")],
-          excludes: Array.isArray(exc) ? exc : [],
-          quota: quotaNum,
-          takenSeats,
-          remainingSeats,
-          type: (pkg.type || 'umroh').toString().trim().toLowerCase(),
-          isAvailable: pkg.isAvailable !== false
-        };
+          const rawImg = pkg.imageUrl || pkg.image_url || pkg.image;
+          const cleanImg = rawImg ? saveFileToUploads(rawImg, 'pkg') : 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80';
+          const pkgType = (pkg.type || 'umroh').toString().trim().toLowerCase();
+
+          return { 
+            ...pkg, 
+            imageUrl: cleanImg,
+            image: cleanImg,
+            description: Array.isArray(desc) ? desc : [String(desc || "Fasilitas Bintang 5")],
+            excludes: Array.isArray(exc) ? exc : [],
+            quota: quotaNum,
+            takenSeats,
+            remainingSeats,
+            type: pkgType === 'haji' ? 'haji' : 'umroh',
+            isAvailable: pkg.isAvailable !== false && pkg.is_available !== false && pkg.is_available !== 'false'
+          };
+        } catch (itemErr) {
+          console.error("Error formatting package item:", itemErr, pkg);
+          return {
+            ...pkg,
+            imageUrl: pkg?.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80',
+            description: ["Fasilitas Bintang 5"],
+            quota: Number(pkg?.quota) || 45,
+            takenSeats: 0,
+            remainingSeats: Number(pkg?.quota) || 45,
+            type: (pkg?.type || 'umroh').toString().trim().toLowerCase(),
+            isAvailable: true
+          };
+        }
       });
 
       res.json(formatted);
@@ -6922,6 +6968,7 @@ async function startServer() {
   app.post("/api/admin/packages", authenticate, async (req: AuthRequest, res) => {
     if (req.user?.role !== 'admin' && req.user?.role !== 'super_admin' && req.user?.email !== 'felix.hencia04@gmail.com') return res.status(403).json({ error: "Forbidden" });
     try {
+      await ensureTableAndColumns().catch(e => console.error("ensureTableAndColumns error in POST package:", e));
       const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, excludes } = req.body;
       
       const cleanPrice = Number(price) || 0;
@@ -6942,7 +6989,6 @@ async function startServer() {
         cleanExcludes = JSON.stringify([]);
       }
 
-
       const normalizedType = String(type || 'umroh').trim().toLowerCase() === 'haji' ? 'haji' : 'umroh';
       const normalizedIsAvailable = isAvailable !== false && isAvailable !== 'false' && isAvailable !== 0 && isAvailable !== '0';
 
@@ -6951,17 +6997,19 @@ async function startServer() {
         wsId = await getDefaultWorkspaceId();
       }
 
+      const cleanImgUrl = imageUrl ? saveFileToUploads(imageUrl, 'pkg') : "https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80";
+
       const data: any = {
         workspaceId: wsId || null,
         name: (name || "Paket Baru").trim(),
         description: cleanDesc,
         price: cleanPrice.toString(),
         duration: (duration || "9 Hari").trim(),
-        imageUrl: imageUrl || "https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80",
+        imageUrl: cleanImgUrl,
         type: normalizedType,
         isAvailable: normalizedIsAvailable,
         quota: cleanQuota,
-        manasikPdfUrl: manasikPdfUrl || null,
+        manasikPdfUrl: manasikPdfUrl ? saveFileToUploads(manasikPdfUrl, 'doc') : null,
         facilities: facilities || null,
         hotel: hotel || null,
         excludes: cleanExcludes
@@ -6973,7 +7021,18 @@ async function startServer() {
       let parsedDesc = newPackage.description;
       try { parsedDesc = JSON.parse(newPackage.description); } catch(e) {}
 
-      res.json({ ...newPackage, description: parsedDesc, remainingSeats: newPackage.quota, takenSeats: 0 });
+      const responseObj = { 
+        ...newPackage, 
+        imageUrl: cleanImgUrl,
+        image: cleanImgUrl,
+        description: Array.isArray(parsedDesc) ? parsedDesc : [String(parsedDesc || "Fasilitas Bintang 5")], 
+        remainingSeats: newPackage.quota || cleanQuota, 
+        takenSeats: 0,
+        type: normalizedType,
+        isAvailable: normalizedIsAvailable
+      };
+
+      res.json(responseObj);
       notifyUpdate();
     } catch (error: any) {
       console.error("Error creating package:", error);
@@ -7022,8 +7081,12 @@ async function startServer() {
         excludes: cleanExcludes
       };
 
-      if (imageUrl !== undefined) data.imageUrl = imageUrl;
-      if (manasikPdfUrl !== undefined) data.manasikPdfUrl = manasikPdfUrl;
+      if (imageUrl !== undefined) {
+        data.imageUrl = imageUrl ? saveFileToUploads(imageUrl, 'pkg') : "https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80";
+      }
+      if (manasikPdfUrl !== undefined) {
+        data.manasikPdfUrl = manasikPdfUrl ? saveFileToUploads(manasikPdfUrl, 'doc') : null;
+      }
 
       const [updatedPackage] = await withRetry(() => db.update(schema.packages)
               .set(data)

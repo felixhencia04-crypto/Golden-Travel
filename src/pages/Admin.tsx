@@ -824,14 +824,25 @@ export default function Admin() {
   const [certSearchQuery, setCertSearchQuery] = useState('');
 
   const toBase64 = (file: File) => new Promise<string>(async (resolve, reject) => {
-    // Try uploading to /api/upload endpoint first
+    // Try uploading to /api/upload endpoint first via FormData fetch
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const uploadRes = await api.post('/upload', formData);
-      if (uploadRes && uploadRes.url) {
-        resolve(uploadRes.url);
-        return;
+      const token = localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token') || localStorage.getItem('token') || sessionStorage.getItem('token');
+      const headers: any = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers,
+        body: formData
+      });
+      if (res.ok) {
+        const uploadRes = await res.json();
+        if (uploadRes && uploadRes.url) {
+          resolve(uploadRes.url);
+          return;
+        }
       }
     } catch (upErr) {
       console.warn("Notice: /api/upload endpoint skipped, falling back to compressed base64", upErr);
