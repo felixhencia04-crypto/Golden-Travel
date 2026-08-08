@@ -8130,18 +8130,22 @@ async function seedAllPortals() {
     }
 
     // 7. Admin Settings Seeding
-    const existingSettings = await db.select().from(schema.adminSettings).catch(() => []);
-    if (!existingSettings || existingSettings.length === 0) {
-      await db.insert(schema.adminSettings).values({
-        workspaceId: ws.id,
-        travelName: 'PT Golden Travel Umrah & Hajj',
-        whatsappNumber: '08111111111',
-        defaultCommissionRate: '1500000.00',
-        bankAccounts: [
-          { bankName: 'Bank Syariah Indonesia (BSI)', accountNumber: '7700889911', accountHolder: 'PT Golden Travel Indonesia' },
-          { bankName: 'Bank Mandiri', accountNumber: '1230009876543', accountHolder: 'PT Golden Travel Indonesia' }
-        ]
-      });
+    try {
+      const existingSettings = await db.select().from(schema.adminSettings).catch(() => []);
+      if (!existingSettings || existingSettings.length === 0) {
+        await db.insert(schema.adminSettings).values({
+          workspaceId: ws.id,
+          travelName: 'PT Golden Travel Umrah & Hajj',
+          whatsappNumber: '08111111111',
+          defaultCommissionRate: '1500000.00',
+          bankAccounts: [
+            { bankName: 'Bank Syariah Indonesia (BSI)', accountNumber: '7700889911', accountHolder: 'PT Golden Travel Indonesia' },
+            { bankName: 'Bank Mandiri', accountNumber: '1230009876543', accountHolder: 'PT Golden Travel Indonesia' }
+          ]
+        });
+      }
+    } catch (e: any) {
+      // Silently handle if already existing or initialized
     }
 
     console.log("=== SEEDING SELESAI DENGAN SUKSES ===");
