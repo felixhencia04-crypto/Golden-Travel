@@ -31,10 +31,10 @@ export function useAdminData() {
 
   const [lastRefresh, setLastRefresh] = useState<number>(0);
 
-  const refreshData = React.useCallback(async (silent = false) => {
-    // Throttle refresh calls to at most once every 5 seconds unless it's a forced non-silent refresh
+  const refreshData = React.useCallback(async (silent = false, force = false) => {
+    // Throttle refresh calls to at most once every 5 seconds unless forced
     const now = Date.now();
-    if (silent && now - lastRefresh < 5000) {
+    if (!force && silent && now - lastRefresh < 5000) {
       console.log("[Admin] Skipping silent refresh - throttled");
       return;
     }

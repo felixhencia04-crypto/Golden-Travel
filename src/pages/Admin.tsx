@@ -871,6 +871,26 @@ export default function Admin() {
   const [adminProfileForm, setAdminProfileForm] = useState({ name: 'Super Admin', email: 'admin@goldentravel.id', phone: '08111111111', password: '', confirmPassword: '' });
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
+  const logoInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Ukuran logo maksimal 5MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        updateLogo(result);
+        toast.success('Logo travel berhasil diperbarui!');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   useEffect(() => {
     if (currentUser) {
       setAdminProfileForm(prev => ({
@@ -1741,7 +1761,12 @@ export default function Admin() {
         payload.password = adminProfileForm.password;
       }
 
-      await api.patch('/users/me', payload);
+      const res = await api.patch('/users/me', payload);
+
+      if (res?.token) {
+        localStorage.setItem('admin_token', res.token);
+        sessionStorage.setItem('admin_token', res.token);
+      }
 
       // Optionally update password in Firebase if logged in via Firebase
       if (adminProfileForm.password) {
@@ -1757,7 +1782,7 @@ export default function Admin() {
 
       toast.success("Profil admin dan sistem berhasil diperbarui!");
       setAdminProfileForm(prev => ({ ...prev, password: '', confirmPassword: '' }));
-      refreshData(true);
+      refreshData(true, true);
     } catch (error: any) {
       console.error("Admin profile update error:", error);
       let msg = error?.message || "Gagal memperbarui profil admin.";
@@ -2330,11 +2355,21 @@ export default function Admin() {
             </div>
 
             <div className="text-right hidden sm:block">
-              <p className="text-sm font-extrabold text-white">Administrator</p>
-              <p className="text-xs text-gold-400 font-semibold">Admin Workspace</p>
+              <p className="text-sm font-extrabold text-white">{currentUser?.name || adminProfileForm?.name || 'Administrator'}</p>
+              <p className="text-xs text-gold-400 font-semibold">{currentUser?.email || adminProfileForm?.email || 'Admin Workspace'}</p>
             </div>
-            <div className="w-10 h-10 bg-gold-500 text-gray-950 border-2 border-gold-300 rounded-full flex items-center justify-center font-black shadow-md">
-              SA
+            <div className="w-10 h-10 bg-gold-500 text-gray-950 border-2 border-gold-300 rounded-full flex items-center justify-center font-black shadow-md overflow-hidden">
+              {currentUser?.avatarUrl ? (
+                <img src={currentUser.avatarUrl} alt="Admin Avatar" className="w-full h-full object-cover" />
+              ) : (
+                (currentUser?.name || adminProfileForm?.name || 'Admin')
+                  .split(' ')
+                  .map((n: string) => n[0])
+                  .filter(Boolean)
+                  .join('')
+                  .substring(0, 2)
+                  .toUpperCase()
+              )}
             </div>
           </div>
         </header>
@@ -4108,8 +4143,21 @@ export default function Admin() {
                   <div className="bg-white shadow-md rounded-3xl p-8 border border-gray-100 shadow-sm">
                     <h3 className="font-bold text-gray-900 mb-6">Logo Travel</h3>
                     <div className="p-6 bg-white shadow-md rounded-2xl border-2 border-dashed border-gray-200 text-center">
-                      <img src={logoImg} alt="Logo" className="w-24 h-24 mx-auto rounded-full mb-4 border-4 border-white shadow-md" />
-                      <button className="text-sm font-bold text-gray-600 hover:text-gray-800 transition-all">Ganti Logo</button>
+                      <img src={logoImg} alt="Logo" className="w-24 h-24 mx-auto rounded-full mb-4 border-4 border-white shadow-md object-contain bg-white" />
+                      <input 
+                        type="file" 
+                        ref={logoInputRef} 
+                        onChange={handleLogoChange} 
+                        accept="image/*" 
+                        className="hidden" 
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => logoInputRef.current?.click()}
+                        className="px-5 py-2.5 bg-amber-500 text-white rounded-xl text-xs font-bold hover:bg-amber-600 transition-all shadow-md cursor-pointer"
+                      >
+                        Ganti Logo
+                      </button>
                     </div>
                   </div>
 
