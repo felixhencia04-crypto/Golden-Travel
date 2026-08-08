@@ -38,7 +38,9 @@ export const createPool = () => {
 
     const isPlaceholderUrl = rawDbUrl && (
       rawDbUrl.includes('user:password@host:port') ||
+      rawDbUrl.includes('user:pass@host:port') ||
       rawDbUrl.includes('user:password@') ||
+      rawDbUrl.includes('user:pass@') ||
       rawDbUrl.includes('@host:port')
     );
 
@@ -56,6 +58,15 @@ export const createPool = () => {
       if (isPlaceholderUrl) {
         console.warn(`[DB Pool Warning] DATABASE_URL is set to a template placeholder ('${rawDbUrl}'). Falling back to individual host/user/password variables.`);
       }
+      
+      // If we are likely in a cloud environment (Railway, Render, etc.) and falling back to localhost, it's a misconfiguration.
+      const isCloudEnv = process.env.RAILWAY_ENVIRONMENT || process.env.RENDER || process.env.NODE_ENV === 'production';
+      if (isCloudEnv && host === '127.0.0.1' && (!user || user === 'undefined' || !password || password === 'undefined')) {
+        console.error(`[DB FATAL] No valid database credentials provided!`);
+        console.error(`[DB FATAL] Please attach a PostgreSQL database to your project in Railway/Render and ensure DATABASE_URL is properly injected.`);
+        console.error(`[DB FATAL] The current DATABASE_URL was a template or missing, and fallback host is 127.0.0.1.`);
+      }
+      
       poolConfig.host = host;
       poolConfig.port = parseInt(port, 10);
       poolConfig.user = user;
@@ -100,6 +111,9 @@ if (!global._drizzleDb) {
 export const db: any = global._drizzleDb;
 
 export async function dbQueryWithRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
+  if ((global as any)._dbIsBroken) {
+    throw new Error("Database connection is broken. Aborting query to prevent retry flood.");
+  }
   let attempt = 0;
   while (true) {
     try {

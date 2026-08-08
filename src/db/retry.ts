@@ -1,4 +1,8 @@
 export async function withRetry<T = any>(fn: () => Promise<T>, retries = 5, delay = 500): Promise<T> {
+  if ((global as any)._dbIsBroken) {
+    throw new Error("Database connection is broken. Aborting query to prevent retry flood.");
+  }
+
   let lastError: any;
   for (let i = 0; i < retries; i++) {
     try {

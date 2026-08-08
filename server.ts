@@ -1052,8 +1052,14 @@ async function startServer() {
   // Start in background to avoid blocking Cloud Run TCP health checks on port 3000
   (async () => {
     try {
-      await withRetry(() => db.execute(sql`SELECT 1`), 3, 1000);
-      console.log('[DB Status] Database connected successfully at startup.');
+      try {
+        await withRetry(() => db.execute(sql`SELECT 1`), 3, 1000);
+        console.log('[DB Status] Database connected successfully at startup.');
+      } catch (err: any) {
+        (global as any)._dbIsBroken = true;
+        console.error('[DB FATAL] Database connection failed at startup. Aborting all DB init to prevent retry floods.');
+        return; // Abort the whole IIFE
+      }
       
       // Auto-Migration for missing tables, enums and columns
       try {
@@ -8099,6 +8105,10 @@ async function startServer() {
   });
 
 async function initializeGlobalDatabase() {
+  if ((global as any)._dbIsBroken) {
+    console.log("=== SKIPPING INISIALISASI DATABASE GLOBAL (DB ERROR) ===");
+    return;
+  }
   console.log("=== INISIALISASI DATABASE GLOBAL (Auto-Init Schema 3 Portal) ===");
   try {
     await db.execute(sql.raw(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`));
@@ -8457,6 +8467,10 @@ async function initializeGlobalDatabase() {
 }
 
 async function seedAllPortals() {
+  if ((global as any)._dbIsBroken) {
+    console.log("=== SKIPPING SEEDING (DB ERROR) ===");
+    return;
+  }
   console.log("=== SEEDING DATA DENGAN DEFAULTS UNTUK 3 PORTAL ===");
   try {
     // 1. Workspace Default
