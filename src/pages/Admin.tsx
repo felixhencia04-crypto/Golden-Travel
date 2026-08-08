@@ -873,10 +873,22 @@ export default function Admin() {
   const [adminProfileForm, setAdminProfileForm] = useState({ 
     name: currentUser?.name || 'Administrator', 
     email: currentUser?.email || 'admin@goldentravel.id', 
-    phone: currentUser?.phone || '08111111111', 
+    phone: currentUser?.phone || '081218272734', 
     password: '', 
     confirmPassword: '' 
   });
+
+  useEffect(() => {
+    if (currentUser && currentUser.name) {
+      setAdminProfileForm(prev => ({
+        ...prev,
+        name: currentUser.name || prev.name,
+        email: currentUser.email || prev.email,
+        phone: currentUser.phone || prev.phone
+      }));
+    }
+  }, [currentUser]);
+
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   const logoInputRef = React.useRef<HTMLInputElement>(null);
@@ -1784,7 +1796,16 @@ export default function Admin() {
         role: 'admin'
       };
 
-      sessionStorage.setItem("cached_admin_portal_data", JSON.stringify({ currentUser: updatedUserObj }));
+      try {
+        const rawCache = sessionStorage.getItem("cached_admin_portal_data");
+        const existingCache = rawCache ? JSON.parse(rawCache) : {};
+        sessionStorage.setItem("cached_admin_portal_data", JSON.stringify({
+          ...existingCache,
+          currentUser: updatedUserObj
+        }));
+      } catch (e) {
+        sessionStorage.setItem("cached_admin_portal_data", JSON.stringify({ currentUser: updatedUserObj }));
+      }
 
       setAdminProfileForm({
         name: updatedUserObj.name,

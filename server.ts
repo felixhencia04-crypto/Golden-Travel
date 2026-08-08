@@ -3001,10 +3001,11 @@ async function startServer() {
   app.get("/api/pakets", authenticate, async (req: AuthRequest, res) => {
     try {
       let allPackages: any[] = [];
+      const userWs = req.user?.workspaceId;
       try {
         allPackages = await withRetry(() => db.query.packages.findMany({
           where: and(
-            eq(schema.packages.workspaceId, req.user!.workspaceId!),
+            userWs ? or(eq(schema.packages.workspaceId, userWs), isNull(schema.packages.workspaceId)) : eq(schema.packages.isAvailable, true),
             eq(schema.packages.isAvailable, true)
           )
         }));
@@ -3027,16 +3028,15 @@ async function startServer() {
             quota: schema.packages.quota,
             manasikPdfUrl: schema.packages.manasikPdfUrl,
             createdAt: schema.packages.createdAt
-          }).from(schema.packages).where(and(
-            eq(schema.packages.workspaceId, req.user!.workspaceId!),
+          }).from(schema.packages).where(
             eq(schema.packages.isAvailable, true)
-          )));
+          ));
         } catch (rawErr: any) {
           console.error("Retrying GET /api/pakets with raw query fallback...", rawErr?.message || rawErr);
           const rawRes: any = await db.execute(sql`
             SELECT id, workspace_id as "workspaceId", name, description, price, departure_date as "departureDate", duration, image_url as "imageUrl", type, is_available as "isAvailable", quota, manasik_pdf_url as "manasikPdfUrl", created_at as "createdAt"
             FROM packages
-            WHERE workspace_id = ${req.user!.workspaceId!} AND is_available = true
+            WHERE is_available = true
           `);
           allPackages = Array.isArray(rawRes) ? rawRes : (rawRes.rows || []);
         }
@@ -3802,41 +3802,15 @@ async function startServer() {
   // Get Packages
   app.get("/api/packages", async (req: Request, res) => {
     try {
-      const authHeader = req.headers.authorization;
-      let currentUser: any = null;
-      
-      if (authHeader?.startsWith('Bearer ')) {
-        const token = authHeader.split('Bearer ')[1];
-        try {
-          const decoded: any = jwt.decode(token);
-          if (decoded && decoded.uid) {
-            currentUser = await db.query.users.findFirst({
-              where: eq(schema.users.uid, decoded.uid)
-            });
-          }
-        } catch (e) {
-          // Ignore auth errors for public route
-        }
-      }
-
-      const defaultWorkspace = await withRetry(() => db.query.workspaces.findFirst());
-      const workspaceId = currentUser?.workspaceId || defaultWorkspace?.id;
-      
-      if (!workspaceId) {
-        return res.json([]);
-      }
-
-      console.log(`GET /api/packages: Fetching packages for workspace ${workspaceId}...`);
+      console.log(`GET /api/packages: Fetching all travel packages...`);
       let allPackages: any[] = [];
       try {
         allPackages = await withRetry(() => 
           db.select().from(schema.packages)
-            .where(workspaceId ? or(eq(schema.packages.workspaceId, workspaceId), isNull(schema.packages.workspaceId)) : undefined)
             .orderBy(desc(schema.packages.createdAt))
         );
       } catch (err: any) {
         console.warn("GET /api/packages primary query failed:", err?.message || err);
-        // Background migration to fix issues for subsequent requests
         ensureTableAndColumns().catch(e => console.error("Background migration error (packages):", e));
         
         try {
@@ -3860,7 +3834,6 @@ async function startServer() {
               createdAt: schema.packages.createdAt
             })
             .from(schema.packages)
-            .where(workspaceId ? or(eq(schema.packages.workspaceId, workspaceId), isNull(schema.packages.workspaceId)) : undefined)
             .orderBy(desc(schema.packages.createdAt))
           );
           allPackages = fallbackRes;
@@ -3873,7 +3846,6 @@ async function startServer() {
                      type, is_available as "isAvailable", quota, 
                      manasik_pdf_url as "manasikPdfUrl", facilities, excludes, hotel, created_at as "createdAt"
               FROM packages
-              WHERE workspace_id = ${workspaceId} OR workspace_id IS NULL
               ORDER BY created_at DESC
             `);
             const rows = Array.isArray(rawRes) ? rawRes : (rawRes.rows || []);
