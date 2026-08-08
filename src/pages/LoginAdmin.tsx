@@ -16,7 +16,7 @@ export default function LoginAdmin() {
     setLoading(true);
     try {
       // Use custom API endpoint for admin login (no email required)
-      const res = await api.post('/admin/login', { password });
+      const res = await api.post('/admin/login', { password: password.trim() });
       
       if (res.token) {
         localStorage.setItem('admin_token', res.token);
