@@ -7,12 +7,12 @@ function getSocket(): Socket | null {
   if (typeof window === 'undefined') return null;
   if (!socket) {
     socket = io({
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'], // Disable polling to avoid Rate exceeded errors in preview
       reconnection: true,
-      reconnectionDelay: 3000,
-      reconnectionDelayMax: 10000,
-      reconnectionAttempts: 10,
-      timeout: 15000,
+      reconnectionDelay: 5000,
+      reconnectionDelayMax: 15000,
+      reconnectionAttempts: 5,
+      timeout: 20000,
     });
   }
   return socket;

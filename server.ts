@@ -1049,91 +1049,97 @@ async function startServer() {
   }
 
   // Run lightweight schema auto-migrations on startup before accepting requests
-  try {
-    await withRetry(() => db.execute(sql`SELECT 1`), 3, 1000);
-    console.log('[DB Status] Database connected successfully at startup.');
-    
-    // Auto-Migration for missing tables, enums and columns
+  // Start in background to avoid blocking Cloud Run TCP health checks on port 3000
+  (async () => {
     try {
-      try { await db.execute(sql`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`); } catch (e) {}
-      try { await db.execute(sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`); } catch (e) {}
-
-      // Enums
-      const createEnum = async (name: string, values: string[]) => {
-        try {
-          const check: any = await db.execute(sql.raw(`SELECT typname FROM pg_type WHERE typname = '${name}'`));
-          const rows = Array.isArray(check) ? check : (check?.rows || []);
-          if (rows.length === 0) {
-            await db.execute(sql.raw(`CREATE TYPE "${name}" AS ENUM (${values.map(v => `'${v}'`).join(', ')});`));
-          }
-        } catch (e) {}
-      };
-
-      await createEnum('user_role', ['admin', 'mitra', 'jamaah', 'super_admin']);
-      await createEnum('user_status', ['active', 'inactive', 'pending', 'Selesai', 'suspended']);
-      await createEnum('registration_status', ['DRAFT', 'PILIH_PAKET', 'ISI_BIODATA', 'UPLOAD_DOKUMEN', 'VERIFIKASI_DOKUMEN', 'CICIL_BAYAR', 'VERIFIKASI_BAYAR', 'LUNAS', 'SIAP_BERANGKAT', 'BERANGKAT', 'SELESAI', 'CANCELLED']);
-      await createEnum('payment_status', ['PENDING', 'VERIFIED', 'REJECTED']);
-      await createEnum('payment_type', ['DP1', 'DP2', 'PELUNASAN']);
-      await createEnum('document_status', ['PENDING', 'VERIFIED', 'REJECTED']);
-
-      // Main tables and columns sync
-      await ensureTableAndColumns();
-
-      // Fix existing constraints/types if needed
-      try { await db.execute(sql`ALTER TABLE "users" ALTER COLUMN "workspace_id" DROP NOT NULL;`); } catch (e) {}
-      try { await db.execute(sql`ALTER TABLE "manifest_keberangkatan" ADD COLUMN IF NOT EXISTS "pax_manifest" jsonb;`); } catch (e) {}
-      try { await db.execute(sql`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "jamaah_name" text;`); } catch (e) {}
-      try { await db.execute(sql`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "package_name" text;`); } catch (e) {}
-
-      console.log('[DB Auto-Migration] Schema synced successfully.');
-    } catch (e: any) {
-      console.error('[DB Auto-Migration] Fatal failure:', e.message);
-    }
-
-    // Ensure Default Workspace exists
-    let defaultWorkspace: any = null;
-    try {
-      defaultWorkspace = await withRetry(() => db.query.workspaces.findFirst());
-    } catch (e: any) {
-      console.warn('[DB Setup] Failed to fetch workspace on startup:', e.message);
-      // Try background migration if startup check fails
-      ensureTableAndColumns().catch(err => console.error("Startup background migration failed:", err));
-    }
-    
-    if (!defaultWorkspace) {
-      console.log('[DB Setup] Creating default workspace...');
-      try {
-        const [newWorkspace] = await withRetry(() => db.insert(schema.workspaces).values({
-          name: 'PT. Golden Tour Haramain',
-          slug: 'golden-tour',
-        }).returning());
-        defaultWorkspace = newWorkspace;
-      } catch (e: any) {
-        console.error('[DB Setup] Failed to create default workspace:', e.message);
-      }
-    }
-
-    // Auto-Migration for missing workspaceId in ALL tables
-    if (defaultWorkspace) {
-      const tablesToUpdate = [
-        schema.users, schema.registrations, schema.packages, schema.schedules,
-        schema.payments, schema.documents, schema.notifications, 
-        schema.helpdesk_tickets, schema.equipment, schema.manifests, 
-        schema.memories, schema.certificates
-      ];
+      await withRetry(() => db.execute(sql`SELECT 1`), 3, 1000);
+      console.log('[DB Status] Database connected successfully at startup.');
       
-      for (const table of tablesToUpdate) {
-        try {
-          await db.update(table as any)
-            .set({ workspaceId: defaultWorkspace.id })
-            .where(isNull((table as any).workspaceId));
-        } catch (e) {}
+      // Auto-Migration for missing tables, enums and columns
+      try {
+        try { await db.execute(sql`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`); } catch (e) {}
+        try { await db.execute(sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`); } catch (e) {}
+
+        // Enums
+        const createEnum = async (name: string, values: string[]) => {
+          try {
+            const check: any = await db.execute(sql.raw(`SELECT typname FROM pg_type WHERE typname = '${name}'`));
+            const rows = Array.isArray(check) ? check : (check?.rows || []);
+            if (rows.length === 0) {
+              await db.execute(sql.raw(`CREATE TYPE "${name}" AS ENUM (${values.map(v => `'${v}'`).join(', ')});`));
+            }
+          } catch (e) {}
+        };
+
+        await createEnum('user_role', ['admin', 'mitra', 'jamaah', 'super_admin']);
+        await createEnum('user_status', ['active', 'inactive', 'pending', 'Selesai', 'suspended']);
+        await createEnum('registration_status', ['DRAFT', 'PILIH_PAKET', 'ISI_BIODATA', 'UPLOAD_DOKUMEN', 'VERIFIKASI_DOKUMEN', 'CICIL_BAYAR', 'VERIFIKASI_BAYAR', 'LUNAS', 'SIAP_BERANGKAT', 'BERANGKAT', 'SELESAI', 'CANCELLED']);
+        await createEnum('payment_status', ['PENDING', 'VERIFIED', 'REJECTED']);
+        await createEnum('payment_type', ['DP1', 'DP2', 'PELUNASAN']);
+        await createEnum('document_status', ['PENDING', 'VERIFIED', 'REJECTED']);
+
+        // Main tables and columns sync
+        await ensureTableAndColumns();
+
+        // Fix existing constraints/types if needed
+        try { await db.execute(sql`ALTER TABLE "users" ALTER COLUMN "workspace_id" DROP NOT NULL;`); } catch (e) {}
+        try { await db.execute(sql`ALTER TABLE "manifest_keberangkatan" ADD COLUMN IF NOT EXISTS "pax_manifest" jsonb;`); } catch (e) {}
+        try { await db.execute(sql`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "jamaah_name" text;`); } catch (e) {}
+        try { await db.execute(sql`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "package_name" text;`); } catch (e) {}
+
+        console.log('[DB Auto-Migration] Schema synced successfully.');
+      } catch (e: any) {
+        console.error('[DB Auto-Migration] Fatal failure:', e.message);
       }
-      console.log('[DB Auto-Migration] Missing workspaceId populated successfully.');
+
+      // Ensure Default Workspace exists
+      let defaultWorkspace: any = null;
+      try {
+        defaultWorkspace = await withRetry(() => db.query.workspaces.findFirst());
+      } catch (e: any) {
+        console.warn('[DB Setup] Failed to fetch workspace on startup:', e.message);
+      }
+      
+      if (!defaultWorkspace) {
+        console.log('[DB Setup] Creating default workspace...');
+        try {
+          const [newWorkspace] = await withRetry(() => db.insert(schema.workspaces).values({
+            name: "Default Workspace",
+            subdomain: "default",
+            isActive: true,
+            themeColor: "#D4AF37",
+            contactEmail: "admin@goldentravel.id",
+            slug: 'golden-tour'
+          }).returning());
+          defaultWorkspace = newWorkspace;
+          console.log('[DB Setup] Default workspace created.');
+        } catch (e: any) {
+          console.error('[DB Setup] Failed to create default workspace:', e.message);
+        }
+      }
+
+      // Auto-Migration for missing workspaceId in ALL tables
+      if (defaultWorkspace) {
+        const tablesToUpdate = [
+          schema.users, schema.registrations, schema.packages, schema.schedules,
+          schema.payments, schema.documents, schema.notifications, 
+          schema.helpdesk_tickets, schema.equipment, schema.manifests, 
+          schema.memories, schema.certificates
+        ];
+        
+        for (const table of tablesToUpdate) {
+          try {
+            await db.update(table as any)
+              .set({ workspaceId: defaultWorkspace.id })
+              .where(isNull((table as any).workspaceId));
+          } catch (e) {}
+        }
+        console.log('[DB Auto-Migration] Missing workspaceId populated successfully.');
+      }
+    } catch (e: any) {
+      console.error('[DB Setup] Startup check completely failed:', e.message);
     }
-  } catch (err: any) {
-    console.warn('[DB Init Warning]:', err.message);
-  }
+  })();
 
   // API Routes
   app.get("/api/health", async (req, res) => {
@@ -8699,13 +8705,16 @@ async function seedAllPortals() {
   }
 }
 
-  httpServer.listen(Number(PORT), "0.0.0.0", async () => {
-    try {
-      await initializeGlobalDatabase();
-      await seedAllPortals();
-    } catch (err) {
-      console.error("Gagal menjalankan inisialisasi database / seeder:", err);
-    }
+  httpServer.listen(Number(PORT), "0.0.0.0", () => {
+    // Run initialization in the background so it doesn't delay startup
+    (async () => {
+      try {
+        await initializeGlobalDatabase();
+        await seedAllPortals();
+      } catch (err) {
+        console.error("Gagal menjalankan inisialisasi database / seeder:", err);
+      }
+    })();
 
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
