@@ -870,7 +870,13 @@ export default function Admin() {
   };
 
   // Admin Account State
-  const [adminProfileForm, setAdminProfileForm] = useState({ name: 'Super Admin', email: 'admin@goldentravel.id', phone: '08111111111', password: '', confirmPassword: '' });
+  const [adminProfileForm, setAdminProfileForm] = useState({ 
+    name: currentUser?.name || 'Administrator', 
+    email: currentUser?.email || 'admin@goldentravel.id', 
+    phone: currentUser?.phone || '08111111111', 
+    password: '', 
+    confirmPassword: '' 
+  });
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   const logoInputRef = React.useRef<HTMLInputElement>(null);
