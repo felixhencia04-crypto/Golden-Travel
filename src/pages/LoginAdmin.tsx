@@ -21,8 +21,12 @@ export default function LoginAdmin() {
       if (res.token) {
         localStorage.setItem('admin_token', res.token);
         sessionStorage.setItem('admin_token', res.token);
-        sessionStorage.removeItem("cached_admin_portal_data");
-        toast.success('Selamat datang, Admin!');
+        if (res.user) {
+          sessionStorage.setItem("cached_admin_portal_data", JSON.stringify({ currentUser: res.user }));
+        } else {
+          sessionStorage.removeItem("cached_admin_portal_data");
+        }
+        toast.success(`Selamat datang, ${res.user?.name || 'Admin'}!`);
         navigate('/admin');
       } else {
         toast.error('Kata sandi salah.');

@@ -1775,15 +1775,26 @@ export default function Admin() {
         localStorage.setItem('admin_token', res.token);
         sessionStorage.setItem('admin_token', res.token);
       }
-      sessionStorage.removeItem("cached_admin_portal_data");
-
-      setAdminProfileForm({
+      
+      const updatedUserObj = {
+        ...(currentUser || {}),
         name: res?.name || payload.name,
         phone: res?.phone || payload.phone,
         email: res?.email || payload.email,
+        role: 'admin'
+      };
+
+      sessionStorage.setItem("cached_admin_portal_data", JSON.stringify({ currentUser: updatedUserObj }));
+
+      setAdminProfileForm({
+        name: updatedUserObj.name,
+        phone: updatedUserObj.phone,
+        email: updatedUserObj.email,
         password: '',
         confirmPassword: ''
       });
+
+      toast.success("Profil dan kata sandi admin berhasil diperbarui!");
 
       // Optionally update password in Firebase if logged in via Firebase
       if (adminProfileForm.password) {

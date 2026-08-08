@@ -1148,15 +1148,6 @@ async function startServer() {
     }
 
     try {
-      // Master admin passwords list
-      const isMasterPass = (
-        password === 'admin123' || 
-        password === 'admin' || 
-        password === 'admin1234' || 
-        password === '123456' || 
-        password.toLowerCase() === 'admin123'
-      );
-
       // Query active admin users from DB reliably
       let adminUsers = await withRetry(() => db.select().from(schema.users)
         .where(and(
@@ -1184,9 +1175,9 @@ async function startServer() {
         try {
           const [createdAdmin] = await db.insert(schema.users).values({
             workspaceId: defaultWs?.id,
-            name: 'Super Admin',
+            name: 'Ahmad Daud',
             email: 'admin@goldentravel.id',
-            phone: '081199887766',
+            phone: '081218272734',
             password: hashPassword('admin123'),
             role: 'admin',
             status: 'active'
@@ -1206,22 +1197,18 @@ async function startServer() {
 
       let matchedAdmin: any = null;
       for (const u of adminUsers) {
-        if (isMasterPass || (u.password && verifyPassword(password, u.password))) {
+        // STRICT CHECK: Verify entered password against DB hashed password
+        if (u.password && verifyPassword(password, u.password)) {
           matchedAdmin = u;
           break;
         }
       }
 
-      // Fallback if no matching user found in DB list but password is valid/master
-      if (!matchedAdmin && (isMasterPass || adminUsers.length > 0)) {
-        if (isMasterPass) {
-          matchedAdmin = adminUsers[0] || {
-            id: 'admin-default-id',
-            name: 'Super Admin',
-            email: 'admin@goldentravel.id',
-            role: 'admin',
-            workspaceId: defaultWs?.id || 'ws-default'
-          };
+      // Emergency fallback ONLY if user table has no hashed password initialized
+      if (!matchedAdmin && adminUsers.length > 0) {
+        const hasHashedPass = adminUsers.some((u: any) => u.password && typeof u.password === 'string' && u.password.includes(':'));
+        if (!hasHashedPass && (password === 'admin123' || password === 'admin')) {
+          matchedAdmin = adminUsers[0];
         }
       }
 
@@ -1231,7 +1218,8 @@ async function startServer() {
           id: matchedAdmin.id,
           role: 'admin',
           email: matchedAdmin.email || 'admin@goldentravel.id',
-          name: matchedAdmin.name || 'Super Admin',
+          name: matchedAdmin.name || 'Ahmad Daud',
+          phone: matchedAdmin.phone || '081218272734',
           workspaceId: workspaceId
         }, JWT_SECRET, { expiresIn: '7d' });
         
@@ -1244,21 +1232,6 @@ async function startServer() {
       }
     } catch (err: any) {
       console.error("Admin login error:", err);
-      // Emergency fallback for master password if DB error occurs
-      if (password === 'admin123' || password === 'admin' || password.toLowerCase() === 'admin123') {
-        const token = jwt.sign({
-          id: 'admin-fallback-id',
-          role: 'admin',
-          email: 'admin@goldentravel.id',
-          name: 'Super Admin',
-          workspaceId: 'ws-default'
-        }, JWT_SECRET, { expiresIn: '7d' });
-        return res.json({
-          token,
-          role: 'admin',
-          user: { id: 'admin-fallback-id', role: 'admin', name: 'Super Admin', email: 'admin@goldentravel.id', workspaceId: 'ws-default' }
-        });
-      }
       return res.status(500).json({ error: 'Terjadi kesalahan sistem saat verifikasi login admin.' });
     }
   });
@@ -7817,13 +7790,6 @@ async function startServer() {
         }, JWT_SECRET, { expiresIn: '7d' });
       }
 
-      invalidateUserCache();
-
-      return res.json({
-        ...updatedUser,
-        token: freshToken
-      });
-
       // Sync linked registrations orderer details safely
       try {
         if (updatedUser?.id) {
@@ -8041,7 +8007,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const cwdDist = path.join(process.cwd(), 'dist');
-    const dirDist = __dirname;
+    const dirDist = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
     const distPath = fs.existsSync(path.join(cwdDist, 'index.html')) ? cwdDist : dirDist;
     
     app.use(express.static(distPath));
