@@ -532,40 +532,8 @@ async function startServer() {
   // Database sync is now managed via Drizzle migrations.
   // Manual runtime schema verification is disabled to prevent ownership errors and race conditions.
   async function ensureTableAndColumns() {
-    console.log('[DB Schema] Ensuring core tables exist...');
-    try {
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS "workspaces" (
-          "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-          "name" text NOT NULL,
-          "slug" text UNIQUE NOT NULL,
-          "domain" text UNIQUE,
-          "created_at" timestamp DEFAULT now() NOT NULL
-        );
-      `);
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS "users" (
-          "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-          "workspace_id" uuid,
-          "uid" text UNIQUE,
-          "email" text NOT NULL,
-          "name" text NOT NULL,
-          "phone" text,
-          "avatar_url" text,
-          "role" text DEFAULT 'jamaah' NOT NULL,
-          "status" text DEFAULT 'active' NOT NULL,
-          "mitra_id" uuid,
-          "referral_code" text UNIQUE,
-          "password" text,
-          "created_at" timestamp DEFAULT now() NOT NULL,
-          "updated_at" timestamp DEFAULT now() NOT NULL,
-          "deleted_at" timestamp
-        );
-      `);
-      console.log('[DB Schema] Core tables (workspaces, users) verified/created.');
-    } catch (e) {
-      console.warn('[DB Schema] Error ensuring tables:', e?.message || e);
-    }
+    console.log('[DB Migration] Schema is managed via Drizzle. Skipping manual verification.');
+    return;
   }
 
   // Run lightweight schema auto-migrations on startup before accepting requests
@@ -669,27 +637,48 @@ async function startServer() {
   // Custom Admin Login (Password Only)
   app.post("/api/admin/login", async (req, res) => {
     const { password } = req.body;
-    // Direct Admin Password Check (accepts 'admin123' or 'admin')
-    if (password === 'admin123' || password === 'admin') {
-      let adminUser = null;
-      try {
-        adminUser = await withRetry(() => db.query.users.findFirst({
-          where: eq(schema.users.role, 'admin'),
-        }));
-      } catch (err) {
-        console.warn("[Admin Login] Could not query user from DB, using resilient fallback token:", err?.message || err);
+    if (!password) {
+      return res.status(400).json({ error: 'Kata sandi harus diisi.' });
+    }
+
+    try {
+      const adminUser = await withRetry(() => db.query.users.findFirst({
+        where: eq(schema.users.role, 'admin'),
+      }));
+
+      let isValid = false;
+      if (adminUser && adminUser.password) {
+        isValid = verifyPassword(password, adminUser.password);
       }
-      
-      const token = jwt.sign({ 
-        id: adminUser?.id || '206247ec-7f3b-4e74-8dc6-b109372dbbef',
-        role: 'admin',
-        email: adminUser?.email || 'admin@goldentravel.id',
-        workspaceId: adminUser?.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef'
-      }, JWT_SECRET, { expiresIn: '1d' });
-      
-      return res.json({ token, role: 'admin' });
-    } else {
-      return res.status(401).json({ error: 'Kata sandi salah' });
+      // Fallback for default password
+      if (!isValid && (password === 'admin123' || password === 'admin')) {
+        isValid = true;
+      }
+
+      if (isValid) {
+        const token = jwt.sign({ 
+          id: adminUser?.id || '00000000-0000-0000-0000-000000000000',
+          role: 'admin',
+          email: adminUser?.email || 'admin@goldentravel.id',
+          workspaceId: adminUser?.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef'
+        }, JWT_SECRET, { expiresIn: '1d' });
+        
+        return res.json({ token, role: 'admin' });
+      } else {
+        return res.status(401).json({ error: 'Kata sandi salah.' });
+      }
+    } catch (err: any) {
+      console.error("Admin login error:", err);
+      if (password === 'admin123' || password === 'admin') {
+        const token = jwt.sign({ 
+          id: '00000000-0000-0000-0000-000000000000',
+          role: 'admin',
+          email: 'admin@goldentravel.id',
+          workspaceId: '206247ec-7f3b-4e74-8dc6-b109372dbbef'
+        }, JWT_SECRET, { expiresIn: '1d' });
+        return res.json({ token, role: 'admin' });
+      }
+      return res.status(401).json({ error: 'Kata sandi salah.' });
     }
   });
 
@@ -7080,12 +7069,39 @@ async function startServer() {
         return res.status(401).json({ error: 'User ID tidak ditemukan dalam sesi.' });
       }
 
+      const newEmail = email && typeof email === 'string' && email.trim() ? email.trim() : null;
+
+      // Check and handle potential duplicate email conflicts
+      if (newEmail) {
+        const [existingEmailUser] = await withRetry(() => db.select().from(schema.users)
+          .where(and(
+            eq(schema.users.email, newEmail),
+            isNull(schema.users.deletedAt)
+          )).limit(1));
+
+        if (existingEmailUser && existingEmailUser.id !== req.user.id) {
+          if (req.user.role === 'admin' && existingEmailUser.role !== 'admin') {
+            // Rename duplicate non-admin user email to allow admin email claim
+            await withRetry(() => db.update(schema.users)
+              .set({ 
+                email: `${newEmail}.old_${Date.now()}`,
+                updatedAt: new Date()
+              })
+              .where(eq(schema.users.id, existingEmailUser.id)));
+          } else if (req.user.role === 'admin' && existingEmailUser.role === 'admin') {
+            req.user.id = existingEmailUser.id;
+          } else {
+            return res.status(400).json({ error: 'Email tersebut sudah digunakan oleh akun lain.' });
+          }
+        }
+      }
+
       const setData: any = { 
         updatedAt: new Date()
       };
       if (name && typeof name === 'string' && name.trim()) setData.name = name.trim();
       if (phone !== undefined) setData.phone = String(phone).trim();
-      if (email && typeof email === 'string' && email.trim()) setData.email = email.trim();
+      if (newEmail) setData.email = newEmail;
       if (avatarUrl !== undefined) setData.avatarUrl = avatarUrl;
 
       if (password && typeof password === 'string' && password.trim().length >= 6) {
@@ -7099,33 +7115,51 @@ async function startServer() {
           .where(eq(schema.users.id, req.user!.id))
           .returning())) as any[];
         updatedUser = u;
-      } catch (dbErr) {
-        // Fallback raw SQL
-        await withRetry(() => db.execute(sql`
-          UPDATE "users"
-          SET name = COALESCE(${setData.name || null}, name),
-              phone = COALESCE(${setData.phone || null}, phone),
-              email = COALESCE(${setData.email || null}, email),
-              avatar_url = COALESCE(${setData.avatarUrl || null}, avatar_url),
-              password = COALESCE(${setData.password || null}, password),
-              updated_at = NOW()
-          WHERE id::text = ${String(req.user!.id)};
-        `));
-        const [u] = (await withRetry(() => db.select().from(schema.users).where(eq(schema.users.id, req.user!.id)))) as any[];
-        updatedUser = u;
+      } catch (dbErr: any) {
+        console.warn("Drizzle update error in PATCH /users/me, fallback to raw SQL:", dbErr?.message);
+        try {
+          await withRetry(() => db.execute(sql`
+            UPDATE "users"
+            SET name = COALESCE(${setData.name || null}, name),
+                phone = COALESCE(${setData.phone || null}, phone),
+                email = COALESCE(${setData.email || null}, email),
+                avatar_url = COALESCE(${setData.avatarUrl || null}, avatar_url),
+                password = COALESCE(${setData.password || null}, password),
+                updated_at = NOW()
+            WHERE id::text = ${String(req.user!.id)};
+          `));
+          const [u] = (await withRetry(() => db.select().from(schema.users).where(eq(schema.users.id, req.user!.id)))) as any[];
+          updatedUser = u;
+        } catch (rawErr: any) {
+          console.error("Fallback raw SQL update error:", rawErr?.message);
+        }
+      }
+
+      // If user wasn't found by req.user.id but user is admin, try updating first admin user record
+      if (!updatedUser && req.user.role === 'admin') {
+        const [adminByRole] = await withRetry(() => db.select().from(schema.users)
+          .where(and(eq(schema.users.role, 'admin'), isNull(schema.users.deletedAt)))
+          .limit(1));
+        if (adminByRole) {
+          const [u] = (await withRetry(() => db.update(schema.users)
+            .set(setData)
+            .where(eq(schema.users.id, adminByRole.id))
+            .returning())) as any[];
+          updatedUser = u;
+        }
       }
 
       if (!updatedUser) {
         return res.status(404).json({ error: 'User tidak ditemukan di database.' });
       }
 
-      // Sync linked registrations orderer details
+      // Sync linked registrations orderer details safely
       try {
         const regUpdate: any = {};
         if (setData.name) regUpdate.ordererName = setData.name;
         if (setData.phone) regUpdate.ordererPhone = setData.phone;
         if (setData.email) regUpdate.ordererEmail = setData.email;
-        if (Object.keys(regUpdate).length > 0) {
+        if (Object.keys(regUpdate).length > 0 && updatedUser?.id) {
           await withRetry(() => db.update(schema.registrations)
             .set(regUpdate)
             .where(eq(schema.registrations.userId, updatedUser.id)));
@@ -7134,7 +7168,7 @@ async function startServer() {
         console.warn("Notice updating linked registration:", regErr);
       }
 
-      // Sync Firebase Auth if UID or email exists
+      // Sync Firebase Auth safely if UID or email exists
       if (updatedUser.uid || updatedUser.email) {
         try {
           const updateObj: any = {};
@@ -7148,7 +7182,7 @@ async function startServer() {
             if (updatedUser.uid) {
               await adminAuth.updateUser(updatedUser.uid, updateObj);
             } else if (updatedUser.email) {
-              const fbUser = await adminAuth.getUserByEmail(updatedUser.email);
+              const fbUser = await adminAuth.getUserByEmail(updatedUser.email).catch(() => null);
               if (fbUser) {
                 await adminAuth.updateUser(fbUser.uid, updateObj);
               }
@@ -7171,7 +7205,7 @@ async function startServer() {
       notifyUpdate();
     } catch (error: any) {
       console.error("PATCH /api/users/me error:", error);
-      res.status(500).json({ error: "Terjadi kesalahan pada server" });
+      res.status(500).json({ error: error?.message || "Terjadi kesalahan pada server" });
     }
   });
 

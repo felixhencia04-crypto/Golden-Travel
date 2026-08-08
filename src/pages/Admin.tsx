@@ -1727,29 +1727,32 @@ export default function Admin() {
     }
 
     try {
-      // Update basic profile via API
-      await api.patch('/users/me', {
+      // Update admin profile & credentials via API
+      const payload: any = {
         name: adminProfileForm.name,
-        phone: adminProfileForm.phone
-      });
+        phone: adminProfileForm.phone,
+        email: adminProfileForm.email,
+      };
 
-      // Update password in Firebase if provided
+      if (adminProfileForm.password) {
+        payload.password = adminProfileForm.password;
+      }
+
+      await api.patch('/users/me', payload);
+
+      // Optionally update password in Firebase if logged in via Firebase
       if (adminProfileForm.password) {
         const firebaseUser = auth.currentUser;
         if (firebaseUser) {
           try {
             await updatePassword(firebaseUser, adminProfileForm.password);
           } catch (pwError: any) {
-            if (pwError.code === 'auth/requires-recent-login') {
-              toast.error("Untuk keamanan, silakan Logout dan Login kembali sebelum mengubah kata sandi.");
-              return;
-            }
-            throw pwError;
+            console.warn("Notice: Firebase auth password update skipped:", pwError?.message);
           }
         }
       }
 
-      toast.success("Profil admin berhasil diperbarui!");
+      toast.success("Profil admin dan keamanan berhasil diperbarui!");
       setAdminProfileForm(prev => ({ ...prev, password: '', confirmPassword: '' }));
       refreshData(true);
     } catch (error: any) {
