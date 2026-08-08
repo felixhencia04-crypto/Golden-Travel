@@ -9,6 +9,13 @@ process.on('warning', (warning) => {
   console.warn(`[Process Warning] ${warning.name}: ${warning.message}`);
 });
 
+process.on('unhandledRejection', (reason: any) => {
+  if (reason && (reason.name === 'MetadataLookupWarning' || String(reason?.message || reason).includes('MetadataLookupWarning') || String(reason?.message || reason).includes('All promises were rejected'))) {
+    return; // Ignore GCP metadata lookup rejection on non-GCP hosts (Railway)
+  }
+  console.error('[Unhandled Rejection]', reason);
+});
+
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
@@ -235,6 +242,32 @@ export function invalidateUserCache(tokenOrId?: string) {
   }
 }
 
+// Helper to safely get a valid UUID workspace ID
+let _cachedDefaultWorkspaceId: string | null = null;
+async function getDefaultWorkspaceId(): Promise<string> {
+  if (_cachedDefaultWorkspaceId && isValidUuid(_cachedDefaultWorkspaceId)) {
+    return _cachedDefaultWorkspaceId;
+  }
+  try {
+    const ws = await withRetry(() => db.query.workspaces.findFirst());
+    if (ws && ws.id && isValidUuid(ws.id)) {
+      _cachedDefaultWorkspaceId = ws.id;
+      return ws.id;
+    }
+    const [newWs] = await withRetry(() => db.insert(schema.workspaces).values({
+      name: "Golden Travel Workspace",
+      slug: `golden-travel-workspace`
+    }).returning());
+    if (newWs && newWs.id && isValidUuid(newWs.id)) {
+      _cachedDefaultWorkspaceId = newWs.id;
+      return newWs.id;
+    }
+  } catch (e) {
+    console.warn("[Workspace] Error finding/creating workspace:", e);
+  }
+  return '206247ec-7f3b-4e74-8dc6-b109372dbbef';
+}
+
 // Auth Middleware
 async function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
@@ -317,6 +350,10 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
           if (!effectiveUser.workspaceId && decoded.workspaceId) {
             effectiveUser.workspaceId = decoded.workspaceId;
           }
+        }
+
+        if (!effectiveUser.workspaceId || !isValidUuid(effectiveUser.workspaceId)) {
+          effectiveUser.workspaceId = await getDefaultWorkspaceId();
         }
         
         req.user = effectiveUser;
@@ -1236,7 +1273,10 @@ async function startServer() {
       }
 
       if (matchedAdmin) {
-        const workspaceId = matchedAdmin.workspaceId || defaultWs?.id || 'ws-default';
+        let workspaceId = matchedAdmin.workspaceId;
+        if (!workspaceId || !isValidUuid(workspaceId)) {
+          workspaceId = defaultWs?.id && isValidUuid(defaultWs.id) ? defaultWs.id : await getDefaultWorkspaceId();
+        }
         const token = jwt.sign({ 
           id: matchedAdmin.id,
           role: 'admin',
@@ -3083,8 +3123,12 @@ async function startServer() {
     // Proxy to existing implementation or reimplement
     try {
       const { name, description, price, duration, imageUrl, type, isAvailable, quota } = req.body;
+      let wsId: string | undefined = req.user?.workspaceId;
+      if (!wsId || !isValidUuid(wsId)) {
+        wsId = await getDefaultWorkspaceId();
+      }
       const data: any = {
-        workspaceId: req.user!.workspaceId!,
+        workspaceId: wsId,
         name: name || "Paket Baru",
         description: typeof description === 'string' ? description : JSON.stringify(description || []),
         price: Number(price) || 0,
@@ -6903,9 +6947,8 @@ async function startServer() {
       const normalizedIsAvailable = isAvailable !== false && isAvailable !== 'false' && isAvailable !== 0 && isAvailable !== '0';
 
       let wsId: string | undefined = req.user?.workspaceId;
-      if (!wsId) {
-        const defaultWs: any = await withRetry(() => db.query.workspaces.findFirst());
-        wsId = defaultWs?.id;
+      if (!wsId || !isValidUuid(wsId)) {
+        wsId = await getDefaultWorkspaceId();
       }
 
       const data: any = {

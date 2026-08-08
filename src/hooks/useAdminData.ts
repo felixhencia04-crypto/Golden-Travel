@@ -49,12 +49,16 @@ export function useAdminData() {
         try {
           const res = await api.get('/admin/packages');
           if (Array.isArray(res)) return res;
-        } catch (e) {}
+        } catch (e) {
+          console.warn("Failed to fetch /admin/packages:", e);
+        }
         try {
           const res2 = await api.get('/packages');
           if (Array.isArray(res2)) return res2;
-        } catch (e) {}
-        return [];
+        } catch (e) {
+          console.warn("Failed to fetch /packages fallback:", e);
+        }
+        return { __error: true };
       };
 
       // Chunk requests to prevent rate limit (HTTP 429) and db connection pool exhaustion
