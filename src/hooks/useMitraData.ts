@@ -105,7 +105,7 @@ export function useMitraData() {
         if (!interval) {
           interval = setInterval(() => {
             refreshData(true);
-          }, 3000);
+          }, 30000);
         }
 
         if (!unsubscribeRealtime) {

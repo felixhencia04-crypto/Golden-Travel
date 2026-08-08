@@ -21,8 +21,8 @@ const runMigration = async () => {
   
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
-    console.error('❌ ERROR: DATABASE_URL tidak ditemukan di environment variables.');
-    process.exit(1);
+    console.warn('⚠️ NOTICE: DATABASE_URL tidak ditemukan di environment variables. Melewati migrasi standalone.');
+    return;
   }
 
   console.log('🔗 Mencoba terhubung ke database menggunakan SSL (rejectUnauthorized: false)...');

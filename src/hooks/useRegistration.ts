@@ -29,7 +29,7 @@ export function useRegistration() {
   const [dbUser, setDbUser] = useState<any>(cache?.dbUser || null);
 
   const refreshData = React.useCallback(async (silent = false) => {
-    if (!silent && !cache) setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const results = await Promise.all([
         api.get('/jamaah/registration').catch((err) => {
@@ -82,7 +82,7 @@ export function useRegistration() {
     } finally {
       setLoading(false);
     }
-  }, [cache]);
+  }, []);
 
   useEffect(() => {
     const hasJamaahToken = !!localStorage.getItem('jamaah_token');

@@ -161,7 +161,7 @@ export default function DashboardJamaah() {
     fetchCertificates();
     const interval = setInterval(() => {
       fetchTickets();
-    }, 10000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [selectedTicket?.id, registration?.id]);
   

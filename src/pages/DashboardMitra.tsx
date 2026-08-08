@@ -398,10 +398,10 @@ export default function DashboardMitra() {
       }
     });
 
-    // 2. High-frequency 3-second background polling timer for instant synchronization
+    // 2. Background polling timer for data synchronization
     const pollInterval = setInterval(() => {
       fetchPackagesAndSchedules(true);
-    }, 3000);
+    }, 30000);
 
     // 3. Window focus and cross-tab storage event listener
     const handleFocus = () => fetchPackagesAndSchedules(true);

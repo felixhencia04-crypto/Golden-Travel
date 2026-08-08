@@ -21,9 +21,9 @@ const pageVariants = {
 };
 
 const pageTransition = {
-  type: 'tween',
-  ease: 'easeInOut',
-  duration: 0.4
+  type: "tween",
+  ease: "anticipate",
+  duration: 0.3
 };
 
 const AnimatedPage = ({ children }: { children: React.ReactNode }) => {
@@ -46,7 +46,6 @@ export default function AnimatedRoutes() {
 
   return (
     <AnimatePresence mode="wait">
-      {/* @ts-ignore */}
       <Routes location={location} key={location.pathname}>
         <Route path="/" element={<AnimatedPage><Home /></AnimatedPage>} />
         <Route path="/login" element={<AnimatedPage><Login /></AnimatedPage>} />

@@ -206,7 +206,7 @@ export default function Admin() {
     fetchCertificates();
     const interval = setInterval(() => {
       fetchTickets();
-    }, 10000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [selectedTicket?.id]);
 

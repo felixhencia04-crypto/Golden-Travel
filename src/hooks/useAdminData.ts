@@ -20,6 +20,7 @@ export function useAdminData() {
   const [registrations, setRegistrations] = useState<any[]>(cache?.registrations || []);
   const [packages, setPackages] = useState<any[]>(cache?.packages || []);
   const [schedules, setSchedules] = useState<any[]>(cache?.schedules || []);
+  const lastRefreshRef = React.useRef<number>(0);
   const [loading, setLoading] = useState<boolean>(!cache);
   const [currentUser, setCurrentUser] = useState<any>(cache?.currentUser || null);
 
@@ -29,17 +30,15 @@ export function useAdminData() {
   const [broadcast, setBroadcast] = useState<any[]>(cache?.broadcast || []);
   const [manifest, setManifest] = useState<any[]>(cache?.manifest || []);
 
-  const [lastRefresh, setLastRefresh] = useState<number>(0);
-
   const refreshData = React.useCallback(async (silent = false, force = false) => {
     // Throttle refresh calls to at most once every 5 seconds unless forced
     const now = Date.now();
-    if (!force && silent && now - lastRefresh < 5000) {
+    if (!force && silent && now - lastRefreshRef.current < 5000) {
       console.log("[Admin] Skipping silent refresh - throttled");
       return;
     }
     
-    setLastRefresh(now);
+    lastRefreshRef.current = now;
     
     // If we already have cache, keep silent true by default for zero visual lag
     if (!silent && !cache) setLoading(true);
@@ -110,7 +109,7 @@ export function useAdminData() {
     } finally {
       setLoading(false);
     }
-  }, [cache, lastRefresh]);
+  }, []);
 
   useEffect(() => {
     const adminToken = getAdminToken();
