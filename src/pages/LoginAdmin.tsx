@@ -21,6 +21,7 @@ export default function LoginAdmin() {
       if (res.token) {
         localStorage.setItem('admin_token', res.token);
         sessionStorage.setItem('admin_token', res.token);
+        sessionStorage.removeItem("cached_admin_portal_data");
         toast.success('Selamat datang, Admin!');
         navigate('/admin');
       } else {

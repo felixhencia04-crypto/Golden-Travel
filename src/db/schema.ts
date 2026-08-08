@@ -455,3 +455,49 @@ export const mitraCommissionPayouts = pgTable('mitra_commission_payouts', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+// 15. hotels
+export const hotels = pgTable('hotels', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id),
+  name: text('name').notNull(),
+  city: text('city').notNull(), // 'Makkah' or 'Madinah'
+  rating: integer('rating').default(4).notNull(),
+  distance: text('distance'),
+  imageUrl: text('image_url'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// 16. airlines
+export const airlines = pgTable('airlines', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id),
+  name: text('name').notNull(),
+  code: text('code'),
+  logoUrl: text('logo_url'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// 17. financial_verifications
+export const financialVerifications = pgTable('financial_verifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id),
+  paymentId: uuid('payment_id').references(() => payments.id),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  verifierName: text('verifier_name'),
+  verificationStatus: text('verification_status').default('APPROVED').notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// 18. admin_settings
+export const adminSettings = pgTable('admin_settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id),
+  travelName: text('travel_name').default('PT Golden Travel Umrah').notNull(),
+  travelLogoUrl: text('travel_logo_url'),
+  defaultCommissionRate: decimal('default_commission_rate', { precision: 12, scale: 2 }).default('1500000.00'),
+  whatsappNumber: text('whatsapp_number').default('08111111111'),
+  bankAccounts: jsonb('bank_accounts').$type<any[]>().default([]),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+

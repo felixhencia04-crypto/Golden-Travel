@@ -31,7 +31,7 @@ import cors from "cors";
 import jwt from "jsonwebtoken";
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { eq, and, desc, asc, sql, gte, inArray, ne, or, isNull, lt, exists } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, gte, inArray, ne, or, isNull, lt, exists, ilike, like } from 'drizzle-orm';
 import firebaseConfig from './firebase-applet-config.json' with { type: 'json' };
 import * as dotenv from 'dotenv';
 dotenv.config();
@@ -518,14 +518,30 @@ async function startServer() {
     return trimmed;
   }
 
-  // POST /api/upload -> Universal file upload
+  // POST /api/upload -> Universal persistent file upload
   app.post("/api/upload", authenticate, (req: AuthRequest, res, next) => {
+    if (req.body && req.body.base64) {
+      return res.json({ url: req.body.base64, filename: 'base64_asset' });
+    }
     const uploadMiddleware = req.app.get('upload');
     uploadMiddleware.single('file')(req, res, (err: any) => {
       if (err) return res.status(500).json({ error: "Gagal upload file" });
       if (!req.file) return res.status(400).json({ error: "File tidak ditemukan" });
-      const fileUrl = `/uploads/${req.file.filename}`;
-      res.json({ url: fileUrl, filename: req.file.filename });
+      
+      try {
+        const mimeType = req.file.mimetype || 'image/jpeg';
+        let base64Str = '';
+        if (req.file.buffer) {
+          base64Str = req.file.buffer.toString('base64');
+        } else if (req.file.path && fs.existsSync(req.file.path)) {
+          base64Str = fs.readFileSync(req.file.path).toString('base64');
+        }
+
+        const dataUrl = base64Str ? `data:${mimeType};base64,${base64Str}` : `/uploads/${req.file.filename}`;
+        res.json({ url: dataUrl, filename: req.file.filename });
+      } catch (e) {
+        res.json({ url: `/uploads/${req.file.filename}`, filename: req.file.filename });
+      }
     });
   });
 
@@ -634,7 +650,7 @@ async function startServer() {
     }
   });
 
-  // Custom Admin Login (Password Only)
+  // Custom Admin Login (Password & Optional Email)
   app.post("/api/admin/login", async (req, res) => {
     const { password, email } = req.body;
     if (!password) {
@@ -642,12 +658,42 @@ async function startServer() {
     }
 
     try {
-      // Query active admin users from DB
+      // Query active admin users from DB reliably
       let adminUsers = await withRetry(() => db.select().from(schema.users)
-        .where(and(eq(schema.users.role, 'admin'), isNull(schema.users.deletedAt)))
+        .where(and(
+          or(
+            eq(schema.users.role, 'admin'),
+            eq(schema.users.role, 'super_admin'),
+            ilike(schema.users.email, '%admin%')
+          ),
+          isNull(schema.users.deletedAt)
+        ))
       ).catch(() => []);
 
-      if (email) {
+      // If no admin user exists in DB yet, auto-create default admin user row
+      if (!adminUsers || adminUsers.length === 0) {
+        try {
+          let ws = await db.query.workspaces.findFirst().catch(() => null);
+          if (!ws) {
+            const [newWs] = await db.insert(schema.workspaces).values({ name: "Golden Travel Workspace", slug: `golden-travel-${Date.now()}` }).returning();
+            ws = newWs;
+          }
+          const [createdAdmin] = await db.insert(schema.users).values({
+            workspaceId: ws?.id,
+            name: 'Super Admin',
+            email: 'admin@goldentravel.id',
+            phone: '081199887766',
+            password: hashPassword('admin123'),
+            role: 'admin',
+            status: 'active'
+          }).returning();
+          if (createdAdmin) adminUsers = [createdAdmin];
+        } catch (seedErr: any) {
+          console.warn("Notice: auto-creating default admin row skipped:", seedErr?.message);
+        }
+      }
+
+      if (email && typeof email === 'string' && email.trim()) {
         const filteredByEmail = adminUsers.filter((u: any) => u.email?.toLowerCase().trim() === String(email).toLowerCase().trim());
         if (filteredByEmail.length > 0) {
           adminUsers = filteredByEmail;
@@ -662,68 +708,25 @@ async function startServer() {
         }
       }
 
-      // Fallback for default admin passwords
-      if (!matchedAdmin && (password === 'admin123' || password === 'admin')) {
-        let defaultAdmin = adminUsers.find((u: any) => u.email === 'admin@goldentravel.id') || adminUsers[0];
-        if (!defaultAdmin) {
-          try {
-            let ws = await db.query.workspaces.findFirst().catch(() => null);
-            if (!ws) {
-              const [newWs] = await db.insert(schema.workspaces).values({ name: "Golden Travel Workspace" }).returning();
-              ws = newWs;
-            }
-            const [createdAdmin] = await db.insert(schema.users).values({
-              workspaceId: ws?.id,
-              name: 'Super Admin',
-              email: 'admin@goldentravel.id',
-              phone: '081199887766',
-              password: hashPassword('admin123'),
-              role: 'admin',
-              status: 'active'
-            }).returning();
-            defaultAdmin = createdAdmin;
-          } catch (createErr: any) {
-            console.warn("Notice: auto-creating admin user record skipped:", createErr?.message);
-          }
-        }
-        matchedAdmin = defaultAdmin || {
-          id: '00000000-0000-0000-0000-000000000000',
-          email: 'admin@goldentravel.id',
-          name: 'Super Admin',
-          workspaceId: '206247ec-7f3b-4e74-8dc6-b109372dbbef'
-        };
-      }
-
       if (matchedAdmin) {
         const token = jwt.sign({ 
-          id: matchedAdmin.id || '00000000-0000-0000-0000-000000000000',
+          id: matchedAdmin.id,
           role: 'admin',
           email: matchedAdmin.email || 'admin@goldentravel.id',
           name: matchedAdmin.name || 'Super Admin',
-          workspaceId: matchedAdmin.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef'
+          workspaceId: matchedAdmin.workspaceId
         }, JWT_SECRET, { expiresIn: '1d' });
         
-        // Invalidate cached auth so new session reads fresh DB values
+        // Clear cached auth so new session reads fresh DB values
         invalidateUserCache();
 
         return res.json({ token, role: 'admin', user: matchedAdmin });
       } else {
-        return res.status(401).json({ error: 'Kata sandi salah.' });
+        return res.status(401).json({ error: 'Kata sandi admin tidak sesuai. Silakan masukkan kata sandi yang benar.' });
       }
     } catch (err: any) {
       console.error("Admin login error:", err);
-      if (password === 'admin123' || password === 'admin') {
-        const token = jwt.sign({ 
-          id: '00000000-0000-0000-0000-000000000000',
-          role: 'admin',
-          email: 'admin@goldentravel.id',
-          name: 'Super Admin',
-          workspaceId: '206247ec-7f3b-4e74-8dc6-b109372dbbef'
-        }, JWT_SECRET, { expiresIn: '1d' });
-        invalidateUserCache();
-        return res.json({ token, role: 'admin' });
-      }
-      return res.status(401).json({ error: 'Kata sandi salah.' });
+      return res.status(500).json({ error: 'Terjadi kesalahan sistem saat verifikasi login admin.' });
     }
   });
 
@@ -7171,14 +7174,17 @@ async function startServer() {
       let updatedUser: any = null;
       if (req.user?.role === 'admin') {
         let adminRows = await withRetry(() => db.select().from(schema.users)
-          .where(and(eq(schema.users.role, 'admin'), isNull(schema.users.deletedAt)))
+          .where(and(
+            or(eq(schema.users.role, 'admin'), eq(schema.users.role, 'super_admin'), ilike(schema.users.email, '%admin%')),
+            isNull(schema.users.deletedAt)
+          ))
         ).catch(() => []);
 
         if (!adminRows || adminRows.length === 0) {
           // If no admin user row exists in DB, insert one now!
           let ws = await db.query.workspaces.findFirst().catch(() => null);
           if (!ws) {
-            const [newWs] = await db.insert(schema.workspaces).values({ name: "Golden Travel Workspace" }).returning();
+            const [newWs] = await db.insert(schema.workspaces).values({ name: "Golden Travel Workspace", slug: `golden-travel-${Date.now()}` }).returning();
             ws = newWs;
           }
           const [inserted] = await db.insert(schema.users).values({
@@ -7193,20 +7199,29 @@ async function startServer() {
           updatedUser = inserted;
           targetUserId = inserted.id;
         } else {
-          // Update ALL admin records in the DB
+          targetUserId = req.user?.id && req.user.id !== '00000000-0000-0000-0000-000000000000'
+            ? req.user.id
+            : adminRows[0].id;
+
+          // Update ALL admin records in the DB to keep state perfectly synchronized
           try {
-            const updatedAdmins = (await withRetry(() => db.update(schema.users)
+            await withRetry(() => db.update(schema.users)
               .set(setData)
-              .where(eq(schema.users.role, 'admin'))
-              .returning())) as any[];
-            if (updatedAdmins && updatedAdmins.length > 0) {
-              updatedUser = updatedAdmins[0];
-            }
+              .where(or(
+                eq(schema.users.role, 'admin'),
+                eq(schema.users.role, 'super_admin'),
+                ilike(schema.users.email, '%admin%'),
+                eq(schema.users.id, targetUserId)
+              )));
+            
+            const [freshAdmin] = await withRetry(() => db.select().from(schema.users)
+              .where(eq(schema.users.id, targetUserId)));
+            updatedUser = freshAdmin || adminRows[0];
           } catch (e: any) {
             console.warn("Notice: drizzle bulk admin update error:", e?.message);
           }
 
-          // Also execute raw SQL bulk update for ALL admin rows
+          // Also execute raw SQL bulk update for ALL admin rows as robust safety
           try {
             await withRetry(() => db.execute(sql`
               UPDATE "users"
@@ -7216,7 +7231,7 @@ async function startServer() {
                   avatar_url = COALESCE(${setData.avatarUrl || null}, avatar_url),
                   password = COALESCE(${setData.password || null}, password),
                   updated_at = NOW()
-              WHERE role = 'admin' OR id::text = ${String(targetUserId)};
+              WHERE role = 'admin' OR role = 'super_admin' OR email ILIKE '%admin%' OR id::text = ${String(targetUserId)};
             `));
             const [u] = (await withRetry(() => db.select().from(schema.users).where(eq(schema.users.id, targetUserId)))) as any[];
             if (u) updatedUser = u;
@@ -7330,7 +7345,7 @@ async function startServer() {
         invalidateUserCache(authHeader.split('Bearer ')[1]?.trim());
       }
 
-      res.json(updatedUser);
+      res.json({ ...updatedUser, token: freshToken });
       notifyUpdate();
     } catch (error: any) {
       console.error("PATCH /api/users/me outer catch error:", error);
@@ -7529,89 +7544,622 @@ async function startServer() {
     });
   });
 
-async function ensureTablesExist() {
+async function initializeGlobalDatabase() {
+  console.log("=== INISIALISASI DATABASE GLOBAL (Auto-Init Schema 3 Portal) ===");
   try {
     await db.execute(sql.raw(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`));
-  } catch (e: any) {
-    // pgcrypto extension check
+    await db.execute(sql.raw(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`));
+  } catch (e: any) {}
+
+  const ddlQueries = [
+    `CREATE TABLE IF NOT EXISTS workspaces (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      domain TEXT UNIQUE,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      uid TEXT UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      phone TEXT,
+      avatar_url TEXT,
+      role TEXT DEFAULT 'jamaah' NOT NULL,
+      status TEXT DEFAULT 'active' NOT NULL,
+      mitra_id UUID,
+      referral_code TEXT UNIQUE,
+      password TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      deleted_at TIMESTAMP
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS packages (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      price DECIMAL(12, 2) NOT NULL,
+      departure_date TIMESTAMP,
+      duration TEXT NOT NULL,
+      image_url TEXT,
+      facilities TEXT,
+      excludes TEXT,
+      hotel TEXT,
+      type TEXT DEFAULT 'umroh' NOT NULL,
+      is_available BOOLEAN DEFAULT TRUE NOT NULL,
+      quota INTEGER DEFAULT 45 NOT NULL,
+      manasik_pdf_url TEXT,
+      muthawwif_name TEXT,
+      muthawwif_role TEXT,
+      muthawwif_phone TEXT,
+      muthawwif_avatar_url TEXT,
+      muthawwif_notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS schedules (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      package_id UUID REFERENCES packages(id) NOT NULL,
+      departure_date TIMESTAMP NOT NULL,
+      name TEXT,
+      airline TEXT,
+      total_seats INTEGER NOT NULL,
+      available_seats INTEGER NOT NULL,
+      itinerary_pdf_url TEXT,
+      muthawwif_name TEXT,
+      muthawwif_role TEXT,
+      muthawwif_phone TEXT,
+      muthawwif_avatar_url TEXT,
+      muthawwif_notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS package_itineraries (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      package_id UUID REFERENCES packages(id) ON DELETE CASCADE NOT NULL,
+      day INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      location TEXT,
+      meals TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS registrations (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      user_id UUID REFERENCES users(id) NOT NULL,
+      package_id UUID REFERENCES packages(id) NOT NULL,
+      schedule_id UUID REFERENCES schedules(id),
+      status TEXT DEFAULT 'DRAFT' NOT NULL,
+      orderer_name TEXT,
+      orderer_phone TEXT,
+      orderer_email TEXT,
+      orderer_notes TEXT,
+      adult_count TEXT DEFAULT '1' NOT NULL,
+      child_count TEXT DEFAULT '0' NOT NULL,
+      infant_count TEXT DEFAULT '0' NOT NULL,
+      total_amount DECIMAL(12, 2) DEFAULT 0 NOT NULL,
+      pax_data JSONB,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS payments (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      registration_id UUID REFERENCES registrations(id) NOT NULL,
+      payment_type TEXT NOT NULL,
+      amount DECIMAL(12, 2) NOT NULL,
+      proof_url TEXT NOT NULL,
+      status TEXT DEFAULT 'PENDING' NOT NULL,
+      admin_notes TEXT,
+      verified_at TIMESTAMP,
+      verified_by UUID REFERENCES users(id),
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS documents (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      registration_id UUID REFERENCES registrations(id) NOT NULL,
+      doc_type TEXT NOT NULL,
+      file_url TEXT NOT NULL,
+      status TEXT DEFAULT 'PENDING' NOT NULL,
+      admin_notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS notifications (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      user_id UUID REFERENCES users(id),
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      type TEXT NOT NULL,
+      is_read TEXT DEFAULT 'false' NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS gallery_photos (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      title TEXT,
+      description TEXT,
+      image_url TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS gallery_videos (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      title TEXT,
+      description TEXT,
+      video_url TEXT NOT NULL,
+      thumbnail_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS buku_kas_mutasi (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      payment_id UUID REFERENCES payments(id),
+      amount DECIMAL(12, 2) NOT NULL,
+      transaction_type TEXT NOT NULL,
+      description TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS manifest_keberangkatan (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      package_id UUID REFERENCES packages(id) NOT NULL,
+      registration_id UUID REFERENCES registrations(id) NOT NULL,
+      bus_number TEXT,
+      hotel_room TEXT,
+      airplane_seat TEXT,
+      pax_manifest JSONB,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS helpdesk_tiket (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      user_id UUID REFERENCES users(id) NOT NULL,
+      subject TEXT NOT NULL,
+      message TEXT NOT NULL,
+      replies JSONB DEFAULT '[]'::jsonb NOT NULL,
+      status TEXT DEFAULT 'open' NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS sertifikat_kenangan (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      registration_id UUID REFERENCES registrations(id),
+      recipient_name TEXT,
+      certificate_url TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS equipment_status (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      registration_id UUID REFERENCES registrations(id) NOT NULL,
+      koper BOOLEAN DEFAULT FALSE NOT NULL,
+      ihram BOOLEAN DEFAULT FALSE NOT NULL,
+      mukena BOOLEAN DEFAULT FALSE NOT NULL,
+      assignee TEXT,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS memories (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      package_id UUID REFERENCES packages(id),
+      schedule_id UUID REFERENCES schedules(id),
+      registration_id UUID REFERENCES registrations(id),
+      image_url TEXT NOT NULL,
+      caption TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS activities (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+      registration_id UUID REFERENCES registrations(id) ON DELETE CASCADE NOT NULL,
+      user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      details TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS mitra_users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      no_wa TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      status_akun TEXT DEFAULT 'incomplete_profile' NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS mitra_profiles (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID REFERENCES mitra_users(id) ON DELETE CASCADE NOT NULL UNIQUE,
+      nama_lengkap TEXT,
+      nik TEXT UNIQUE,
+      tempat_lahir TEXT,
+      tanggal_lahir TEXT,
+      alamat_lengkap TEXT,
+      nama_bank TEXT,
+      no_rekening TEXT,
+      nama_pemilik_rekening TEXT,
+      npwp TEXT,
+      jenis_kelamin TEXT,
+      status_perkawinan TEXT,
+      pekerjaan TEXT,
+      provinsi TEXT,
+      kota TEXT,
+      kecamatan TEXT,
+      kode_pos TEXT,
+      whatsapp TEXT,
+      bukti_transfer TEXT,
+      review_notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS kyc_documents (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id UUID REFERENCES mitra_users(id) ON DELETE CASCADE NOT NULL,
+      document_type TEXT NOT NULL,
+      file_url TEXT NOT NULL,
+      status TEXT DEFAULT 'pending' NOT NULL,
+      uploaded_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS mitra_commission_payouts (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      mitra_user_id UUID,
+      mitra_name TEXT NOT NULL,
+      mitra_phone TEXT,
+      jamaah_name TEXT,
+      package_name TEXT,
+      amount DECIMAL(12, 2) NOT NULL,
+      bank_name TEXT NOT NULL,
+      account_number TEXT NOT NULL,
+      account_holder TEXT NOT NULL,
+      status TEXT DEFAULT 'PENDING' NOT NULL,
+      mitra_notes TEXT,
+      admin_notes TEXT,
+      proof_of_transfer_url TEXT,
+      transfer_date TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS hotels (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      name TEXT NOT NULL,
+      city TEXT NOT NULL,
+      rating INTEGER DEFAULT 4 NOT NULL,
+      distance TEXT,
+      image_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS airlines (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      name TEXT NOT NULL,
+      code TEXT,
+      logo_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS financial_verifications (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      payment_id UUID REFERENCES payments(id),
+      amount DECIMAL(12, 2) NOT NULL,
+      verifier_name TEXT,
+      verification_status TEXT DEFAULT 'APPROVED' NOT NULL,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`,
+
+    `CREATE TABLE IF NOT EXISTS admin_settings (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      workspace_id UUID REFERENCES workspaces(id),
+      travel_name TEXT DEFAULT 'PT Golden Travel Umrah' NOT NULL,
+      travel_logo_url TEXT,
+      default_commission_rate DECIMAL(12, 2) DEFAULT '1500000.00',
+      whatsapp_number TEXT DEFAULT '08111111111',
+      bank_accounts JSONB DEFAULT '[]'::jsonb,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );`
+  ];
+
+  for (const q of ddlQueries) {
+    try {
+      await db.execute(sql.raw(q));
+    } catch (err: any) {
+      // Ignore if table exists or column exists
+    }
+  }
+  console.log("=== INSALISASI DATABASE SELESAI ===");
+}
+
+async function seedAllPortals() {
+  console.log("=== SEEDING DATA DENGAN DEFAULTS UNTUK 3 PORTAL ===");
+  try {
+    // 1. Workspace Default
+    let ws = await db.query.workspaces.findFirst().catch(() => null);
+    if (!ws) {
+      console.log("Membuat workspace default Golden Travel...");
+      const [newWs] = await db.insert(schema.workspaces).values({
+        name: "Golden Travel Workspace",
+        slug: `golden-travel-${Date.now()}`
+      }).returning();
+      ws = newWs;
+    }
+
+    // 2. Admin Seeding
+    const adminCheck = await db.select().from(schema.users).where(eq(schema.users.role, 'admin')).catch(() => []);
+    if (!adminCheck || adminCheck.length === 0) {
+      console.log("Seeding akun Admin Utama...");
+      await db.insert(schema.users).values({
+        workspaceId: ws.id,
+        uid: crypto.randomUUID(),
+        name: 'Super Admin',
+        email: 'admin@goldentravel.id',
+        password: hashPassword('admin123'),
+        role: 'admin',
+        status: 'active'
+      });
+    }
+
+    // 3. Packages Seeding (2 Paket: Reguler & VIP)
+    const existingPackages = await db.select().from(schema.packages).catch(() => []);
+    let pkgReguler: any = null;
+    let pkgVip: any = null;
+
+    if (!existingPackages || existingPackages.length === 0) {
+      console.log("Seeding 2 Paket Umrah (Reguler & VIP)...");
+      const [p1] = await db.insert(schema.packages).values({
+        workspaceId: ws.id,
+        name: "Paket Umrah Reguler Bintang 4 (9 Hari)",
+        description: JSON.stringify(["Hotel Makkah Pullman Zamzam", "Hotel Madinah Grand Plaza", "Bimbingan Muthawwif Berpengalaman"]),
+        price: '28500000.00',
+        duration: '9 Hari',
+        type: 'umroh',
+        quota: 45,
+        isAvailable: true,
+        imageUrl: 'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=1200&q=80',
+        facilities: 'Tiket PP Saudia Airlines, Hotel Makkah Pullman Zamzam (50m), Hotel Madinah Grand Plaza (100m), Makan 3x Sehari, Bus AC Executive, Zamzam 5L, Perlengkapan Umrah Lengkap',
+        excludes: JSON.stringify(["Paspor", "Vaksin Meningitis", "Keperluan Pribadi"]),
+        hotel: 'Pullman Zamzam Makkah & Grand Plaza Madinah',
+        muthawwifName: 'Ustadz Ahmad Fauzi, Lc.',
+        muthawwifRole: 'Pembimbing Utama',
+        muthawwifPhone: '081299887766'
+      }).returning();
+      pkgReguler = p1;
+
+      const [p2] = await db.insert(schema.packages).values({
+        workspaceId: ws.id,
+        name: "Paket Umrah VIP Executive Clock Tower (12 Hari)",
+        description: JSON.stringify(["Hotel Fairmont Clock Tower Ring 1", "Hotel Dar Al Taqwa Madinah", "Kereta Cepat Haramain First Class"]),
+        price: '38000000.00',
+        duration: '12 Hari',
+        type: 'umroh',
+        quota: 30,
+        isAvailable: true,
+        imageUrl: 'https://images.unsplash.com/photo-1580238053495-b9720401fd45?auto=format&fit=crop&w=1200&q=80',
+        facilities: 'Tiket PP Direct Flight Garuda Indonesia / Saudia, Fairmont Clock Tower Makkah, Dar Al Taqwa Madinah, Kereta Cepat Haramain First Class, Menu Buffet Internasional, Asuransi Full Cover',
+        excludes: JSON.stringify(["Keperluan Pribadi"]),
+        hotel: 'Fairmont Clock Tower & Dar Al Taqwa Madinah',
+        muthawwifName: 'Dr. H. Muhammad Ridwan, M.A.',
+        muthawwifRole: 'Muthawwif Senior',
+        muthawwifPhone: '081122334455'
+      }).returning();
+      pkgVip = p2;
+
+      // Seed schedules
+      if (pkgReguler) {
+        await db.insert(schema.schedules).values({
+          workspaceId: ws.id,
+          packageId: pkgReguler.id,
+          departureDate: new Date(Date.now() + 30 * 24 * 3600 * 1000),
+          name: 'Keberangkatan Kloter 1 Reguler',
+          airline: 'Saudia Airlines',
+          totalSeats: 45,
+          availableSeats: 32,
+          muthawwifName: pkgReguler.muthawwifName
+        });
+
+        // Seed itineraries
+        await db.insert(schema.package_itineraries).values([
+          { packageId: pkgReguler.id, day: 1, title: 'Keberangkatan Jakarta - Jeddah', description: 'Berkumpul di Bandara Soekarno Hatta Terminal 3, proses check-in dan penerbangan menuju Jeddah.', location: 'Jakarta / Jeddah', meals: 'Dinner' },
+          { packageId: pkgReguler.id, day: 2, title: 'Makkah - Umrah Pertama', description: 'Tiba di Makkah, check-in hotel, dilanjutkan pelaksanaan Thawaf, Sa\'i dan Tahallul.', location: 'Makkah Al-Mukarramah', meals: 'B, L, D' },
+          { packageId: pkgReguler.id, day: 3, title: 'Ziarah Kota Makkah', description: 'Ziarah Jabal Tsur, Padang Arafah, Jabal Rahmah, Muzdalifah dan Mina.', location: 'Makkah', meals: 'B, L, D' }
+        ]);
+      }
+    } else {
+      pkgReguler = existingPackages[0];
+    }
+
+    // 4. Mitra Seeding
+    const existingMitra = await db.select().from(schema.mitraUsers).where(eq(schema.mitraUsers.email, 'mitra@goldentravel.id')).catch(() => []);
+    let sampleMitraUser: any = null;
+    if (!existingMitra || existingMitra.length === 0) {
+      console.log("Seeding Akun Mitra Sampel...");
+      const [m] = await db.insert(schema.mitraUsers).values({
+        name: 'Ustadz Ahmad Mitra',
+        email: 'mitra@goldentravel.id',
+        noWa: '081234567890',
+        passwordHash: hashPassword('mitra123'),
+        statusAkun: 'active'
+      }).returning();
+      sampleMitraUser = m;
+
+      if (sampleMitraUser) {
+        await db.insert(schema.mitraProfiles).values({
+          userId: sampleMitraUser.id,
+          namaLengkap: 'Ustadz Ahmad Mitra',
+          nik: '3171010101900001',
+          tempatLahir: 'Jakarta',
+          tanggalLahir: '1990-05-15',
+          alamatLengkap: 'Jl. Raya Kebayoran No. 12, Jakarta Selatan',
+          namaBank: 'Bank Syariah Indonesia (BSI)',
+          noRekening: '7112233445',
+          namaPemilikRekening: 'Ahmad Mitra',
+          whatsapp: '081234567890',
+          kota: 'Jakarta Selatan',
+          provinsi: 'DKI Jakarta'
+        });
+
+        await db.insert(schema.mitraCommissionPayouts).values({
+          workspaceId: ws.id,
+          mitraUserId: sampleMitraUser.id,
+          mitraName: 'Ustadz Ahmad Mitra',
+          mitraPhone: '081234567890',
+          jamaahName: 'Budi Santoso',
+          packageName: pkgReguler?.name || 'Paket Umrah Reguler Bintang 4',
+          amount: '1500000.00',
+          bankName: 'BSI',
+          accountNumber: '7112233445',
+          accountHolder: 'Ahmad Mitra',
+          status: 'APPROVED',
+          adminNotes: 'Komisi pendaftaran jamaah Budi Santoso telah dicairkan.',
+          transferDate: new Date()
+        });
+      }
+    }
+
+    // 5. Jamaah & Booking Seeding
+    const existingJamaah = await db.select().from(schema.users).where(eq(schema.users.email, 'jamaah@goldentravel.id')).catch(() => []);
+    if (!existingJamaah || existingJamaah.length === 0) {
+      console.log("Seeding Akun Jamaah & Booking Sampel...");
+      const [jamaahUser] = await db.insert(schema.users).values({
+        workspaceId: ws.id,
+        uid: crypto.randomUUID(),
+        name: 'Budi Santoso',
+        email: 'jamaah@goldentravel.id',
+        phone: '081388990011',
+        password: hashPassword('jamaah123'),
+        role: 'jamaah',
+        status: 'active'
+      }).returning();
+
+      if (jamaahUser && pkgReguler) {
+        const [reg] = await db.insert(schema.registrations).values({
+          workspaceId: ws.id,
+          userId: jamaahUser.id,
+          packageId: pkgReguler.id,
+          status: 'LUNAS',
+          ordererName: 'Budi Santoso',
+          ordererPhone: '081388990011',
+          ordererEmail: 'jamaah@goldentravel.id',
+          adultCount: '1',
+          totalAmount: pkgReguler.price,
+          paxData: [{
+            fullName: 'Budi Santoso',
+            gender: 'Laki-laki',
+            passportNumber: 'A12345678',
+            phone: '081388990011'
+          }]
+        }).returning();
+
+        if (reg) {
+          const [pay] = await db.insert(schema.payments).values({
+            workspaceId: ws.id,
+            registrationId: reg.id,
+            paymentType: 'PELUNASAN',
+            amount: pkgReguler.price,
+            proofUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=800&q=80',
+            status: 'VERIFIED',
+            adminNotes: 'Pembayaran Lunas diverifikasi.'
+          }).returning();
+
+          if (pay) {
+            await db.insert(schema.financial_ledger).values({
+              workspaceId: ws.id,
+              paymentId: pay.id,
+              amount: pkgReguler.price,
+              transactionType: 'in',
+              description: `Pembayaran Pelunasan Umrah - Jemaah Budi Santoso (${pkgReguler.name})`
+            });
+          }
+        }
+      }
+    }
+
+    // 6. Gallery Photos Seeding
+    const galleryCount = await db.select({ count: sql`count(*)` }).from(schema.gallery_photos);
+    if (Number(galleryCount[0].count) === 0) {
+      console.log("Seeding foto galeri...");
+      const defaultPhotos = [
+        { title: "Thawaf Khusyuk & Sa\'i Jemaah VIP Ring 1", imageUrl: "https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=1200&q=80" },
+        { title: "Kajian Sirah Nabawiyah Eksklusif", imageUrl: "https://images.unsplash.com/photo-1580238053495-b9720401fd45?auto=format&fit=crop&w=1200&q=80" },
+        { title: "Pelepasan Haru Jemaah VIP", imageUrl: "https://images.unsplash.com/photo-1570222094114-d054a817e56b?auto=format&fit=crop&w=1200&q=80" },
+        { title: "Perjalanan Kereta Cepat Haramain", imageUrl: "https://images.unsplash.com/photo-1561383827-046ee9fec886?auto=format&fit=crop&w=1200&q=80" },
+        { title: "City Tour Jabal Magnet & Al-Ula", imageUrl: "https://images.unsplash.com/photo-1623512903741-9fb12a912bb1?auto=format&fit=crop&w=1200&q=80" }
+      ];
+      for (const p of defaultPhotos) {
+        await db.insert(schema.gallery_photos).values({
+          workspaceId: ws.id,
+          title: p.title,
+          imageUrl: p.imageUrl
+        });
+      }
+    }
+
+    // 7. Admin Settings Seeding
+    const existingSettings = await db.select().from(schema.adminSettings).catch(() => []);
+    if (!existingSettings || existingSettings.length === 0) {
+      await db.insert(schema.adminSettings).values({
+        workspaceId: ws.id,
+        travelName: 'PT Golden Travel Umrah & Hajj',
+        whatsappNumber: '08111111111',
+        defaultCommissionRate: '1500000.00',
+        bankAccounts: [
+          { bankName: 'Bank Syariah Indonesia (BSI)', accountNumber: '7700889911', accountHolder: 'PT Golden Travel Indonesia' },
+          { bankName: 'Bank Mandiri', accountNumber: '1230009876543', accountHolder: 'PT Golden Travel Indonesia' }
+        ]
+      });
+    }
+
+    console.log("=== SEEDING SELESAI DENGAN SUKSES ===");
+  } catch (err: any) {
+    console.error("Kesalahan saat seeding database:", err?.message || err);
   }
 }
 
   httpServer.listen(Number(PORT), "0.0.0.0", async () => {
-    
     try {
-      await ensureTablesExist();
-
-      console.log("Menjalankan migrasi Drizzle secara programatis...");
-      await migrate(db, { migrationsFolder: path.join(process.cwd(), 'drizzle') }).catch(e => {
-        console.warn("Drizzle migrate skipped/warning:", e?.message);
-      });
-      console.log("Migrasi database diselesaikan.");
-
-      // Seeding Admin
-      console.log("Memeriksa apakah akun admin sudah ada di database...");
-      const adminCount = await db.select({ count: sql`count(*)` }).from(schema.users).where(eq(schema.users.role, 'admin'));
-      if (Number(adminCount[0].count) === 0) {
-        console.log("Belum ada admin di database. Membuat admin default (admin@goldentravel.id)...");
-        let ws = await db.query.workspaces.findFirst();
-        if (!ws) {
-          console.log("Workspace belum ada. Membuat workspace default...");
-          const newWs = await db.insert(schema.workspaces).values({
-            name: "Golden Travel Workspace"
-          }).returning();
-          ws = newWs[0];
-        }
-        
-        await db.insert(schema.users).values({
-          workspaceId: ws.id,
-          uid: crypto.randomUUID(),
-          name: 'Super Admin',
-          email: 'admin@goldentravel.id',
-          password: hashPassword('admin123'),
-          role: 'admin',
-          status: 'active'
-        });
-        console.log("Akun admin default (admin@goldentravel.id / admin123) berhasil dibuat!");
-      } else {
-        console.log("Akun admin sudah terdaftar di database.");
-      }
+      await initializeGlobalDatabase();
+      await seedAllPortals();
     } catch (err) {
-      console.error("Gagal menjalankan migrasi / seeder:", err);
+      console.error("Gagal menjalankan inisialisasi database / seeder:", err);
     }
 
-
-      // Seed gallery if empty
-      try {
-        const galleryCount = await db.select({ count: sql`count(*)` }).from(schema.gallery_photos);
-        if (Number(galleryCount[0].count) === 0) {
-          console.log("Seeding gallery photos...");
-          const defaultPhotos = [
-            { title: "Thawaf Khusyuk & Sa\'i Jemaah VIP Ring 1", imageUrl: "https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=1200&q=80" },
-            { title: "Kajian Sirah Nabawiyah Eksklusif", imageUrl: "https://images.unsplash.com/photo-1580238053495-b9720401fd45?auto=format&fit=crop&w=1200&q=80" },
-            { title: "Pelepasan Haru Jemaah VIP", imageUrl: "https://images.unsplash.com/photo-1570222094114-d054a817e56b?auto=format&fit=crop&w=1200&q=80" },
-            { title: "Perjalanan Kereta Cepat Haramain", imageUrl: "https://images.unsplash.com/photo-1561383827-046ee9fec886?auto=format&fit=crop&w=1200&q=80" },
-            { title: "City Tour Jabal Magnet & Al-Ula", imageUrl: "https://images.unsplash.com/photo-1623512903741-9fb12a912bb1?auto=format&fit=crop&w=1200&q=80" },
-            { title: "Tenda AC VIP & Sofa Bed Armuzna", imageUrl: "https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=1200&q=80" },
-            { title: "Penerbangan Direct Flight Saudia Airlines", imageUrl: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?auto=format&fit=crop&w=1200&q=80" }
-          ];
-          const ws = await db.query.workspaces.findFirst();
-          if (ws) {
-            for (const p of defaultPhotos) {
-              await db.insert(schema.gallery_photos).values({
-                workspaceId: ws.id,
-                title: p.title,
-                imageUrl: p.imageUrl
-              });
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Error seeding gallery:", err);
-      }
-console.log(`Server running on http://0.0.0.0:${PORT}`);
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }
 
 startServer().catch((err) => {
   console.error("Fatal error starting server:", err);
 });
+

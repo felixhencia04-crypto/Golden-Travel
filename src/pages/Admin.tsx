@@ -128,6 +128,7 @@ export default function Admin() {
   const handleLogout = async () => {
     localStorage.removeItem("admin_token");
     sessionStorage.removeItem("admin_token");
+    sessionStorage.removeItem("cached_admin_portal_data");
     await auth.signOut();
     navigate('/admin/login');
   };
@@ -1767,6 +1768,7 @@ export default function Admin() {
         localStorage.setItem('admin_token', res.token);
         sessionStorage.setItem('admin_token', res.token);
       }
+      sessionStorage.removeItem("cached_admin_portal_data");
 
       // Optionally update password in Firebase if logged in via Firebase
       if (adminProfileForm.password) {
