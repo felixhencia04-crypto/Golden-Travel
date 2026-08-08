@@ -44,11 +44,24 @@ export function useAdminData() {
     if (!silent && !cache) setLoading(true);
 
     try {
+      // Fetch admin packages with fallback
+      const fetchPackages = async () => {
+        try {
+          const res = await api.get('/admin/packages');
+          if (Array.isArray(res)) return res;
+        } catch (e) {}
+        try {
+          const res2 = await api.get('/packages');
+          if (Array.isArray(res2)) return res2;
+        } catch (e) {}
+        return [];
+      };
+
       // Chunk requests to prevent rate limit (HTTP 429) and db connection pool exhaustion
       const chunk1 = await Promise.all([
         api.get('/admin/users').catch((e) => { console.warn("Admin users fetch error:", e?.message); return { __error: true }; }),
         api.get('/admin/registrations').catch((e) => { console.warn("Admin registrations fetch error:", e?.message); return { __error: true }; }),
-        api.get('/packages').catch((e) => { console.warn("Packages fetch error:", e?.message); return { __error: true }; }),
+        fetchPackages(),
       ]);
       const chunk2 = await Promise.all([
         api.get('/admin/schedules').catch((e) => { console.warn("Schedules fetch error:", e?.message); return { __error: true }; }),

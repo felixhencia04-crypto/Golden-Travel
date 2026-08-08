@@ -2,7 +2,7 @@ import { useLogo } from '../utils/logo';
 import { toast } from 'sonner';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { updateLogo } from '../utils/logo';
-import { Package } from '../types';
+import type { Package } from '../types';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Link, useNavigate } from 'react-router-dom';
 import VerificationManagement from '../components/VerificationManagement';
@@ -35,7 +35,7 @@ import {
   CreditCard, Globe, Image as ImageIcon, FileText, Tag, Star, 
   ShieldCheck, Download, UsersRound, Settings, BarChart3, LogOut, User, Building, Plane, Bus, UserCheck, FileSpreadsheet,
   Plus, Edit2, Trash2, Search, Filter, MoreVertical, CheckCircle, CheckCircle2, X, MapPin, Printer, Smartphone,
-  Banknote, Bell, History, Clock, AlertCircle, ChevronRight, ChevronDown, Megaphone, Package as InventoryIcon, Scroll, Check, UserPlus,
+  Banknote, Bell, History, Clock, AlertCircle, ChevronRight, ChevronDown, Megaphone, Package as InventoryIcon, Package as PackageIcon, Scroll, Check, UserPlus,
   MessageCircle, Award, UserCircle, Send, MessageSquare, Eye, RefreshCw, AlertTriangle, ExternalLink, FileCheck, Video, Upload, UploadCloud,
   LifeBuoy, Inbox, ShieldAlert, MousePointer2, Lock, BookOpen, Book, Menu, RotateCcw, Maximize2, ZoomIn, Wallet, Luggage
  } from 'lucide-react';
@@ -3021,68 +3021,91 @@ export default function Admin() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {packages.filter(p => p.type === activePackageTab).map((pkg) => (
-                      <div key={pkg.id} className="bg-white shadow-md rounded-xl overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-                        <div className="relative h-[180px] overflow-hidden rounded-t-xl">
-                          <img 
-                            src={pkg.imageUrl || pkg.image || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80'} 
-                            alt={pkg.name} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                          />
-                          <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
-                            <div className="bg-white/95 backdrop-blur-md px-4 py-1.5 rounded-2xl border border-white/20 shadow-lg flex flex-col items-end">
-                              <span className="text-[10px] font-black text-gray-900 uppercase tracking-[0.2em]">{pkg.duration}</span>
-                              <span className="text-[9px] font-bold text-gray-600">SISA: {(pkg as any).remainingSeats ?? (pkg.quota || 45)} / {pkg.quota || 45}</span>
+                    {(() => {
+                      const filteredPkgs = packages.filter(p => {
+                        const t = (p?.type || 'umroh').toString().trim().toLowerCase();
+                        if (activePackageTab === 'umroh') return t === 'umroh' || t === 'umrah';
+                        if (activePackageTab === 'haji') return t === 'haji';
+                        return true;
+                      });
+
+                      if (filteredPkgs.length === 0) {
+                        return (
+                          <div className="col-span-full bg-white/90 border border-dashed border-gray-300 rounded-3xl p-12 text-center space-y-3 shadow-sm">
+                            <div className="w-14 h-14 bg-emerald-50 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto">
+                              <PackageIcon className="w-7 h-7" />
                             </div>
-                            {pkg.isAvailable ? (
-                              <span className="bg-green-500/90 backdrop-blur-md text-gray-900 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">Tersedia</span>
-                            ) : (
-                              <span className="bg-red-500/90 backdrop-blur-md text-gray-900 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">Full Booked</span>
-                            )}
+                            <h3 className="text-lg font-bold text-gray-900">Belum ada {activePackageTab === 'umroh' ? 'Paket Umroh' : 'Paket Haji'}</h3>
+                            <p className="text-xs text-gray-500 max-w-md mx-auto leading-relaxed">
+                              Tidak ada data paket yang tersimpan untuk kategori ini. Klik tombol <strong className="text-emerald-800">"Tambah Paket"</strong> di atas untuk membuat paket perjalanan baru.
+                            </p>
                           </div>
-                        </div>
-                        <div className="p-6 flex flex-col flex-grow">
-                          <div className="mb-4">
-                            <h3 className="font-bold text-gray-900 text-xl leading-tight mb-2">{pkg.name}</h3>
-                            <div className="inline-flex items-center bg-gray-100 text-gray-900 px-3 py-1.5 rounded-xl">
-                              <span className="text-sm font-black">Rp {Number(pkg.price).toLocaleString('id-ID')}</span>
+                        );
+                      }
+
+                      return filteredPkgs.map((pkg) => (
+                        <div key={pkg.id} className="bg-white shadow-md rounded-xl overflow-hidden group hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                          <div className="relative h-[180px] overflow-hidden rounded-t-xl">
+                            <img 
+                              src={pkg.imageUrl || pkg.image || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80'} 
+                              alt={pkg.name} 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                            />
+                            <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
+                              <div className="bg-white/95 backdrop-blur-md px-4 py-1.5 rounded-2xl border border-white/20 shadow-lg flex flex-col items-end">
+                                <span className="text-[10px] font-black text-gray-900 uppercase tracking-[0.2em]">{pkg.duration}</span>
+                                <span className="text-[9px] font-bold text-gray-600">SISA: {(pkg as any).remainingSeats ?? (pkg.quota || 45)} / {pkg.quota || 45}</span>
+                              </div>
+                              {pkg.isAvailable ? (
+                                <span className="bg-green-500/90 backdrop-blur-md text-gray-900 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">Tersedia</span>
+                              ) : (
+                                <span className="bg-red-500/90 backdrop-blur-md text-gray-900 text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">Full Booked</span>
+                              )}
                             </div>
                           </div>
-                          
-                          <div className={`text-gray-700 text-xs mb-4 leading-tight flex-grow font-bold grid grid-cols-2 gap-2`}>
-                            {Array.isArray(pkg.description) ? (
-                              pkg.description.map((line: string, i: number) => (
-                                <p key={i} className="flex items-start m-0 p-0">
+                          <div className="p-6 flex flex-col flex-grow">
+                            <div className="mb-4">
+                              <h3 className="font-bold text-gray-900 text-xl leading-tight mb-2">{pkg.name}</h3>
+                              <div className="inline-flex items-center bg-gray-100 text-gray-900 px-3 py-1.5 rounded-xl">
+                                <span className="text-sm font-black">Rp {Number(pkg.price).toLocaleString('id-ID')}</span>
+                              </div>
+                            </div>
+                            
+                            <div className={`text-gray-700 text-xs mb-4 leading-tight flex-grow font-bold grid grid-cols-2 gap-2`}>
+                              {Array.isArray(pkg.description) ? (
+                                pkg.description.map((line: string, i: number) => (
+                                  <p key={i} className="flex items-start m-0 p-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-1 mr-1.5 shrink-0" />
+                                    <span className="break-words">{line}</span>
+                                  </p>
+                                ))
+                              ) : (
+                                <p className="flex items-start m-0 p-0 col-span-2">
                                   <span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-1 mr-1.5 shrink-0" />
-                                  <span className="break-words">{line}</span>
+                                  <span className="break-words">{pkg.description}</span>
                                 </p>
-                              ))
-                            ) : (
-                              <p className="flex items-start m-0 p-0 col-span-2">
-                                <span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-1 mr-1.5 shrink-0" />
-                                <span className="break-words">{pkg.description}</span>
-                              </p>
-                            )}
-                          </div>
-                          
-                          <div className="flex items-center gap-3 pt-4 border-t border-gray-100 mt-auto">
-                            <button 
-                              onClick={() => handleOpenPackageModal(pkg)}
-                              className="flex-1 flex items-center justify-center gap-2 bg-transparent hover:bg-gold-50 border border-gold-500 text-gold-600 py-3 rounded-xl transition-all font-bold text-sm"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                              Edit
-                            </button>
-                            <button 
-                              onClick={() => handleDeletePackage(pkg.id)}
-                              className="w-12 h-12 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-xl transition-all shadow-sm hover:shadow group shrink-0"
-                            >
-                              <Trash2 className="w-5 h-5 transition-transform group-hover:scale-110" />
-                            </button>
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center gap-3 pt-4 border-t border-gray-100 mt-auto">
+                              <button 
+                                onClick={() => handleOpenPackageModal(pkg)}
+                                className="flex-1 flex items-center justify-center gap-2 bg-transparent hover:bg-gold-50 border border-gold-500 text-gold-600 py-3 rounded-xl transition-all font-bold text-sm"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                                Edit
+                              </button>
+                              <button 
+                                onClick={() => handleDeletePackage(pkg.id)}
+                                className="w-12 h-12 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-xl transition-all shadow-sm hover:shadow group shrink-0"
+                              >
+                                <Trash2 className="w-5 h-5 transition-transform group-hover:scale-110" />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 </div>
               )}

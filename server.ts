@@ -1,3 +1,14 @@
+// Suppress GCP MetadataLookupWarning when running outside GCP (e.g. Railway, Render)
+process.env.DETECT_GCP_RETRIES = '0';
+process.env.NO_GCP_METADATA = 'true';
+
+process.on('warning', (warning) => {
+  if (warning?.name === 'MetadataLookupWarning' || warning?.message?.includes('MetadataLookupWarning')) {
+    return; // Ignore GCP metadata ping warnings in non-GCP hosts like Railway
+  }
+  console.warn(`[Process Warning] ${warning.name}: ${warning.message}`);
+});
+
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import express, { Request, Response, NextFunction } from "express";
 import path from "path";
@@ -6780,6 +6791,76 @@ async function startServer() {
   // [Moved Vite middleware to end]
 
   // --- Admin Endpoints ---
+
+  // Get Admin Packages (Bulletproof & Unfiltered)
+  app.get("/api/admin/packages", authenticate, async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'super_admin' && req.user?.email !== 'felix.hencia04@gmail.com') {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    try {
+      let allPackages: any[] = [];
+      try {
+        allPackages = await withRetry(() => 
+          db.select().from(schema.packages).orderBy(desc(schema.packages.createdAt))
+        );
+      } catch (err) {
+        console.warn("GET /api/admin/packages primary query failed, trying raw SQL...", err);
+        const rawRes: any = await db.execute(sql`
+          SELECT id, workspace_id as "workspaceId", name, description, price, 
+                 departure_date as "departureDate", duration, image_url as "imageUrl", 
+                 type, is_available as "isAvailable", quota, 
+                 manasik_pdf_url as "manasikPdfUrl", facilities, excludes, hotel, created_at as "createdAt"
+          FROM packages
+          ORDER BY created_at DESC
+        `);
+        allPackages = Array.isArray(rawRes) ? rawRes : (rawRes.rows || []);
+      }
+
+      let regCounts: any[] = [];
+      try {
+        regCounts = await withRetry(() => db.select({
+          packageId: schema.registrations.packageId,
+          adultCount: schema.registrations.adultCount,
+          childCount: schema.registrations.childCount,
+          infantCount: schema.registrations.infantCount,
+        }).from(schema.registrations));
+      } catch (e) {}
+
+      const formatted = (allPackages || []).map((pkg) => {
+        const pkgRegs = (regCounts || []).filter(r => r && r.packageId === pkg.id);
+        const takenSeats = pkgRegs.reduce((acc, r) => 
+          acc + (parseInt(r?.adultCount) || 0) + (parseInt(r?.childCount) || 0) + (parseInt(r?.infantCount) || 0), 0);
+        
+        const quotaNum = Number(pkg.quota) || 45;
+        const remainingSeats = Math.max(0, quotaNum - takenSeats);
+
+        let desc: any = pkg.description;
+        if (typeof desc === 'string') {
+          try { desc = JSON.parse(desc); } catch (e) { desc = desc ? desc.split('\n') : ["Fasilitas Bintang 5"]; }
+        }
+        let exc: any = pkg.excludes;
+        if (typeof exc === 'string') {
+          try { exc = JSON.parse(exc); } catch (e) { exc = exc ? exc.split('\n') : []; }
+        }
+
+        return { 
+          ...pkg, 
+          description: Array.isArray(desc) ? desc : [String(desc || "Fasilitas Bintang 5")],
+          excludes: Array.isArray(exc) ? exc : [],
+          quota: quotaNum,
+          takenSeats,
+          remainingSeats,
+          type: (pkg.type || 'umroh').toString().trim().toLowerCase(),
+          isAvailable: pkg.isAvailable !== false
+        };
+      });
+
+      res.json(formatted);
+    } catch (error: any) {
+      console.error("Database query failed in GET /api/admin/packages:", error);
+      res.status(500).json({ error: "Failed to fetch admin packages" });
+    }
+  });
 
   // Create Package
   app.post("/api/admin/packages", authenticate, async (req: AuthRequest, res) => {
