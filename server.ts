@@ -7205,7 +7205,11 @@ async function startServer() {
       notifyUpdate();
     } catch (error: any) {
       console.error("PATCH /api/users/me error:", error);
-      res.status(500).json({ error: error?.message || "Terjadi kesalahan pada server" });
+      let clientMsg = error?.message || "Terjadi kesalahan pada server";
+      if (typeof clientMsg === 'string' && (clientMsg.includes('Failed query:') || clientMsg.includes('SELECT') || clientMsg.includes('UPDATE') || clientMsg.includes('drizzle'))) {
+        clientMsg = "Gagal memperbarui profil admin. Terjadi kendala saat menyimpan ke database.";
+      }
+      res.status(500).json({ error: clientMsg });
     }
   });
 

@@ -869,6 +869,7 @@ export default function Admin() {
 
   // Admin Account State
   const [adminProfileForm, setAdminProfileForm] = useState({ name: 'Super Admin', email: 'admin@goldentravel.id', phone: '08111111111', password: '', confirmPassword: '' });
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
@@ -1721,11 +1722,13 @@ export default function Admin() {
   };
 
   const handleUpdateAdminProfile = async () => {
+    if (isUpdatingProfile) return;
     if (adminProfileForm.password && adminProfileForm.password !== adminProfileForm.confirmPassword) {
       toast.error("Konfirmasi kata sandi tidak cocok!");
       return;
     }
 
+    setIsUpdatingProfile(true);
     try {
       // Update admin profile & credentials via API
       const payload: any = {
@@ -1752,12 +1755,18 @@ export default function Admin() {
         }
       }
 
-      toast.success("Profil admin dan keamanan berhasil diperbarui!");
+      toast.success("Profil admin dan sistem berhasil diperbarui!");
       setAdminProfileForm(prev => ({ ...prev, password: '', confirmPassword: '' }));
       refreshData(true);
     } catch (error: any) {
       console.error("Admin profile update error:", error);
-      toast.error(error.message || "Gagal memperbarui profil admin.");
+      let msg = error?.message || "Gagal memperbarui profil admin.";
+      if (typeof msg === 'string' && (msg.includes('Failed query') || msg.includes('SELECT') || msg.includes('UPDATE'))) {
+        msg = "Gagal memperbarui profil admin. Silakan periksa koneksi data.";
+      }
+      toast.error(msg);
+    } finally {
+      setIsUpdatingProfile(false);
     }
   };
 
@@ -4086,9 +4095,11 @@ export default function Admin() {
                   <div className="flex justify-end pt-4">
                     <button 
                       onClick={handleUpdateAdminProfile}
-                      className="px-10 py-4 bg-gray-50 text-gray-900 rounded-2xl font-bold hover:bg-gray-200 transition-all shadow-xl shadow-gray-900/20 active:scale-95"
+                      disabled={isUpdatingProfile}
+                      className="px-10 py-4 bg-amber-500 text-white rounded-2xl font-bold hover:bg-amber-600 transition-all shadow-xl shadow-amber-500/20 active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center space-x-2"
                     >
-                      Update Sistem
+                      {isUpdatingProfile && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
+                      <span>{isUpdatingProfile ? 'Memproses...' : 'Update Sistem'}</span>
                     </button>
                   </div>
                 </div>
