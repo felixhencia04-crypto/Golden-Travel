@@ -15,7 +15,8 @@
     "db:push": "drizzle-kit push --config=src/db/drizzle.config.ts --force",
     "db:seed": "tsx src/db/seed.ts",
     "start:prod": "npx drizzle-kit push --config=src/db/drizzle.config.ts --force && node dist/server.cjs",
-    "railway:migrate": "npx drizzle-kit push --config=src/db/drizzle.config.ts --force"
+    "railway:migrate": "npx drizzle-kit push --config=src/db/drizzle.config.ts --force",
+    "db:migrate:prod": "tsx src/db/migrate.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
