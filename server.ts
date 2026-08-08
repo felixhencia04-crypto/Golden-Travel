@@ -281,6 +281,15 @@ async function authenticate(req: AuthRequest, res: Response, next: NextFunction)
           }
         }
 
+        if (!user && (decoded.role === 'admin' || decoded.role === 'super_admin')) {
+          try {
+            const [u] = await withRetry(() => db.select().from(schema.users).where(and(or(eq(schema.users.role, 'admin'), eq(schema.users.role, 'super_admin')), isNull(schema.users.deletedAt))).limit(1), 5);
+            user = u || null;
+          } catch (e: any) {
+            console.warn(`[Auth] Admin role fallback lookup failed: ${e.message}`);
+          }
+        }
+
         const effectiveUser = user ? { ...user } : { ...decoded };
         
         // Ensure role and workspace are present for admin
@@ -7315,15 +7324,13 @@ async function startServer() {
         }
       }
 
-      // Fallback for admin user if database row update didn't return record
-      if (!updatedUser && req.user?.role === 'admin') {
-        updatedUser = {
-          ...req.user,
-          ...setData,
-          id: targetUserId || req.user.id || '00000000-0000-0000-0000-000000000000',
-          role: 'admin'
-        };
-      }
+      // Ensure updatedUser retains setData values explicitly
+      updatedUser = {
+        ...(req.user || {}),
+        ...(updatedUser || {}),
+        ...setData,
+        role: req.user?.role || 'admin'
+      };
 
       if (!updatedUser) {
         return res.status(404).json({ error: 'User tidak ditemukan di database.' });
@@ -7333,12 +7340,13 @@ async function startServer() {
       let freshToken: string | undefined = undefined;
       if (req.user?.role === 'admin') {
         freshToken = jwt.sign({
-          id: updatedUser.id,
+          id: updatedUser.id || targetUserId || '00000000-0000-0000-0000-000000000000',
           role: 'admin',
           email: updatedUser.email || 'admin@goldentravel.id',
-          name: updatedUser.name || 'Super Admin',
+          name: updatedUser.name || setData.name || 'Super Admin',
+          phone: updatedUser.phone || setData.phone || '08111111111',
           workspaceId: updatedUser.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef'
-        }, JWT_SECRET, { expiresIn: '1d' });
+        }, JWT_SECRET, { expiresIn: '7d' });
       }
 
       invalidateUserCache();

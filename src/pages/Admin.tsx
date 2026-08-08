@@ -1771,6 +1771,14 @@ export default function Admin() {
       }
       sessionStorage.removeItem("cached_admin_portal_data");
 
+      setAdminProfileForm({
+        name: res?.name || payload.name,
+        phone: res?.phone || payload.phone,
+        email: res?.email || payload.email,
+        password: '',
+        confirmPassword: ''
+      });
+
       // Optionally update password in Firebase if logged in via Firebase
       if (adminProfileForm.password) {
         const firebaseUser = auth.currentUser;
@@ -1784,7 +1792,6 @@ export default function Admin() {
       }
 
       toast.success("Profil admin dan sistem berhasil diperbarui!");
-      setAdminProfileForm(prev => ({ ...prev, password: '', confirmPassword: '' }));
       refreshData(true, true);
     } catch (error: any) {
       console.error("Admin profile update error:", error);
