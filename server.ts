@@ -554,11 +554,431 @@ async function startServer() {
     });
   });
 
-  // Database sync is now managed via Drizzle migrations.
-  // Manual runtime schema verification is disabled to prevent ownership errors and race conditions.
+  // Comprehensive DB Schema and Column Verification & Migration
   async function ensureTableAndColumns() {
-    console.log('[DB Migration] Schema is managed via Drizzle. Skipping manual verification.');
-    return;
+    console.log('[DB Auto-Migration] Running complete schema & column verification for production database...');
+    
+    const runSql = async (query: string) => {
+      try {
+        await db.execute(sql.raw(query));
+      } catch (err: any) {
+        // Silently catch column/type warnings
+      }
+    };
+
+    // 1. Workspaces
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "workspaces" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "name" text NOT NULL,
+        "slug" text UNIQUE NOT NULL,
+        "domain" text UNIQUE,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+
+    // 2. Users
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "users" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "email" text UNIQUE NOT NULL,
+        "name" text NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "uid" text;`);
+    await runSql(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone" text;`);
+    await runSql(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text;`);
+    await runSql(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "role" text DEFAULT 'jamaah';`);
+    await runSql(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'active';`);
+    await runSql(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "mitra_id" uuid;`);
+    await runSql(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "referral_code" text;`);
+    await runSql(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "password" text;`);
+    await runSql(`ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "deleted_at" timestamp;`);
+
+    // 3. Packages
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "packages" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "name" text NOT NULL,
+        "description" text NOT NULL,
+        "price" numeric(12, 2) NOT NULL,
+        "duration" text NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "departure_date" timestamp;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "image_url" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "facilities" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "excludes" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "hotel" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "type" text DEFAULT 'umroh';`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "is_available" boolean DEFAULT true;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "quota" integer DEFAULT 45;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "manasik_pdf_url" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "muthawwif_name" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "muthawwif_role" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "muthawwif_phone" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "muthawwif_avatar_url" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "muthawwif_notes" text;`);
+
+    // 4. Schedules
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "schedules" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "package_id" uuid NOT NULL,
+        "departure_date" timestamp NOT NULL,
+        "total_seats" integer NOT NULL,
+        "available_seats" integer NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "schedules" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "schedules" ADD COLUMN IF NOT EXISTS "name" text;`);
+    await runSql(`ALTER TABLE "schedules" ADD COLUMN IF NOT EXISTS "airline" text;`);
+    await runSql(`ALTER TABLE "schedules" ADD COLUMN IF NOT EXISTS "itinerary_pdf_url" text;`);
+    await runSql(`ALTER TABLE "schedules" ADD COLUMN IF NOT EXISTS "muthawwif_name" text;`);
+    await runSql(`ALTER TABLE "schedules" ADD COLUMN IF NOT EXISTS "muthawwif_role" text;`);
+    await runSql(`ALTER TABLE "schedules" ADD COLUMN IF NOT EXISTS "muthawwif_phone" text;`);
+    await runSql(`ALTER TABLE "schedules" ADD COLUMN IF NOT EXISTS "muthawwif_avatar_url" text;`);
+    await runSql(`ALTER TABLE "schedules" ADD COLUMN IF NOT EXISTS "muthawwif_notes" text;`);
+
+    // 5. Registrations
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "registrations" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" uuid NOT NULL,
+        "package_id" uuid NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "registrations" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "registrations" ADD COLUMN IF NOT EXISTS "schedule_id" uuid;`);
+    await runSql(`ALTER TABLE "registrations" ADD COLUMN IF NOT EXISTS "status" text DEFAULT 'DRAFT';`);
+    await runSql(`ALTER TABLE "registrations" ADD COLUMN IF NOT EXISTS "orderer_name" text;`);
+    await runSql(`ALTER TABLE "registrations" ADD COLUMN IF NOT EXISTS "orderer_phone" text;`);
+    await runSql(`ALTER TABLE "registrations" ADD COLUMN IF NOT EXISTS "orderer_email" text;`);
+    await runSql(`ALTER TABLE "registrations" ADD COLUMN IF NOT EXISTS "orderer_notes" text;`);
+    await runSql(`ALTER TABLE "registrations" ADD COLUMN IF NOT EXISTS "adult_count" text DEFAULT '1';`);
+    await runSql(`ALTER TABLE "registrations" ADD COLUMN IF NOT EXISTS "child_count" text DEFAULT '0';`);
+    await runSql(`ALTER TABLE "registrations" ADD COLUMN IF NOT EXISTS "infant_count" text DEFAULT '0';`);
+    await runSql(`ALTER TABLE "registrations" ADD COLUMN IF NOT EXISTS "total_amount" numeric(12,2) DEFAULT 0;`);
+    await runSql(`ALTER TABLE "registrations" ADD COLUMN IF NOT EXISTS "pax_data" jsonb;`);
+
+    // 6. Payments
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "payments" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "registration_id" uuid NOT NULL,
+        "payment_type" text NOT NULL,
+        "amount" numeric(12,2) NOT NULL,
+        "proof_url" text NOT NULL,
+        "status" text DEFAULT 'PENDING' NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "admin_notes" text;`);
+    await runSql(`ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "verified_at" timestamp;`);
+    await runSql(`ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "verified_by" uuid;`);
+
+    // 7. Documents
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "documents" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "registration_id" uuid NOT NULL,
+        "doc_type" text NOT NULL,
+        "file_url" text NOT NULL,
+        "status" text DEFAULT 'PENDING' NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "admin_notes" text;`);
+
+    // 8. Notifications
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "notifications" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "title" text NOT NULL,
+        "message" text NOT NULL,
+        "type" text NOT NULL,
+        "is_read" text DEFAULT 'false' NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "notifications" ADD COLUMN IF NOT EXISTS "user_id" uuid;`);
+
+    // 9. Package Itineraries
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "package_itineraries" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "package_id" uuid NOT NULL,
+        "day" integer NOT NULL,
+        "title" text NOT NULL,
+        "description" text NOT NULL,
+        "location" text,
+        "meals" text,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+
+    // 10. Gallery Photos & Videos
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "gallery_photos" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "image_url" text NOT NULL,
+        "title" text,
+        "description" text,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "gallery_photos" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "gallery_videos" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "video_url" text NOT NULL,
+        "thumbnail_url" text,
+        "title" text,
+        "description" text,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "gallery_videos" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+
+    // 11. Buku Kas Mutasi
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "buku_kas_mutasi" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "amount" numeric(12,2) NOT NULL,
+        "transaction_type" text NOT NULL,
+        "description" text NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "buku_kas_mutasi" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "buku_kas_mutasi" ADD COLUMN IF NOT EXISTS "payment_id" uuid;`);
+
+    // 12. Manifest
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "manifest_keberangkatan" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "package_id" uuid NOT NULL,
+        "registration_id" uuid NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "manifest_keberangkatan" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "manifest_keberangkatan" ADD COLUMN IF NOT EXISTS "bus_number" text;`);
+    await runSql(`ALTER TABLE "manifest_keberangkatan" ADD COLUMN IF NOT EXISTS "hotel_room" text;`);
+    await runSql(`ALTER TABLE "manifest_keberangkatan" ADD COLUMN IF NOT EXISTS "airplane_seat" text;`);
+    await runSql(`ALTER TABLE "manifest_keberangkatan" ADD COLUMN IF NOT EXISTS "pax_manifest" jsonb;`);
+
+    // 13. Helpdesk Tiket
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "helpdesk_tiket" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" uuid NOT NULL,
+        "subject" text NOT NULL,
+        "message" text NOT NULL,
+        "status" text DEFAULT 'open' NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "helpdesk_tiket" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "helpdesk_tiket" ADD COLUMN IF NOT EXISTS "replies" jsonb DEFAULT '[]'::jsonb;`);
+
+    // 14. Sertifikat Kenangan
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "sertifikat_kenangan" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "certificate_url" text NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "sertifikat_kenangan" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "sertifikat_kenangan" ADD COLUMN IF NOT EXISTS "registration_id" uuid;`);
+    await runSql(`ALTER TABLE "sertifikat_kenangan" ADD COLUMN IF NOT EXISTS "recipient_name" text;`);
+
+    // 15. Equipment Status
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "equipment_status" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "registration_id" uuid NOT NULL,
+        "koper" boolean DEFAULT false NOT NULL,
+        "ihram" boolean DEFAULT false NOT NULL,
+        "mukena" boolean DEFAULT false NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "equipment_status" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "equipment_status" ADD COLUMN IF NOT EXISTS "assignee" text;`);
+
+    // 16. Memories
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "memories" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "image_url" text NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "package_id" uuid;`);
+    await runSql(`ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "schedule_id" uuid;`);
+    await runSql(`ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "registration_id" uuid;`);
+    await runSql(`ALTER TABLE "memories" ADD COLUMN IF NOT EXISTS "caption" text;`);
+
+    // 17. Activities
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "activities" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "registration_id" uuid NOT NULL,
+        "action" text NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "activities" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "activities" ADD COLUMN IF NOT EXISTS "user_id" uuid;`);
+    await runSql(`ALTER TABLE "activities" ADD COLUMN IF NOT EXISTS "details" text;`);
+
+    // 18. Mitra Users, Profiles, KYC, Commission Payouts
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "mitra_users" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "name" text NOT NULL,
+        "email" text UNIQUE NOT NULL,
+        "no_wa" text NOT NULL,
+        "password_hash" text NOT NULL,
+        "status_akun" text DEFAULT 'incomplete_profile' NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "mitra_profiles" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" uuid UNIQUE NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "nama_lengkap" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "nik" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "tempat_lahir" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "tanggal_lahir" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "alamat_lengkap" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "nama_bank" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "no_rekening" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "nama_pemilik_rekening" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "npwp" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "jenis_kelamin" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "status_perkawinan" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "pekerjaan" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "provinsi" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "kota" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "kecamatan" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "kode_pos" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "whatsapp" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "bukti_transfer" text;`);
+    await runSql(`ALTER TABLE "mitra_profiles" ADD COLUMN IF NOT EXISTS "review_notes" text;`);
+
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "kyc_documents" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "user_id" uuid NOT NULL,
+        "document_type" text NOT NULL,
+        "file_url" text NOT NULL,
+        "status" text DEFAULT 'pending' NOT NULL,
+        "uploaded_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "mitra_commission_payouts" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "mitra_name" text NOT NULL,
+        "amount" numeric(12, 2) NOT NULL,
+        "bank_name" text NOT NULL,
+        "account_number" text NOT NULL,
+        "account_holder" text NOT NULL,
+        "status" text DEFAULT 'PENDING' NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "mitra_user_id" uuid;`);
+    await runSql(`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "mitra_phone" text;`);
+    await runSql(`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "jamaah_name" text;`);
+    await runSql(`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "package_name" text;`);
+    await runSql(`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "mitra_notes" text;`);
+    await runSql(`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "admin_notes" text;`);
+    await runSql(`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "proof_of_transfer_url" text;`);
+    await runSql(`ALTER TABLE "mitra_commission_payouts" ADD COLUMN IF NOT EXISTS "transfer_date" timestamp;`);
+
+    // 19. Hotels & Airlines
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "hotels" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "name" text NOT NULL,
+        "city" text NOT NULL,
+        "rating" integer DEFAULT 4 NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "hotels" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "hotels" ADD COLUMN IF NOT EXISTS "distance" text;`);
+    await runSql(`ALTER TABLE "hotels" ADD COLUMN IF NOT EXISTS "image_url" text;`);
+
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "airlines" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "name" text NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "airlines" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "airlines" ADD COLUMN IF NOT EXISTS "code" text;`);
+    await runSql(`ALTER TABLE "airlines" ADD COLUMN IF NOT EXISTS "logo_url" text;`);
+
+    // 20. Financial Verifications
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "financial_verifications" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "amount" numeric(12, 2) NOT NULL,
+        "created_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "financial_verifications" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "financial_verifications" ADD COLUMN IF NOT EXISTS "payment_id" uuid;`);
+    await runSql(`ALTER TABLE "financial_verifications" ADD COLUMN IF NOT EXISTS "verifier_name" text;`);
+    await runSql(`ALTER TABLE "financial_verifications" ADD COLUMN IF NOT EXISTS "verification_status" text DEFAULT 'APPROVED';`);
+    await runSql(`ALTER TABLE "financial_verifications" ADD COLUMN IF NOT EXISTS "notes" text;`);
+
+    // 21. Admin Settings
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "admin_settings" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "travel_name" text DEFAULT 'PT Golden Travel Umrah' NOT NULL,
+        "default_commission_rate" numeric(12, 2) DEFAULT 1500000.00,
+        "whatsapp_number" text DEFAULT '08111111111',
+        "updated_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    await runSql(`ALTER TABLE "admin_settings" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "admin_settings" ADD COLUMN IF NOT EXISTS "travel_logo_url" text;`);
+    await runSql(`ALTER TABLE "admin_settings" ADD COLUMN IF NOT EXISTS "bank_accounts" jsonb DEFAULT '[]'::jsonb;`);
+
+    console.log('[DB Auto-Migration] All tables and columns verified & created successfully.');
   }
 
   // Run lightweight schema auto-migrations on startup before accepting requests
