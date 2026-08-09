@@ -3842,8 +3842,17 @@ async function startServer() {
             const normStatus = newStatus === 'VERIFIED' ? 'verified' : newStatus === 'REJECTED' ? 'rejected' : 'pending';
             const targetType = docType || targetDoc?.docType;
             if (targetType) {
-              const updatedPax = reg.paxData.map((p: any) => {
-                const isTargetPax = !jamaahId || p.id === jamaahId || (p.userName && targetDoc && p.userName === targetDoc.userName) || reg.paxData.length === 1;
+              const updatedPax = reg.paxData.map((p: any, pIdx: number) => {
+                const generatedPaxId = `JAM-${targetRegId.substring(0, 8)}-${pIdx + 1}`;
+                const targetName = (req.body.userName || targetDoc?.userName || '').trim().toLowerCase();
+                const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim().toLowerCase();
+
+                const isTargetPax = !jamaahId || 
+                  p.id === jamaahId || 
+                  generatedPaxId === jamaahId || 
+                  (targetName && pName && targetName === pName) ||
+                  reg.paxData.length === 1;
+
                 if (!isTargetPax) return p;
 
                 const pDocs = { ...(p.documents || {}) };
@@ -7058,22 +7067,70 @@ async function startServer() {
         }
 
         // Send notification to jamaah if registration exists and fileUrl provided
-      if (reg && reg.userId && item.fileUrl) {
-        const baseDocType = item.docType.split('_pax_')[0];
-        const docNameMap: Record<string, string> = {
-          eticket: 'E-Ticket Keberangkatan',
-          visa: 'Visa',
-          asuransi: 'Asuransi Perjalanan'
-        };
-        const docLabel = docNameMap[baseDocType] || baseDocType;
-        await withRetry(() => db.insert(schema.notifications).values({
-                    workspaceId: req.user!.workspaceId!,
-                    userId: reg.userId,
-                    title: `Dokumen Ready: ${docLabel}`,
-                    message: `Dokumen ${docLabel} Anda telah diterbitkan oleh pihak Travel dan siap diunduh di Portal Jamaah.`,
-                    type: 'info'
-                  }).catch((err) => console.error("Notif insert error:", err)));
+        if (reg && reg.userId && item.fileUrl) {
+          const baseDocType = item.docType.split('_pax_')[0];
+          const docNameMap: Record<string, string> = {
+            eticket: 'E-Ticket Keberangkatan',
+            visa: 'Visa',
+            asuransi: 'Asuransi Perjalanan'
+          };
+          const docLabel = docNameMap[baseDocType] || baseDocType;
+          await withRetry(() => db.insert(schema.notifications).values({
+                      workspaceId: req.user!.workspaceId!,
+                      userId: reg.userId,
+                      title: `Dokumen Ready: ${docLabel}`,
+                      message: `Dokumen ${docLabel} Anda telah diterbitkan oleh pihak Travel dan siap diunduh di Portal Jamaah.`,
+                      type: 'info'
+                    }).catch((err) => console.error("Notif insert error:", err)));
+        }
       }
+
+      // Keep paxData in registrations table in sync
+      if (reg && Array.isArray(reg.paxData)) {
+        try {
+          const updatedPax = reg.paxData.map((p: any, pIdx: number) => {
+            const pDocs = { ...(p.documents || {}) };
+            const pFiles = { ...(p.docFiles || {}) };
+            const pIssued = { ...(p.issuedDocs || {}) };
+
+            for (const item of docItems) {
+              if (!item.docType) continue;
+              const baseDocType = item.docType.split('_pax_')[0];
+              const paxMatch = item.docType.includes('_pax_') ? item.docType.endsWith(`_pax_${pIdx}`) : true;
+              if (paxMatch && item.fileUrl) {
+                pDocs[item.docType] = {
+                  ...(pDocs[item.docType] || {}),
+                  fileUrl: item.fileUrl,
+                  url: item.fileUrl,
+                  status: 'verified',
+                  updatedAt: new Date().toISOString()
+                };
+                if (baseDocType === 'eticket' || baseDocType === 'visa' || baseDocType === 'asuransi') {
+                  const mappedKey = baseDocType === 'eticket' ? 'tiket' : baseDocType === 'asuransi' ? 'polis' : 'visa';
+                  pIssued[mappedKey] = true;
+                  pFiles[mappedKey] = {
+                    name: `${mappedKey.toUpperCase()}_Dokumen.pdf`,
+                    data: item.fileUrl,
+                    size: 'File Online',
+                    uploadedAt: new Date().toLocaleDateString('id-ID')
+                  };
+                }
+              }
+            }
+            return {
+              ...p,
+              documents: pDocs,
+              docFiles: pFiles,
+              issuedDocs: pIssued
+            };
+          });
+
+          await withRetry(() => db.update(schema.registrations)
+            .set({ paxData: updatedPax })
+            .where(eq(schema.registrations.id, registrationId)));
+        } catch (e) {
+          console.warn("Failed to sync paxData in final-documents POST:", e);
+        }
       }
 
       res.json({ success: true });

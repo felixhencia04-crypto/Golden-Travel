@@ -336,9 +336,12 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [realMitraList]);
 
+  const isSyncingRef = React.useRef(false);
+
   // Sync real-time updates from Mitra Panel & storage changes
   React.useEffect(() => {
     const handleSync = async () => {
+      if (isSyncingRef.current) return;
       try {
         // Re-fetch all Jamaah from PostgreSQL
         const dbJamaah = await api.get('/admin/mitra/all-jamaah').catch(() => null);
@@ -377,6 +380,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
   }, []);
 
   const saveAndSyncState = async (updatedList: any[]) => {
+    isSyncingRef.current = true;
     setJamaahList(updatedList);
     try {
       localStorage.setItem('mitra_jamaah_database', JSON.stringify(updatedList));
@@ -401,6 +405,8 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                         ...(pax.documents || {}),
                         ...(match.documents || {})
                       },
+                      docFiles: match.docFiles || pax.docFiles,
+                      issuedDocs: match.issuedDocs || pax.issuedDocs,
                       payments: match.payments || pax.payments
                     };
                   }
@@ -414,16 +420,19 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
           }
         }
       }
-
-      window.dispatchEvent(new Event('mitra_jamaah_updated'));
     } catch (e) {}
 
-    // Persist permanently to PostgreSQL
+    // Persist permanently to PostgreSQL FIRST before notifying listeners
     try {
       await api.post('/admin/mitra/jamaah/sync', { jamaahList: updatedList });
     } catch (err) {
       console.warn('Failed to sync updated jamaah list to PostgreSQL:', err);
+    } finally {
+      isSyncingRef.current = false;
     }
+
+    // Now dispatch event so listeners fetch clean, updated data from PostgreSQL
+    window.dispatchEvent(new Event('mitra_jamaah_updated'));
   };
 
   const [selectedJamaahIdx, setSelectedJamaahIdx] = useState(0);
@@ -668,7 +677,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       }
       return j;
     });
-    saveAndSyncState(updated);
+    await saveAndSyncState(updated);
     toast.success(`Dokumen ${docKey.toUpperCase()} jamaah ${target.userName} diverifikasi!`);
   };
 
@@ -710,7 +719,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       }
       return j;
     });
-    saveAndSyncState(updated);
+    await saveAndSyncState(updated);
     toast.error(`Dokumen ${docKey.toUpperCase()} jamaah ${target.userName} ditolak.`);
   };
 
@@ -1772,7 +1781,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     }
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const base64Data = event.target?.result as string;
       const updated = jamaahList.map((j) => {
         if (j.id === jamaahId) {
@@ -1798,7 +1807,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
         return j;
       });
       setJamaahList(updated);
-      saveAndSyncState(updated);
+      await saveAndSyncState(updated);
       toast.success(`File PDF ${docKey.toUpperCase()} "${file.name}" berhasil di-upload & diterbitkan!`);
     };
     reader.readAsDataURL(file);

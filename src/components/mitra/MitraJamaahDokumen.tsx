@@ -72,14 +72,15 @@ export default function MitraJamaahDokumen({ jamaahList, onRefresh }: MitraJamaa
   const selectedJamaah = activeJamaahList[selectedIndex] || activeJamaahList[0];
 
   // Sync helper
-  const syncToCentralDatabase = (updatedList: any[]) => {
+  const syncToCentralDatabase = async (updatedList: any[]) => {
     const scopedKey = getScopedKey('mitra_saved_pax_list');
     localStorage.setItem(scopedKey, JSON.stringify(updatedList));
     
     // Also sync to the central database that Admin portal reads
+    let updatedCentral: any[] = [];
     try {
       const centralDb = JSON.parse(localStorage.getItem('mitra_jamaah_database') || '[]');
-      const updatedCentral = centralDb.map((j: any) => {
+      updatedCentral = centralDb.map((j: any) => {
         const match = updatedList.find(p => p.id === j.id);
         if (match) {
           return { 
@@ -91,11 +92,20 @@ export default function MitraJamaahDokumen({ jamaahList, onRefresh }: MitraJamaa
         return j;
       });
       localStorage.setItem('mitra_jamaah_database', JSON.stringify(updatedCentral));
-      window.dispatchEvent(new Event('mitra_jamaah_updated'));
     } catch (e) {
       console.error('Failed to sync with central database:', e);
     }
 
+    // Persist to PostgreSQL database first
+    try {
+      if (updatedCentral.length > 0) {
+        await api.post('/admin/mitra/jamaah/sync', { jamaahList: updatedCentral });
+      }
+    } catch (err) {
+      console.warn('Failed to sync mitra jamaah documents to backend:', err);
+    }
+
+    window.dispatchEvent(new Event('mitra_jamaah_updated'));
     if (onRefresh) onRefresh();
   };
 
@@ -135,29 +145,35 @@ export default function MitraJamaahDokumen({ jamaahList, onRefresh }: MitraJamaa
   const handleUpload = (docId: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && selectedJamaah) {
-      const mockUrl = URL.createObjectURL(file);
-      const updatedList = localPaxList.map(p => {
-        if (p.id === selectedJamaah.id) {
-          return {
-            ...p,
-            documents: {
-              ...(p.documents || {}),
-              [docId]: { 
-                url: mockUrl, 
-                status: 'pending', 
-                uploadedAt: new Date().toISOString(),
-                fileType: file.type,
-                fileName: file.name
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const fileUrl = event.target?.result as string;
+
+        const updatedList = localPaxList.map(p => {
+          if (p.id === selectedJamaah.id) {
+            return {
+              ...p,
+              documents: {
+                ...(p.documents || {}),
+                [docId]: { 
+                  url: fileUrl, 
+                  fileUrl: fileUrl,
+                  status: 'pending', 
+                  uploadedAt: new Date().toISOString(),
+                  fileType: file.type,
+                  fileName: file.name
+                }
               }
-            }
-          };
-        }
-        return p;
-      });
-      
-      setLocalPaxList(updatedList);
-      syncToCentralDatabase(updatedList);
-      toast.success(`Dokumen ${docRequirements.find(d => d.id === docId)?.label} berhasil diunggah! Menunggu verifikasi admin.`);
+            };
+          }
+          return p;
+        });
+        
+        setLocalPaxList(updatedList);
+        await syncToCentralDatabase(updatedList);
+        toast.success(`Dokumen ${docRequirements.find(d => d.id === docId)?.label} berhasil diunggah! Menunggu verifikasi admin.`);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
