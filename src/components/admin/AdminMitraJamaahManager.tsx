@@ -510,6 +510,50 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     toast.error(`Dokumen ${docKey.toUpperCase()} jamaah ${target.userName} ditolak.`);
   };
 
+  const handleVerifyRejectPayment = async (payment: any, isApproved: boolean, fallbackJamaahId?: string) => {
+    const isValidUUID = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+    const targetStatus = isApproved ? 'verified' : 'rejected';
+    const jId = payment.jamaahId || fallbackJamaahId;
+
+    if (payment.id && isValidUUID(payment.id)) {
+      try {
+        await api.patch(`/admin/payments/${payment.id}/verify`, {
+          status: isApproved ? 'approved' : 'rejected',
+          reason: isApproved ? 'Disetujui oleh admin' : 'Ditolak oleh admin'
+        });
+      } catch (err: any) {
+        console.error("Gagal update pembayaran di backend:", err);
+        toast.error(`Gagal memproses status pembayaran di server: ${err.message || 'Server error'}`);
+        return;
+      }
+    }
+
+    const updated = jamaahList.map((j) => {
+      if (j.id === jId) {
+        const updatedPayments = (j.payments || []).map((p: any, i: number) => {
+          const isMatch = p.id === payment.id || i === payment.pIdx;
+          return isMatch ? { ...p, status: targetStatus } : p;
+        });
+        return { ...j, payments: updatedPayments };
+      }
+      return j;
+    });
+
+    saveAndSyncState(updated);
+    
+    if (isApproved) {
+      toast.success('Pembayaran berhasil diverifikasi!');
+    } else {
+      toast.error('Pembayaran ditolak!');
+    }
+
+    if (onRefresh) {
+      try {
+        onRefresh();
+      } catch (e) {}
+    }
+  };
+
   const handleDownloadZip = async () => {
     if (!activeDokumenJemaah) return;
     const docs = activeDokumenJemaah.documents;
@@ -2484,38 +2528,14 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                                     {payment.status === 'pending' && (
                                       <>
                                         <button
-                                          onClick={() => {
-                                            const updated = jamaahList.map(j => {
-                                              if (j.id === payment.jamaahId) {
-                                                const updatedPayments = (j.payments || []).map((p: any, i: number) => 
-                                                  (p.id === payment.id || i === payment.pIdx) ? { ...p, status: 'verified' } : p
-                                                );
-                                                return { ...j, payments: updatedPayments };
-                                              }
-                                              return j;
-                                            });
-                                            saveAndSyncState(updated);
-                                            toast.success('Pembayaran berhasil diverifikasi!');
-                                          }}
+                                          onClick={() => handleVerifyRejectPayment(payment, true)}
                                           className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm"
                                           title="Verifikasi Pembayaran"
                                         >
                                           <Check className="w-3.5 h-3.5" />
                                         </button>
                                         <button
-                                          onClick={() => {
-                                            const updated = jamaahList.map(j => {
-                                              if (j.id === payment.jamaahId) {
-                                                const updatedPayments = (j.payments || []).map((p: any, i: number) => 
-                                                  (p.id === payment.id || i === payment.pIdx) ? { ...p, status: 'rejected' } : p
-                                                );
-                                                return { ...j, payments: updatedPayments };
-                                              }
-                                              return j;
-                                            });
-                                            saveAndSyncState(updated);
-                                            toast.error('Pembayaran ditolak!');
-                                          }}
+                                          onClick={() => handleVerifyRejectPayment(payment, false)}
                                           className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 shadow-sm"
                                           title="Tolak Pembayaran"
                                         >
@@ -2711,38 +2731,14 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                                 {payment.status === 'pending' ? (
                                   <>
                                     <button
-                                      onClick={() => {
-                                        const updated = jamaahList.map(j => {
-                                          if (j.id === selectedJamaah.id) {
-                                            const updatedPayments = j.payments.map((p: any, i: number) => 
-                                              i === pIdx ? { ...p, status: 'verified' } : p
-                                            );
-                                            return { ...j, payments: updatedPayments };
-                                          }
-                                          return j;
-                                        });
-                                        saveAndSyncState(updated);
-                                        toast.success('Pembayaran berhasil diverifikasi!');
-                                      }}
+                                      onClick={() => handleVerifyRejectPayment({ ...payment, pIdx }, true, selectedJamaah.id)}
                                       className="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-sm"
                                       title="Verifikasi Pembayaran"
                                     >
                                       <Check className="w-4 h-4" />
                                     </button>
                                     <button
-                                      onClick={() => {
-                                        const updated = jamaahList.map(j => {
-                                          if (j.id === selectedJamaah.id) {
-                                            const updatedPayments = j.payments.map((p: any, i: number) => 
-                                              i === pIdx ? { ...p, status: 'rejected' } : p
-                                            );
-                                            return { ...j, payments: updatedPayments };
-                                          }
-                                          return j;
-                                        });
-                                        saveAndSyncState(updated);
-                                        toast.error('Pembayaran ditolak!');
-                                      }}
+                                      onClick={() => handleVerifyRejectPayment({ ...payment, pIdx }, false, selectedJamaah.id)}
                                       className="p-2 bg-red-500 text-white rounded-xl hover:bg-red-600 shadow-sm"
                                       title="Tolak Pembayaran"
                                     >
@@ -2890,38 +2886,14 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                                 {payment.status === 'pending' && (
                                   <>
                                     <button
-                                      onClick={() => {
-                                        const updated = jamaahList.map(j => {
-                                          if (j.id === payment.jamaahId) {
-                                            const updatedPayments = (j.payments || []).map((p: any, i: number) => 
-                                              (p.id === payment.id || i === payment.pIdx) ? { ...p, status: 'verified' } : p
-                                            );
-                                            return { ...j, payments: updatedPayments };
-                                          }
-                                          return j;
-                                        });
-                                        saveAndSyncState(updated);
-                                        toast.success('Pembayaran berhasil diverifikasi!');
-                                      }}
+                                      onClick={() => handleVerifyRejectPayment(payment, true)}
                                       className="p-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-sm"
                                       title="Verifikasi Pembayaran"
                                     >
                                       <Check className="w-3.5 h-3.5" />
                                     </button>
                                     <button
-                                      onClick={() => {
-                                        const updated = jamaahList.map(j => {
-                                          if (j.id === payment.jamaahId) {
-                                            const updatedPayments = (j.payments || []).map((p: any, i: number) => 
-                                              (p.id === payment.id || i === payment.pIdx) ? { ...p, status: 'rejected' } : p
-                                            );
-                                            return { ...j, payments: updatedPayments };
-                                          }
-                                          return j;
-                                        });
-                                        saveAndSyncState(updated);
-                                        toast.error('Pembayaran ditolak!');
-                                      }}
+                                      onClick={() => handleVerifyRejectPayment(payment, false)}
                                       className="p-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 shadow-sm"
                                       title="Tolak Pembayaran"
                                     >
