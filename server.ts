@@ -3769,7 +3769,7 @@ async function startServer() {
   // PATCH /api/admin/documents/verify -> Robust Admin verification endpoint
   app.patch("/api/admin/documents/verify", authenticate, async (req: AuthRequest, res) => {
     if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    const { registrationId, docId, docType, status, rejectionReason } = req.body;
+    const { registrationId, jamaahId, docId, docType, status, rejectionReason } = req.body;
     
     // Guard for client-side/localStorage only records (e.g. non-UUID registrationId)
     if (registrationId && !isValidUUID(registrationId)) {
@@ -3797,7 +3797,7 @@ async function startServer() {
         });
       }
 
-      if (!targetDoc && registrationId) {
+      if (!targetDoc && registrationId && docType) {
         targetDoc = await db.query.documents.findFirst({
           where: and(
             eq(schema.documents.registrationId, registrationId),
@@ -3833,7 +3833,7 @@ async function startServer() {
         resultDoc = inserted;
       }
 
-      // Also update paxData in registrations table so pax.documents stays in sync
+      // Also update paxData in registrations table so pax.documents stays in sync for this specific document
       const targetRegId = targetDoc?.registrationId || registrationId;
       if (targetRegId && isValidUUID(targetRegId)) {
         try {
@@ -3843,11 +3843,15 @@ async function startServer() {
             const targetType = docType || targetDoc?.docType;
             if (targetType) {
               const updatedPax = reg.paxData.map((p: any) => {
+                const isTargetPax = !jamaahId || p.id === jamaahId || (p.userName && targetDoc && p.userName === targetDoc.userName) || reg.paxData.length === 1;
+                if (!isTargetPax) return p;
+
                 const pDocs = { ...(p.documents || {}) };
                 pDocs[targetType] = {
                   ...(pDocs[targetType] || {}),
                   status: normStatus,
-                  adminNotes: rejectionReason || null
+                  adminNotes: rejectionReason || null,
+                  updatedAt: new Date().toISOString()
                 };
                 return { ...p, documents: pDocs };
               });
@@ -5146,13 +5150,35 @@ async function startServer() {
           const pKey = p.id || pName;
           if (pKey) {
             const ex = mergedMap.get(pKey);
+            const exDocs = ex?.documents || {};
+            const pDocs = p.documents || {};
+            const mergedDocs: any = { ...exDocs, ...pDocs };
+
+            Object.keys(mergedDocs).forEach(dk => {
+              const exDoc = exDocs[dk];
+              const pDoc = pDocs[dk];
+              if (exDoc && pDoc) {
+                const exStatus = (exDoc.status || '').toLowerCase();
+                const pStatus = (pDoc.status || '').toLowerCase();
+                const isTerminal = (s: string) => ['verified', 'approved', 'rejected'].includes(s);
+                if (isTerminal(exStatus) && !isTerminal(pStatus)) {
+                  mergedDocs[dk] = {
+                    ...pDoc,
+                    ...exDoc,
+                    status: exStatus === 'approved' ? 'verified' : exStatus
+                  };
+                }
+              }
+            });
+
             mergedMap.set(pKey, {
               ...(ex || {}),
               ...p,
               userName: pName || ex?.userName || 'Jemaah',
               mitraId: mId,
               mitraName: mName,
-              mitraEmail: mEmail
+              mitraEmail: mEmail,
+              documents: mergedDocs
             });
           }
         });

@@ -620,13 +620,24 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     saveAndSyncState(updated);
   };
 
+  // Keep activeDokumenJemaah in sync with jamaahList state changes
+  useEffect(() => {
+    if (activeDokumenJemaah?.id) {
+      const match = jamaahList.find(j => j.id === activeDokumenJemaah.id || (j.userName && activeDokumenJemaah.userName && j.userName.trim().toLowerCase() === activeDokumenJemaah.userName.trim().toLowerCase()));
+      if (match) {
+        setActiveDokumenJemaah(match);
+      }
+    }
+  }, [jamaahList]);
+
   const handleApproveDoc = async (docKey: string) => {
     const target = activeDokumenJemaah || selectedJamaah;
     if (!target) return;
     
     try {
       await api.patch('/admin/documents/verify', {
-        registrationId: target.id,
+        registrationId: target.registrationId || target.id,
+        jamaahId: target.id,
         docType: docKey,
         status: 'approved',
         rejectionReason: ''
@@ -639,12 +650,17 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
 
     const updated = jamaahList.map((j) => {
       if (j.id === target.id) {
-        const docs = j.documents || {};
+        const docs = { ...(j.documents || {}) };
+        const updatedDoc = {
+          ...(docs[docKey] || {}),
+          status: 'verified',
+          updatedAt: new Date().toISOString()
+        };
         const updatedJ = {
           ...j,
           documents: {
             ...docs,
-            [docKey]: { ...docs[docKey], status: 'verified' }
+            [docKey]: updatedDoc
           }
         };
         if (activeDokumenJemaah?.id === j.id) setActiveDokumenJemaah(updatedJ);
@@ -662,7 +678,8 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
 
     try {
       await api.patch('/admin/documents/verify', {
-        registrationId: target.id,
+        registrationId: target.registrationId || target.id,
+        jamaahId: target.id,
         docType: docKey,
         status: 'rejected',
         rejectionReason: 'Ditolak oleh admin'
@@ -675,12 +692,17 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
 
     const updated = jamaahList.map((j) => {
       if (j.id === target.id) {
-        const docs = j.documents || {};
+        const docs = { ...(j.documents || {}) };
+        const updatedDoc = {
+          ...(docs[docKey] || {}),
+          status: 'rejected',
+          updatedAt: new Date().toISOString()
+        };
         const updatedJ = {
           ...j,
           documents: {
             ...docs,
-            [docKey]: { ...docs[docKey], status: 'rejected' }
+            [docKey]: updatedDoc
           }
         };
         if (activeDokumenJemaah?.id === j.id) setActiveDokumenJemaah(updatedJ);
