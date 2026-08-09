@@ -710,18 +710,24 @@ export default function Admin() {
     if (!registrationId) return;
     setIsVerifying(true);
     try {
-      await api.delete(`/admin/documents/${registrationId}`);
-      toast.success("Semua dokumen jamaah berhasil dihapus.");
+      if (registrationId.startsWith('user-')) {
+        const realUserId = registrationId.replace('user-', '');
+        await api.delete(`/admin/users/${realUserId}`);
+      } else {
+        await api.delete(`/admin/registrations/${registrationId}`);
+      }
+      toast.success("Data jamaah berhasil dihapus.");
       
       // Update local state if reviewing
       if (reviewingJamaah && reviewingJamaah.id === registrationId) {
-        setReviewingJamaah((prev: any) => ({ ...prev, documents: [] }));
+        setReviewingJamaah(null);
+        setIsReviewModalOpen(false);
       }
       
       refreshData(true);
     } catch (err: any) {
-      console.error("Delete all docs error:", err);
-      toast.error("Gagal menghapus semua dokumen: " + (err.message || "Server error"));
+      console.error("Delete jamaah error:", err);
+      toast.error("Gagal menghapus jamaah: " + (err.message || "Server error"));
     } finally {
       setIsVerifying(false);
       setDeleteAllDocsId(null);
@@ -3382,7 +3388,7 @@ export default function Admin() {
                                   setDeleteAllDocsName(c.name);
                                 }}
                                 className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 transition-all cursor-pointer flex items-center justify-center w-8 h-8"
-                                title="Hapus Semua Dokumen Jamaah"
+                                title="Hapus Jamaah"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -5767,9 +5773,9 @@ export default function Admin() {
             <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Hapus Semua Dokumen?</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Hapus Data Jamaah?</h3>
             <p className="text-gray-600 mb-6 text-sm leading-relaxed">
-              Apakah Anda yakin ingin menghapus seluruh berkas dokumen yang telah diunggah oleh <strong>{deleteAllDocsName}</strong>? Tindakan ini bersifat permanen, menghapus file fisik di server, dan tidak dapat dibatalkan.
+              Apakah Anda yakin ingin menghapus data jamaah <strong>{deleteAllDocsName}</strong> beserta seluruh berkas dokumen dan pendaftaran terkait secara permanen? Tindakan ini tidak dapat dibatalkan.
             </p>
             <div className="flex space-x-3">
               <button 
@@ -5785,7 +5791,7 @@ export default function Admin() {
                 onClick={() => handleDeleteAllDocs(deleteAllDocsId)}
                 className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-colors cursor-pointer"
               >
-                Hapus Semua
+                Hapus Jamaah
               </button>
             </div>
           </div>
