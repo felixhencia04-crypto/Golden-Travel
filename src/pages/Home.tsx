@@ -18,8 +18,6 @@ export default function Home() {
   const logoImg = useLogo();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('beranda');
-  const [packages, setPackages] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [direkturImgSrc, setDirekturImgSrc] = useState(DIREKTUR_PHOTO_DATA);
 
   // ScrollSpy to update active nav underline as user scrolls
@@ -53,22 +51,6 @@ export default function Home() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const fetchPackages = async () => {
-    try {
-      setLoading(true);
-      const data = await api.get('/packages');
-      setPackages(data);
-    } catch (error) {
-      console.error('Error fetching packages:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPackages();
-  }, []);
-
   const trackRef = useRef<HTMLDivElement>(null);
   const hajiTrackRef = useRef<HTMLDivElement>(null);
   
@@ -95,9 +77,6 @@ export default function Home() {
       window.scrollTo({ top: offsetPosition, behavior: "smooth" });
     }
   };
-
-  const umrahPackages = packages.filter(p => p.type === 'umroh' || !p.type);
-  const hajiPackages = packages.filter(p => p.type === 'haji');
 
   return (
     <div className="font-['Montserrat',sans-serif] bg-stone-50 text-[#2F4F4F] min-h-screen selection:bg-[#C8D5B9] selection:text-[#2F4F4F]">

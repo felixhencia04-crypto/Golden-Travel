@@ -223,6 +223,11 @@ const adminUserCache = new Map<string, { user: any; timestamp: number }>();
 const userAuthCache = new Map<string, { user: any; timestamp: number }>();
 
 const adminStatsCache = new Map<string, { data: any; timestamp: number }>();
+const packagesCache = new Map<string, { data: any; timestamp: number }>();
+
+export function invalidatePackagesCache() {
+  packagesCache.clear();
+}
 
 export function invalidateUserCache(tokenOrId?: string) {
   if (!tokenOrId) {
@@ -472,6 +477,7 @@ async function startServer() {
 
   let updateTimeout: NodeJS.Timeout | null = null;
   const notifyUpdate = () => {
+    invalidatePackagesCache();
     if (updateTimeout) return;
     updateTimeout = setTimeout(() => {
       const payload = { timestamp: new Date().toISOString() };
@@ -2745,7 +2751,8 @@ async function startServer() {
       
       const filters = [
         eq(schema.users.workspaceId, req.user!.workspaceId!),
-        eq(schema.users.role, 'jamaah')
+        eq(schema.users.role, 'jamaah'),
+        isNull(schema.users.deletedAt)
       ];
       
       if (status) {
@@ -3869,6 +3876,12 @@ async function startServer() {
 
   // Get Packages
   app.get("/api/packages", async (req: Request, res) => {
+    // Check memory cache to avoid heavy queries and prevent Rate exceeded on large base64 payload
+    const cached = packagesCache.get("all_packages");
+    if (cached && (Date.now() - cached.timestamp < 30000)) {
+      return res.json(cached.data);
+    }
+
     try {
       console.log(`GET /api/packages: Fetching all travel packages...`);
       let allPackages: any[] = [];
@@ -3992,6 +4005,7 @@ async function startServer() {
         } as any;
       });
 
+      packagesCache.set("all_packages", { data: packagesWithCounts, timestamp: Date.now() });
       res.json(packagesWithCounts);
     } catch (error: any) {
       console.error("Database query failed in GET /api/packages:", error);
@@ -7313,24 +7327,6 @@ async function startServer() {
     } catch (error: any) {
       console.error("Error updating user:", error);
       res.status(500).json({ error: "Terjadi kesalahan pada server"   });
-    }
-  });
-
-  app.delete("/api/admin/users/:id", authenticate, async (req: AuthRequest, res) => {
-    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    try {
-      const { id } = req.params;
-      
-      // Soft delete the user
-      await withRetry(() => db.update(schema.users)
-        .set({ deletedAt: new Date() })
-        .where(eq(schema.users.id, id)));
-      
-      res.json({ success: true, message: "User soft-deleted successfully" });
-      notifyUpdate();
-    } catch (error: any) {
-      console.error("Error deleting user:", error);
-      res.status(500).json({ error: "Gagal menghapus user" });
     }
   });
 
