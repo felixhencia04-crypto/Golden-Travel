@@ -3771,6 +3771,23 @@ async function startServer() {
     if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
     const { registrationId, docId, docType, status, rejectionReason } = req.body;
     
+    // Guard for client-side/localStorage only records (e.g. non-UUID registrationId)
+    if (registrationId && !isValidUUID(registrationId)) {
+      const newStatus = status === 'approved' || status === 'VERIFIED' ? 'VERIFIED' : 
+                        status === 'rejected' || status === 'REJECTED' ? 'REJECTED' : 'PENDING';
+      return res.json({
+        id: "client-side-dummy-id",
+        registrationId,
+        docType,
+        status: newStatus,
+        adminNotes: rejectionReason || null,
+        fileUrl: '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isLocalOnly: true
+      });
+    }
+    
     try {
       let targetDoc = null;
 
