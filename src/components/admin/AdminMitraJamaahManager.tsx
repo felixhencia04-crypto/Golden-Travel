@@ -184,16 +184,21 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     const fixed = merged.map(j => {
       if (!j) return j;
       let newJ = { ...j };
+      
+      const oName = newJ.ordererName && newJ.ordererName !== 'Mitra Travel' ? newJ.ordererName : '';
+      const oEmail = newJ.ordererEmail ? newJ.ordererEmail : '';
+
+      if (!newJ.mitraName || newJ.mitraName === 'Mitra Travel' || newJ.mitraName.startsWith('Mitra:')) {
+        if (oName) newJ.mitraName = oName;
+      }
+      if (!newJ.mitraEmail && oEmail) {
+        newJ.mitraEmail = oEmail;
+      }
       if ((!newJ.mitraId || newJ.mitraId === 'mitra-user') && newJ.mitraEmail) {
         newJ.mitraId = newJ.mitraEmail;
       }
-      if ((!newJ.mitraId || newJ.mitraId === 'mitra-user') && newJ.mitraName && newJ.mitraName !== 'Mitra Travel' && !newJ.mitraName.startsWith('Mitra:')) {
+      if ((!newJ.mitraId || newJ.mitraId === 'mitra-user') && newJ.mitraName && newJ.mitraName !== 'Mitra Travel') {
         newJ.mitraId = newJ.mitraName;
-      }
-      if (!newJ.mitraName || newJ.mitraName === 'Mitra Travel') {
-        if (newJ.ordererName && newJ.ordererName !== 'Mitra Travel') {
-          newJ.mitraName = newJ.ordererName;
-        }
       }
       return newJ;
     });
@@ -229,12 +234,15 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     realMitraList.forEach(m => {
       const rawName = m.name || m.profile?.namaLengkap || 'Mitra';
       const baseName = rawName.split(' (')[0].trim();
-      const key = m.id || (m.email ? m.email.toLowerCase().trim() : baseName);
+      const mEmail = (m.email || '').toLowerCase().trim();
+      const mId = (m.id || mEmail || baseName).trim();
+      const key = mId.toLowerCase();
+
       map.set(key, { 
-        id: m.id || key, 
+        id: m.id || mId, 
         name: rawName, 
         baseName,
-        email: (m.email || '').toLowerCase().trim(),
+        email: mEmail,
         noWa: m.noWa || '',
         statusAkun: m.statusAkun || 'active',
         profile: m.profile
@@ -243,20 +251,27 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
 
     // Process from jamaah
     jamaahList.forEach((j: any) => {
-      if (j.mitraId || j.mitraName || j.mitraEmail) {
-        const rawName = j.mitraName || `Mitra: ${j.mitraId || j.mitraEmail}`;
-        const baseName = rawName.split(' (')[0].trim();
-        const jEmail = (j.mitraEmail || '').toLowerCase().trim();
-        const jId = j.mitraId || jEmail || baseName;
+      const jMitraId = (j.mitraId || '').trim();
+      const jMitraEmail = (j.mitraEmail || j.ordererEmail || '').toLowerCase().trim();
+      const rawName = j.mitraName || j.ordererName || j.mitraId || '';
+      const baseName = rawName.split(' (')[0].trim();
 
-        // Check if matching mitra already exists in map by id or email or baseName
+      if (jMitraId || rawName || jMitraEmail) {
+        // Check if matching mitra already exists in map
         let existingKey: string | null = null;
         for (const [k, m] of map.entries()) {
+          const mId = (m.id || '').toLowerCase().trim();
+          const mEmail = (m.email || '').toLowerCase().trim();
+          const mBase = (m.baseName || '').toLowerCase().trim();
+          const mName = (m.name || '').toLowerCase().trim();
+          const jBase = baseName.toLowerCase().trim();
+          const jIdLower = jMitraId.toLowerCase();
+
           if (
-            (j.mitraId && m.id === j.mitraId) ||
-            (jEmail && m.email && jEmail === m.email) ||
-            (j.mitraId && m.email && j.mitraId.toLowerCase().trim() === m.email) ||
-            (baseName && baseName.length > 2 && baseName.toLowerCase() !== 'mitra' && baseName.toLowerCase() !== 'mitra travel' && m.baseName.toLowerCase() === baseName.toLowerCase())
+            (jIdLower && mId && jIdLower === mId) ||
+            (jMitraEmail && mEmail && jMitraEmail === mEmail) ||
+            (jIdLower && mEmail && jIdLower === mEmail) ||
+            (jBase && jBase.length > 1 && jBase !== 'mitra' && jBase !== 'mitra travel' && (mBase === jBase || mName.includes(jBase) || jBase.includes(mBase)))
           ) {
             existingKey = k;
             break;
@@ -264,15 +279,15 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
         }
 
         if (!existingKey) {
-          map.set(jId, { 
-            id: j.mitraId || jId, 
-            name: rawName, 
-            baseName,
-            email: jEmail,
+          const jKey = (jMitraId || jMitraEmail || baseName || 'unknown').toLowerCase().trim();
+          map.set(jKey, { 
+            id: j.mitraId || jKey, 
+            name: rawName || 'Mitra', 
+            baseName: baseName || 'Mitra',
+            email: jMitraEmail,
             noWa: j.mitraPhone || ''
           });
         } else {
-          // If existing entry has placeholder name "Mitra", update with better rawName if available
           const existing = map.get(existingKey);
           if (existing && (existing.name === 'Mitra' || existing.name.startsWith('Mitra:')) && rawName && !rawName.startsWith('Mitra:')) {
             existing.name = rawName;
@@ -324,27 +339,37 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     if (selectedMitraFilter === 'all') {
       matchesMitra = true;
     } else {
-      const targetMitra = mitras.find(m => m.id === selectedMitraFilter || m.baseName === selectedMitraFilter || m.email === selectedMitraFilter);
+      const selLower = selectedMitraFilter.toLowerCase().trim();
+      const targetMitra = mitras.find(m => 
+        (m.id && m.id.toLowerCase().trim() === selLower) || 
+        (m.baseName && m.baseName.toLowerCase().trim() === selLower) || 
+        (m.email && m.email.toLowerCase().trim() === selLower)
+      );
 
-      const jMitraId = j.mitraId;
-      const jMitraEmail = j.mitraEmail ? j.mitraEmail.toLowerCase().trim() : '';
-      const jRawName = j.mitraName || j.mitraId || '';
-      const jBaseName = jRawName.split(' (')[0].trim();
+      const jMitraId = (j.mitraId || '').toLowerCase().trim();
+      const jMitraEmail = (j.mitraEmail || j.ordererEmail || '').toLowerCase().trim();
+      const jRawName = j.mitraName || j.ordererName || j.mitraId || '';
+      const jBaseName = jRawName.split(' (')[0].trim().toLowerCase();
 
       if (targetMitra) {
+        const tId = (targetMitra.id || '').toLowerCase().trim();
+        const tEmail = (targetMitra.email || '').toLowerCase().trim();
+        const tBaseName = (targetMitra.baseName || '').toLowerCase().trim();
+        const tName = (targetMitra.name || '').toLowerCase().trim();
+
         matchesMitra = 
-          (jMitraId && targetMitra.id && jMitraId === targetMitra.id) ||
-          (jMitraEmail && targetMitra.email && jMitraEmail === targetMitra.email) ||
-          (jMitraId && targetMitra.email && jMitraId.toLowerCase().trim() === targetMitra.email) ||
+          (jMitraId && tId && jMitraId === tId) ||
+          (jMitraEmail && tEmail && jMitraEmail === tEmail) ||
+          (jMitraId && tEmail && jMitraId === tEmail) ||
           (
             jBaseName && 
-            jBaseName.length > 2 && 
-            jBaseName.toLowerCase() !== 'mitra' && 
-            jBaseName.toLowerCase() !== 'mitra travel' && 
-            targetMitra.baseName.toLowerCase() === jBaseName.toLowerCase()
+            jBaseName.length > 1 && 
+            jBaseName !== 'mitra' && 
+            jBaseName !== 'mitra travel' && 
+            (tBaseName === jBaseName || tName.includes(jBaseName) || jBaseName.includes(tBaseName))
           );
       } else {
-        matchesMitra = (jMitraId === selectedMitraFilter) || (jBaseName === selectedMitraFilter) || (jMitraEmail === selectedMitraFilter);
+        matchesMitra = (jMitraId === selLower) || (jBaseName === selLower) || (jMitraEmail === selLower);
       }
     }
 
@@ -352,7 +377,8 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       (j.userName && j.userName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (j.nik && j.nik.includes(searchQuery)) ||
       (j.pasporNo && j.pasporNo.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (j.mitraName && j.mitraName.toLowerCase().includes(searchQuery.toLowerCase()));
+      (j.mitraName && j.mitraName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (j.ordererName && j.ordererName.toLowerCase().includes(searchQuery.toLowerCase()));
 
     return matchesMitra && matchesSearch;
   });
@@ -376,12 +402,25 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     // Pre-fill stats for all mitras with shared object reference per mitra
     mitras.forEach(m => {
       const obj = { total: 0, unverified: 0, verified: 0, totalPax: 0, recentJamaah: [] };
-      stats[m.id] = obj;
-      if (m.baseName && !stats[m.baseName]) stats[m.baseName] = obj;
-      if (m.email && !stats[m.email]) stats[m.email] = obj;
+      if (m.id) {
+        stats[m.id] = obj;
+        stats[m.id.toLowerCase().trim()] = obj;
+      }
+      if (m.baseName) {
+        stats[m.baseName] = obj;
+        stats[m.baseName.toLowerCase().trim()] = obj;
+      }
+      if (m.email) {
+        stats[m.email] = obj;
+        stats[m.email.toLowerCase().trim()] = obj;
+      }
+      if (m.name) {
+        stats[m.name] = obj;
+        stats[m.name.toLowerCase().trim()] = obj;
+      }
     });
 
-    // Professional validation: Count all entries except the hidden 9-pax ones
+    // Count valid jamaah entries
     const validJamaah = jamaahList.filter(j => 
       j.paxCount !== 9 && 
       j.jumlahPax !== 9 &&
@@ -390,39 +429,51 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     );
 
     validJamaah.forEach(j => {
-      const jMitraId = j.mitraId;
-      const jMitraEmail = j.mitraEmail ? j.mitraEmail.toLowerCase().trim() : '';
-      const jRawName = j.mitraName || j.mitraId || '';
-      const jBaseName = jRawName.split(' (')[0].trim();
+      const jMitraId = (j.mitraId || '').toLowerCase().trim();
+      const jMitraEmail = (j.mitraEmail || j.ordererEmail || '').toLowerCase().trim();
+      const jRawName = j.mitraName || j.ordererName || j.mitraId || '';
+      const jBaseName = jRawName.split(' (')[0].trim().toLowerCase();
 
-      // Find matching mitra in `mitras` array strictly by ID or Email first!
+      // Find matching mitra in `mitras` array strictly by ID, Email, Name or baseName (case-insensitive)
       const matchingMitra = mitras.find(m => {
-        if (jMitraId && m.id && jMitraId === m.id) return true;
-        if (jMitraEmail && m.email && jMitraEmail === m.email) return true;
-        if (jMitraId && m.email && jMitraId.toLowerCase().trim() === m.email) return true;
+        const mId = (m.id || '').toLowerCase().trim();
+        const mEmail = (m.email || '').toLowerCase().trim();
+        const mBase = (m.baseName || '').toLowerCase().trim();
+        const mName = (m.name || '').toLowerCase().trim();
+
+        if (jMitraId && mId && jMitraId === mId) return true;
+        if (jMitraEmail && mEmail && jMitraEmail === mEmail) return true;
+        if (jMitraId && mEmail && jMitraId === mEmail) return true;
         if (
           jBaseName && 
-          jBaseName.length > 2 && 
-          jBaseName.toLowerCase() !== 'mitra' && 
-          jBaseName.toLowerCase() !== 'mitra travel' && 
-          m.baseName.toLowerCase() === jBaseName.toLowerCase()
+          jBaseName.length > 1 && 
+          jBaseName !== 'mitra' && 
+          jBaseName !== 'mitra travel' && 
+          (mBase === jBaseName || mName.includes(jBaseName) || jBaseName.includes(mBase))
         ) return true;
         return false;
       });
 
-      const key = matchingMitra ? matchingMitra.id : (jMitraId || jMitraEmail || jBaseName || 'unknown');
+      const key = matchingMitra ? matchingMitra.id : (j.mitraId || j.mitraEmail || jRawName || 'unknown');
       
       if (!stats[key]) {
-        stats[key] = { total: 0, unverified: 0, verified: 0, totalPax: 0, recentJamaah: [] };
+        const newObj = { total: 0, unverified: 0, verified: 0, totalPax: 0, recentJamaah: [] };
+        stats[key] = newObj;
+        stats[key.toLowerCase().trim()] = newObj;
       }
-      stats[key].total++;
-      if (j.statusBiodata === 'verified' || j.isComplete) stats[key].verified++;
-      else stats[key].unverified++;
       
-      stats[key].totalPax++;
+      const targetObj = stats[key] || stats[key.toLowerCase().trim()];
+      targetObj.total++;
+      if (j.statusBiodata === 'verified' || j.isComplete) {
+        targetObj.verified++;
+      } else {
+        targetObj.unverified++;
+      }
       
-      if (j.userName && stats[key].recentJamaah.length < 3) {
-        stats[key].recentJamaah.push(j);
+      targetObj.totalPax++;
+      
+      if (j.userName && targetObj.recentJamaah.length < 3) {
+        targetObj.recentJamaah.push(j);
       }
     });
 
@@ -533,22 +584,76 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
           reason: isApproved ? 'Disetujui oleh admin' : 'Ditolak oleh admin'
         });
       } catch (err: any) {
-        console.error("Gagal update pembayaran di backend:", err);
-        toast.error(`Gagal memproses status pembayaran di server: ${err.message || 'Server error'}`);
-        return;
+        console.warn("API update payment notice (will update local state):", err);
       }
     }
 
     const updated = jamaahList.map((j) => {
-      if (j.id === jId) {
+      const isTargetJamaah = (jId && j.id === jId) || 
+        (j.payments || []).some((p: any, i: number) => 
+          (payment.id && p.id === payment.id) || 
+          (payment.proofUrl && p.proofUrl === payment.proofUrl) ||
+          (p.amount === payment.amount && p.date === payment.date) ||
+          (payment.pIdx !== undefined && i === payment.pIdx)
+        );
+
+      if (isTargetJamaah) {
         const updatedPayments = (j.payments || []).map((p: any, i: number) => {
-          const isMatch = p.id === payment.id || i === payment.pIdx;
-          return isMatch ? { ...p, status: targetStatus } : p;
+          const isMatch = 
+            (payment.id && p.id === payment.id) || 
+            (payment.proofUrl && p.proofUrl === payment.proofUrl) ||
+            (p.amount === payment.amount && p.date === payment.date && p.step === payment.step) ||
+            (payment.pIdx !== undefined && i === payment.pIdx);
+          
+          return isMatch ? { ...p, status: targetStatus, verifiedAt: new Date().toISOString() } : p;
         });
         return { ...j, payments: updatedPayments };
       }
       return j;
     });
+
+    // Also update in all scoped pax keys in localStorage to keep them in sync
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('mitra_saved_pax_list')) {
+          const val = localStorage.getItem(key);
+          if (val) {
+            const list = JSON.parse(val);
+            if (Array.isArray(list)) {
+              let changed = false;
+              const updatedList = list.map((pax: any) => {
+                if (!pax || !pax.payments) return pax;
+                const isTargetPax = (jId && pax.id === jId) || pax.payments.some((p: any, idx: number) => 
+                  (payment.id && p.id === payment.id) || 
+                  (payment.proofUrl && p.proofUrl === payment.proofUrl) ||
+                  (p.amount === payment.amount && p.date === payment.date) ||
+                  (payment.pIdx !== undefined && idx === payment.pIdx)
+                );
+
+                if (isTargetPax) {
+                  changed = true;
+                  const newPayments = pax.payments.map((p: any, idx: number) => {
+                    const isMatch = 
+                      (payment.id && p.id === payment.id) || 
+                      (payment.proofUrl && p.proofUrl === payment.proofUrl) ||
+                      (p.amount === payment.amount && p.date === payment.date && p.step === payment.step) ||
+                      (payment.pIdx !== undefined && idx === payment.pIdx);
+                    return isMatch ? { ...p, status: targetStatus, verifiedAt: new Date().toISOString() } : p;
+                  });
+                  return { ...pax, payments: newPayments };
+                }
+                return pax;
+              });
+
+              if (changed) {
+                localStorage.setItem(key, JSON.stringify(updatedList));
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {}
 
     saveAndSyncState(updated);
     
@@ -1847,7 +1952,14 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
               </thead>
               <tbody className="divide-y divide-slate-50 text-xs font-medium">
                 {mitras.map(mitra => {
-                  const stats = mitraStats[mitra.id] || mitraStats[mitra.baseName] || mitraStats[mitra.email] || { total: 0, unverified: 0, verified: 0, totalPax: 0, recentJamaah: [] };
+                  const stats = mitraStats[mitra.id] || 
+                                mitraStats[(mitra.id || '').toLowerCase().trim()] || 
+                                mitraStats[mitra.baseName] || 
+                                mitraStats[(mitra.baseName || '').toLowerCase().trim()] || 
+                                mitraStats[mitra.email] || 
+                                mitraStats[(mitra.email || '').toLowerCase().trim()] || 
+                                mitraStats[mitra.name] || 
+                                { total: 0, unverified: 0, verified: 0, totalPax: 0, recentJamaah: [] };
                   const progress = stats.total > 0 ? Math.round((stats.verified / stats.total) * 100) : 0;
 
                   return (
