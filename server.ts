@@ -2205,10 +2205,7 @@ async function startServer() {
         return res.status(403).json({ error: "Forbidden" });
       }
 
-      let normalizedPaymentType = String(paymentType || 'DP1').toUpperCase();
-      if (normalizedPaymentType === 'FULL') {
-        normalizedPaymentType = 'PELUNASAN';
-      }
+      const normalizedPaymentType = normalizePaymentTypeForDb(paymentType || 'DP1');
 
       // Anti-duplicate check: if a PENDING payment exists for this registration
       const existingPending = await withRetry(() => db.query.payments.findFirst({
@@ -2243,7 +2240,7 @@ async function startServer() {
         paymentType: normalizedPaymentType as any,
         amount: String(amount),
         proofUrl: proofUrl || '',
-        status: 'PENDING'
+        status: normalizePaymentStatusForDb('PENDING') as any
       }).returning());
 
       // Update user/registration status to VERIFIKASI_BAYAR
@@ -2252,8 +2249,9 @@ async function startServer() {
 
       notifyUpdate();
       res.status(201).json(newPayment);
-    } catch (error) {
-      res.status(500).json({ error: "Gagal mengunggah bukti bayar" });
+    } catch (error: any) {
+      console.error("[Registrasi Transaksis API FATAL]:", error);
+      res.status(500).json({ error: `Gagal mengunggah bukti bayar: ${error.message || String(error)}` });
     }
   });
 
@@ -4292,14 +4290,7 @@ async function startServer() {
       }
 
       // 5. Normalize Payment Type
-      let normalizedPaymentType = String(paymentType || 'DP1').toUpperCase();
-      if (normalizedPaymentType === 'FULL') {
-        normalizedPaymentType = 'PELUNASAN';
-      }
-      
-      if (!['DP1', 'DP2', 'PELUNASAN'].includes(normalizedPaymentType)) {
-        normalizedPaymentType = 'DP1'; // Fallback to safe default
-      }
+      const normalizedPaymentType = normalizePaymentTypeForDb(paymentType || 'DP1');
 
       // 6. Save Base64 file
       let savedProofUrl = '';
@@ -4349,7 +4340,7 @@ async function startServer() {
               paymentType: normalizedPaymentType,
               amount: String(amount),
               proofUrl: savedProofUrl,
-              status: 'PENDING',
+              status: normalizePaymentStatusForDb('PENDING'),
             } as any).returning(), 5);
 
       if (!insertedPayments || insertedPayments.length === 0) {
@@ -8339,6 +8330,95 @@ async function startServer() {
     });
   });
 
+// --- PostgreSQL Enum Synchronization & Resilience Helpers ---
+let dbPaymentTypeEnumValues: string[] = [];
+let dbPaymentStatusEnumValues: string[] = [];
+
+async function syncDbEnumValues() {
+  if ((global as any)._dbIsBroken) return;
+  try {
+    const typeRes = await db.execute(sql`
+      SELECT enumlabel 
+      FROM pg_enum 
+      JOIN pg_type ON pg_enum.enumtypid = pg_type.oid 
+      WHERE typname = 'payment_type';
+    `);
+    dbPaymentTypeEnumValues = typeRes.rows.map((r: any) => String(r.enumlabel));
+    console.log("[DB Enum Sync] payment_type values from DB:", dbPaymentTypeEnumValues);
+  } catch (e) {
+    console.warn("[DB Enum Sync] Failed to fetch payment_type from DB, using fallback", e);
+    dbPaymentTypeEnumValues = ['DP1', 'DP2', 'PELUNASAN'];
+  }
+
+  try {
+    const statusRes = await db.execute(sql`
+      SELECT enumlabel 
+      FROM pg_enum 
+      JOIN pg_type ON pg_enum.enumtypid = pg_type.oid 
+      WHERE typname = 'payment_status';
+    `);
+    dbPaymentStatusEnumValues = statusRes.rows.map((r: any) => String(r.enumlabel));
+    console.log("[DB Enum Sync] payment_status values from DB:", dbPaymentStatusEnumValues);
+  } catch (e) {
+    console.warn("[DB Enum Sync] Failed to fetch payment_status from DB, using fallback", e);
+    dbPaymentStatusEnumValues = ['PENDING', 'VERIFIED', 'REJECTED'];
+  }
+}
+
+function normalizePaymentTypeForDb(val: string): string {
+  const upper = val.toUpperCase().trim();
+  const lower = val.toLowerCase().trim();
+  
+  if (dbPaymentTypeEnumValues.length > 0) {
+    const match = dbPaymentTypeEnumValues.find(v => v.toUpperCase() === upper);
+    if (match) return match;
+  }
+  
+  if (upper === 'FULL' || upper === 'PELUNASAN' || lower === 'full' || lower === 'pelunasan') {
+    if (dbPaymentTypeEnumValues.includes('PELUNASAN')) return 'PELUNASAN';
+    if (dbPaymentTypeEnumValues.includes('pelunasan')) return 'pelunasan';
+    return 'PELUNASAN';
+  }
+  
+  if (upper === 'DP1' || lower === 'dp1') {
+    if (dbPaymentTypeEnumValues.includes('DP1')) return 'DP1';
+    if (dbPaymentTypeEnumValues.includes('dp1')) return 'dp1';
+  }
+  if (upper === 'DP2' || lower === 'dp2') {
+    if (dbPaymentTypeEnumValues.includes('DP2')) return 'DP2';
+    if (dbPaymentTypeEnumValues.includes('dp2')) return 'dp2';
+  }
+  
+  return dbPaymentTypeEnumValues[0] || 'DP1';
+}
+
+function normalizePaymentStatusForDb(val: string): string {
+  const upper = val.toUpperCase().trim();
+  const lower = val.toLowerCase().trim();
+  
+  if (dbPaymentStatusEnumValues.length > 0) {
+    const match = dbPaymentStatusEnumValues.find(v => v.toUpperCase() === upper);
+    if (match) return match;
+  }
+  
+  if (upper === 'PENDING' || lower === 'pending') {
+    if (dbPaymentStatusEnumValues.includes('PENDING')) return 'PENDING';
+    if (dbPaymentStatusEnumValues.includes('pending')) return 'pending';
+  }
+  if (upper === 'VERIFIED' || lower === 'verified' || upper === 'APPROVED' || lower === 'approved') {
+    if (dbPaymentStatusEnumValues.includes('VERIFIED')) return 'VERIFIED';
+    if (dbPaymentStatusEnumValues.includes('verified')) return 'verified';
+    if (dbPaymentStatusEnumValues.includes('APPROVED')) return 'APPROVED';
+    if (dbPaymentStatusEnumValues.includes('approved')) return 'approved';
+  }
+  if (upper === 'REJECTED' || lower === 'rejected') {
+    if (dbPaymentStatusEnumValues.includes('REJECTED')) return 'REJECTED';
+    if (dbPaymentStatusEnumValues.includes('rejected')) return 'rejected';
+  }
+  
+  return dbPaymentStatusEnumValues[0] || 'PENDING';
+}
+
 async function initializeGlobalDatabase() {
   if ((global as any)._dbIsBroken) {
     console.log("=== SKIPPING INISIALISASI DATABASE GLOBAL (DB ERROR) ===");
@@ -8698,6 +8778,7 @@ async function initializeGlobalDatabase() {
       // Ignore if table exists or column exists
     }
   }
+  await syncDbEnumValues();
   console.log("=== INSALISASI DATABASE SELESAI ===");
 }
 
