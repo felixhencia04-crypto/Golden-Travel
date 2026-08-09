@@ -5440,6 +5440,76 @@ async function startServer() {
     }
   });
 
+  app.delete("/api/admin/mitra/:id", authenticate, async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { id } = req.params;
+    try {
+      const idsToDelete = new Set<string>();
+      if (id) idsToDelete.add(id);
+
+      const targetMitra = await withRetry(() => db.query.mitraUsers.findFirst({
+        where: eq(schema.mitraUsers.id, id)
+      })) as any;
+
+      const targetAuthUser = await withRetry(() => db.query.users.findFirst({
+        where: eq(schema.users.id, id)
+      })) as any;
+
+      const targetEmail = (targetMitra?.email || targetAuthUser?.email || '').toLowerCase().trim();
+
+      if (targetEmail) {
+        const matchingMitras = await withRetry(() => db.select({ id: schema.mitraUsers.id })
+          .from(schema.mitraUsers)
+          .where(sql`LOWER(${schema.mitraUsers.email}) = LOWER(${targetEmail})`)) as any[];
+        matchingMitras.forEach(m => idsToDelete.add(m.id));
+
+        const matchingAuths = await withRetry(() => db.select({ id: schema.users.id })
+          .from(schema.users)
+          .where(sql`LOWER(${schema.users.email}) = LOWER(${targetEmail})`)) as any[];
+        matchingAuths.forEach(u => idsToDelete.add(u.id));
+      }
+
+      const targetUserIds = Array.from(idsToDelete);
+
+      if (targetUserIds.length > 0) {
+        await withRetry(() => db.transaction(async (tx) => {
+          // 1. Set referred users' mitraId to null
+          await tx.update(schema.users)
+            .set({ mitraId: null })
+            .where(inArray(schema.users.mitraId, targetUserIds));
+
+          // 2. Delete KYC documents for these users
+          await tx.delete(schema.kycDocuments)
+            .where(inArray(schema.kycDocuments.userId, targetUserIds));
+
+          // 3. Delete profiles
+          await tx.delete(schema.mitraProfiles)
+            .where(inArray(schema.mitraProfiles.userId, targetUserIds));
+
+          // 4. Delete from mitraCommissionPayouts if exists
+          await tx.delete(schema.mitraCommissionPayouts)
+            .where(inArray(schema.mitraCommissionPayouts.mitraUserId, targetUserIds));
+
+          // 5. Delete from mitraUsers
+          await tx.delete(schema.mitraUsers)
+            .where(inArray(schema.mitraUsers.id, targetUserIds));
+
+          // 6. Delete from standard users table where role = 'mitra'
+          await tx.delete(schema.users)
+            .where(and(
+              inArray(schema.users.id, targetUserIds),
+              eq(schema.users.role, 'mitra')
+            ));
+        }));
+      }
+
+      res.json({ success: true, message: "Mitra deleted successfully" });
+    } catch (error) {
+      console.error("Admin delete mitra error:", error);
+      res.status(500).json({ error: "Failed to delete mitra" });
+    }
+  });
+
   app.post("/api/admin/mitra/verify", authenticate, async (req: AuthRequest, res) => {
     if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
     const { userId, status, notes } = req.body;

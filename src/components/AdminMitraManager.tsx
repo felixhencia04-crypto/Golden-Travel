@@ -4,7 +4,7 @@ import {
   ChevronRight, FileText, Phone, Mail, Building2, CreditCard,
   ExternalLink, Eye, AlertCircle, MoreVertical, Check, X,
   Download, ArrowLeft, ShieldCheck, MapPin, FileDown, Archive, Loader2,
-  Receipt
+  Receipt, Trash2
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { motion, AnimatePresence } from 'motion/react';
@@ -63,6 +63,27 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingZip, setIsExportingZip] = useState(false);
   const [exportSuccessMessage, setExportSuccessMessage] = useState<string | null>(null);
+  const [deletingMitra, setDeletingMitra] = useState<MitraUser | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteMitra = async () => {
+    if (!deletingMitra) return;
+    try {
+      setIsDeleting(true);
+      await api.delete(`/admin/mitra/${deletingMitra.id}`);
+      toast.success(`Mitra ${deletingMitra.name} berhasil dihapus.`);
+      if (selectedMitra && selectedMitra.id === deletingMitra.id) {
+        setSelectedMitra(null);
+      }
+      setDeletingMitra(null);
+      fetchMitraList();
+    } catch (error) {
+      console.error('Error deleting mitra:', error);
+      toast.error('Gagal menghapus data mitra.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleDownloadPdf = () => {
     if (!selectedMitra) return;
@@ -298,16 +319,25 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Waktu Terdaftar</div>
                   </td>
                   <td className="px-8 py-6 text-right">
-                    <button 
-                      onClick={() => {
-                        setSelectedMitra(mitra);
-                        setActiveSubTab('identitas');
-                        setReviewNotes(mitra.profile?.reviewNotes || '');
-                      }}
-                      className="px-6 py-3 rounded-xl bg-slate-100 text-slate-600 font-black text-[10px] uppercase tracking-[0.1em] hover:bg-emerald-900 hover:text-white hover:shadow-xl hover:shadow-emerald-900/20 transition-all flex items-center gap-2 ml-auto"
-                    >
-                      Buka Profil <ChevronRight className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-3">
+                      <button 
+                        onClick={() => {
+                          setSelectedMitra(mitra);
+                          setActiveSubTab('identitas');
+                          setReviewNotes(mitra.profile?.reviewNotes || '');
+                        }}
+                        className="px-6 py-3 rounded-xl bg-slate-100 text-slate-600 font-black text-[10px] uppercase tracking-[0.1em] hover:bg-emerald-900 hover:text-white hover:shadow-xl hover:shadow-emerald-900/20 transition-all flex items-center gap-2 whitespace-nowrap"
+                      >
+                        Buka Profil <ChevronRight className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => setDeletingMitra(mitra)}
+                        className="p-3 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition-all hover:shadow-lg hover:shadow-rose-600/20 flex items-center justify-center border border-rose-100"
+                        title="Hapus Mitra"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -981,6 +1011,12 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
                 </div>
                 <div className="flex items-center gap-4 w-full md:w-auto">
                   <button 
+                    onClick={() => setDeletingMitra(selectedMitra)}
+                    className="flex-1 md:flex-none px-6 py-4 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-black text-xs uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2.5 active:scale-95 border border-rose-100"
+                  >
+                    <Trash2 className="w-5 h-5" /> Hapus Mitra
+                  </button>
+                  <button 
                     onClick={() => handleVerify('rejected')}
                     disabled={isVerifying}
                     className="flex-1 md:flex-none px-8 py-4 rounded-2xl border-2 border-red-100 text-red-600 font-black text-xs uppercase tracking-[0.2em] hover:bg-red-50 hover:border-red-200 transition-all flex items-center justify-center gap-3 group active:scale-95 disabled:opacity-50"
@@ -1000,6 +1036,66 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
                     Verifikasi & Aktifkan
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deletingMitra && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 10 }}
+              className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl border border-slate-100 relative"
+            >
+              <button 
+                onClick={() => setDeletingMitra(null)}
+                className="absolute top-6 right-6 w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100">
+                  <Trash2 className="w-8 h-8" />
+                </div>
+                
+                <div className="space-y-2">
+                  <h3 className="text-xl font-playfair font-black text-slate-900">Hapus Data Mitra?</h3>
+                  <p className="text-sm text-slate-500 font-medium leading-relaxed">
+                    Apakah Anda yakin ingin menghapus mitra <span className="font-bold text-slate-800">{deletingMitra.name}</span>? Tindakan ini permanen dan akan menghapus semua berkas legalitas serta data terkait mitra ini.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 mt-8">
+                <button
+                  onClick={() => setDeletingMitra(null)}
+                  disabled={isDeleting}
+                  className="flex-1 py-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-black text-xs uppercase tracking-[0.2em] transition-all disabled:opacity-50 font-black"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleDeleteMitra}
+                  disabled={isDeleting}
+                  className="flex-1 py-4 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-rose-600/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2 font-black"
+                >
+                  {isDeleting ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    "Ya, Hapus"
+                  )}
+                </button>
               </div>
             </motion.div>
           </motion.div>
