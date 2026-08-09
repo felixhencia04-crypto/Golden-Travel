@@ -3376,18 +3376,16 @@ export default function Admin() {
                               >
                                 Periksa Berkas
                               </button>
-                              {docCount > 0 && (
-                                <button
-                                  onClick={() => {
-                                    setDeleteAllDocsId(c.id);
-                                    setDeleteAllDocsName(c.name);
-                                  }}
-                                  className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 transition-all cursor-pointer flex items-center justify-center w-8 h-8"
-                                  title="Hapus Semua Dokumen Jamaah"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
+                              <button
+                                onClick={() => {
+                                  setDeleteAllDocsId(c.id);
+                                  setDeleteAllDocsName(c.name);
+                                }}
+                                className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 transition-all cursor-pointer flex items-center justify-center w-8 h-8"
+                                title="Hapus Semua Dokumen Jamaah"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </td>
                         </tr>

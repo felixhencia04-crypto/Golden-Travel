@@ -4246,14 +4246,31 @@ async function startServer() {
   // Upload Payment Proof
   app.post("/api/payments", authenticate, async (req: AuthRequest, res) => {
     const { registrationId, paymentType, amount, proofUrl } = req.body;
+    
+    // Log incoming payload details safely
+    console.log(`[Payments API] Incoming payment request - registrationId: ${registrationId}, paymentType: ${paymentType}, amount: ${amount}, hasProofUrl: ${!!proofUrl}`);
+    
     try {
+      // 1. Validation
+      if (!registrationId) {
+        return res.status(400).json({ error: "ID Pendaftaran tidak boleh kosong." });
+      }
+      if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+        return res.status(400).json({ error: `Nominal transfer tidak valid: '${amount}'` });
+      }
+      if (!proofUrl) {
+        return res.status(400).json({ error: "Bukti transfer tidak boleh kosong. Harap unggah berkas terlebih dahulu." });
+      }
+
+      // 2. Fetch Registration
       const reg = await withRetry(() => db.query.registrations.findFirst({
               where: eq(schema.registrations.id, registrationId)
             }));
       if (!reg) {
-         return res.status(404).json({ error: "Pendaftaran tidak ditemukan" });
+         return res.status(404).json({ error: "Pendaftaran tidak ditemukan di dalam sistem kami." });
       }
 
+      // 3. Authorization Checks
       const userEmail = req.user!.email ? req.user!.email.toLowerCase() : '';
       const isOwner = reg.userId === req.user!.id;
       const isOrderer = reg.ordererEmail && reg.ordererEmail.toLowerCase() === userEmail;
@@ -4264,23 +4281,39 @@ async function startServer() {
       const isAuthorized = req.user!.role === 'admin' || isOwner || isOrderer || isPax;
 
       if (!isAuthorized) {
-         return res.status(403).json({ error: "Akses ditolak. Anda tidak memiliki akses ke pendaftaran ini." });
+         console.warn(`[Payments API] Unauthorized access attempt by user ${req.user!.email} to registration ${registrationId}`);
+         return res.status(403).json({ error: "Akses ditolak. Anda tidak memiliki otorisasi untuk melakukan pembayaran pada pendaftaran ini." });
       }
 
-      const validStatusesForPayment = ['ISI_BIODATA', 'UPLOAD_DOKUMEN', 'VERIFIKASI_DOKUMEN', 'CICIL_BAYAR', 'VERIFIKASI_BAYAR', 'LUNAS'];
+      // 4. Validate Registration Status
+      const validStatusesForPayment = ['ISI_BIODATA', 'UPLOAD_DOKUMEN', 'VERIFIKASI_DOKUMEN', 'CICIL_BAYAR', 'VERIFIKASI_BAYAR', 'LUNAS', 'SIAP_BERANGKAT'];
       if (!validStatusesForPayment.includes(reg.status)) {
-         return res.status(400).json({ error: "Pendaftaran belum mencapai tahap pembayaran. Harap lengkapi tahap sebelumnya." });
+         return res.status(400).json({ error: `Pendaftaran belum mencapai tahap pembayaran (Status saat ini: ${reg.status}). Harap lengkapi tahap sebelumnya.` });
       }
 
+      // 5. Normalize Payment Type
       let normalizedPaymentType = String(paymentType || 'DP1').toUpperCase();
       if (normalizedPaymentType === 'FULL') {
         normalizedPaymentType = 'PELUNASAN';
       }
+      
+      if (!['DP1', 'DP2', 'PELUNASAN'].includes(normalizedPaymentType)) {
+        normalizedPaymentType = 'DP1'; // Fallback to safe default
+      }
 
-      // Save file to uploads folder if base64 data url is supplied
-      const savedProofUrl = saveFileToUploads(proofUrl, 'payment');
+      // 6. Save Base64 file
+      let savedProofUrl = '';
+      try {
+        savedProofUrl = saveFileToUploads(proofUrl, 'payment');
+        if (!savedProofUrl) {
+          throw new Error("Penyimpanan file bukti transfer mengembalikan URL kosong.");
+        }
+      } catch (fileErr: any) {
+        console.error("[Payments API] Failed to save proof file:", fileErr);
+        return res.status(500).json({ error: `Gagal menyimpan berkas bukti transfer: ${fileErr.message}` });
+      }
 
-      // Anti-duplicate check: if a PENDING payment exists for this registration
+      // 7. Anti-duplicate Check
       const existingPending = await withRetry(() => db.query.payments.findFirst({
         where: and(
           eq(schema.payments.registrationId, reg.id),
@@ -4295,6 +4328,7 @@ async function startServer() {
         const isSameAmount = Math.abs(Number(existingPending.amount || 0) - Number(amount || 0)) < 1;
 
         if (isSameType || isSameAmount || timeDiffSec < 60) {
+          console.log(`[Payments API] Duplicate transaction detected. Merging into existing payment ID: ${existingPending.id}`);
           if (savedProofUrl && (!existingPending.proofUrl || existingPending.proofUrl !== savedProofUrl)) {
             await withRetry(() => db.update(schema.payments)
               .set({ proofUrl: savedProofUrl, amount: String(amount) })
@@ -4307,7 +4341,9 @@ async function startServer() {
         }
       }
 
-      const [newPayment] = await withRetry(() => db.insert(schema.payments).values({
+      // 8. Insert new payment record
+      console.log(`[Payments API] Inserting new payment record for registration: ${reg.id}, type: ${normalizedPaymentType}, amount: ${amount}`);
+      const insertedPayments = await withRetry(() => db.insert(schema.payments).values({
               workspaceId: reg.workspaceId,
               registrationId,
               paymentType: normalizedPaymentType,
@@ -4316,18 +4352,27 @@ async function startServer() {
               status: 'PENDING',
             } as any).returning(), 5);
 
-      // Update user status to VERIFIKASI_BAYAR for both current user and main registration owner
+      if (!insertedPayments || insertedPayments.length === 0) {
+        throw new Error("Gagal menyimpan data transaksi pembayaran ke database (Insert returned empty result).");
+      }
+      const newPayment = insertedPayments[0];
+
+      // 9. Update States & Statuses
+      console.log(`[Payments API] Updating user and registration statuses to VERIFIKASI_BAYAR...`);
       await withRetry(() => db.update(schema.users).set({ status: 'VERIFIKASI_BAYAR' }).where(eq(schema.users.id, req.user!.id)), 5);
       if (reg.userId && reg.userId !== req.user!.id) {
         await withRetry(() => db.update(schema.users).set({ status: 'VERIFIKASI_BAYAR' }).where(eq(schema.users.id, reg.userId)), 5);
       }
       await withRetry(() => db.update(schema.registrations).set({ status: 'VERIFIKASI_BAYAR' }).where(eq(schema.registrations.id, reg.id)), 5);
 
+      console.log(`[Payments API] Payment processed successfully. ID: ${newPayment.id}`);
       res.status(201).json(newPayment);
       notifyUpdate();
     } catch (error: any) {
-      console.error("Payment upload failed:", error);
-      res.status(500).json({ error: "Terjadi kesalahan pada server" });
+      console.error("[Payments API FATAL] Payment upload failed:", error);
+      res.status(500).json({ 
+        error: `Terjadi kesalahan internal pada server: ${error.message || String(error)}` 
+      });
     }
   });
 
