@@ -98,15 +98,53 @@ export default function EquipmentManagement({
 
   // Overall Statistics
   const validConsultations = consultations.filter(c => c.status !== 'none' && c.status !== 'cancelled' && c.packageName !== 'Belum Memilih Paket');
-  const totalJamaah = validConsultations.length;
-  const maleCount = validConsultations.filter(c => getJamaahGender(c) === 'L').length;
-  const femaleCount = validConsultations.filter(c => getJamaahGender(c) === 'P').length;
+
+  const { totalJamaah, maleCount, femaleCount } = useMemo(() => {
+    let total = 0;
+    let male = 0;
+    let female = 0;
+
+    validConsultations.forEach(c => {
+      const paxList = Array.isArray(c.paxData) && c.paxData.length > 0 ? c.paxData : [c];
+      paxList.forEach((pax: any) => {
+        total++;
+        const g = String(pax?.gender || pax?.jenisKelamin || '').toUpperCase();
+        const title = String(pax?.title || pax?.salutation || '').toLowerCase();
+        const name = String(pax?.fullName || pax?.name || '').toLowerCase();
+
+        let isMale = true;
+        if (g.startsWith('L') || g.includes('PRIA') || g.includes('MALE') || g.includes('LAKI')) {
+          isMale = true;
+        } else if (g.startsWith('P') || g.includes('WANITA') || g.includes('FEMALE') || g.includes('PEREMPUAN')) {
+          isMale = false;
+        } else if (title.includes('bpk') || title.includes('bapak') || title.includes('sdr') || title.includes('mr') || title.includes('h.')) {
+          isMale = true;
+        } else if (title.includes('ibu') || title.includes('sdri') || title.includes('mrs') || title.includes('ms') || title.includes('hj')) {
+          isMale = false;
+        } else if (name.includes(' bin ') || name.endsWith(' bin')) {
+          isMale = true;
+        } else if (name.includes(' binti ') || name.endsWith(' binti')) {
+          isMale = false;
+        } else {
+          isMale = getJamaahGender(c) === 'L';
+        }
+
+        if (isMale) {
+          male++;
+        } else {
+          female++;
+        }
+      });
+    });
+
+    return { totalJamaah: total, maleCount: male, femaleCount: female };
+  }, [validConsultations, genderOverrides]);
 
   const totalDistributed = validConsultations.reduce((acc, c) => {
     const status = inventory?.find(i => i.registrationId === c.id);
     return acc + (status?.koper ? 1 : 0) + (status?.ihram ? 1 : 0) + (status?.mukena ? 1 : 0);
   }, 0);
-  const totalPossible = totalJamaah * 3;
+  const totalPossible = validConsultations.length * 3;
   const overallPercent = totalPossible > 0 ? Math.round((totalDistributed / totalPossible) * 100) : 0;
 
   return (

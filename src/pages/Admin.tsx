@@ -1226,11 +1226,18 @@ export default function Admin() {
 
   // Count jamaah who have active registrations and are scheduled to depart
   const activeJamaahDepartingCount = React.useMemo(() => {
+    const validConsultations = consultations.filter((c: any) => c.status !== 'none' && c.status !== 'cancelled' && c.packageName !== 'Belum Memilih Paket');
+    if (validConsultations.length > 0) {
+      return validConsultations.reduce((sum: number, c: any) => {
+        const pCount = Array.isArray(c.paxData) && c.paxData.length > 0 ? c.paxData.length : 1;
+        return sum + pCount;
+      }, 0);
+    }
     if (users && users.length > 0) {
       return users.filter((u: any) => u.role === 'jamaah' && !u.deletedAt).length;
     }
     return dashboardStats?.totalJamaah || 0;
-  }, [users, dashboardStats]);
+  }, [consultations, users, dashboardStats]);
 
   const stats = [
     { 
