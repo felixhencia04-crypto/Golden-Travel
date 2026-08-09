@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../lib/api';
-import { filterJamaahForCurrentMitra, getScopedKey } from '../../utils/mitraStorage';
+import { filterJamaahForCurrentMitra, getScopedKey, mergeJamaahObjects } from '../../utils/mitraStorage';
 
 interface MitraSertifikatProps {
   jamaahList?: any[];
@@ -20,56 +20,99 @@ export default function MitraSertifikat({ jamaahList = [] }: MitraSertifikatProp
   const loadJamaahDatabase = async () => {
     setLoading(true);
     try {
-      let combined: any[] = [];
+      const combinedMap = new Map<string, any>();
+
+      const addOrMergeJamaah = (item: any) => {
+        if (!item) return;
+        const name = (item.userName || item.namaLengkap || item.fullName || item.name || '').trim();
+        if (!name || name.startsWith('Jamaah #')) return;
+
+        let existingKey: string | null = null;
+        for (const [k, v] of combinedMap.entries()) {
+          const vName = (v.userName || v.namaLengkap || v.fullName || v.name || '').trim();
+          if ((item.id && v.id === item.id) || (vName && name && vName.toLowerCase() === name.toLowerCase())) {
+            existingKey = k;
+            break;
+          }
+        }
+
+        if (existingKey) {
+          const existing = combinedMap.get(existingKey);
+          combinedMap.set(existingKey, mergeJamaahObjects(existing, item));
+        } else {
+          const newKey = item.id || name.toLowerCase();
+          combinedMap.set(newKey, item);
+        }
+      };
 
       // 1. Fetch real Jamaah list from backend database
       const dbList = await api.get('/mitra/jamaah/list').catch(() => api.get('/mitra/jamaah').catch(() => []));
-      if (Array.isArray(dbList) && dbList.length > 0) {
-        combined = [...dbList];
+      if (Array.isArray(dbList)) {
+        dbList.forEach(addOrMergeJamaah);
       }
 
       // 2. Merge with jamaahList prop from parent hook
-      if (jamaahList && jamaahList.length > 0) {
-        jamaahList.forEach((j: any) => {
-          const jName = (j.userName || j.namaLengkap || j.fullName || j.name || '').trim();
-          if (jName && !combined.some(c => c.id === j.id || (c.userName && c.userName.trim() === jName))) {
-            combined.push(j);
-          }
-        });
+      if (Array.isArray(jamaahList)) {
+        jamaahList.forEach(addOrMergeJamaah);
       }
 
       // 3. Merge with scoped local storage pax list
-      const scopedKey = getScopedKey('mitra_saved_pax_list');
-      const savedPaxStr = localStorage.getItem(scopedKey);
-      if (savedPaxStr) {
-        const savedPax = JSON.parse(savedPaxStr);
-        if (Array.isArray(savedPax)) {
-          savedPax.forEach((sp: any) => {
-            const spName = (sp.userName || sp.namaLengkap || sp.fullName || sp.name || '').trim();
-            if (spName && !combined.some(c => c.id === sp.id || (c.userName && c.userName.trim() === spName))) {
-              combined.push(sp);
+      try {
+        const scopedKey = getScopedKey('mitra_saved_pax_list');
+        const savedPaxStr = localStorage.getItem(scopedKey);
+        if (savedPaxStr) {
+          const savedPax = JSON.parse(savedPaxStr);
+          if (Array.isArray(savedPax)) {
+            savedPax.forEach(addOrMergeJamaah);
+          }
+        }
+      } catch (e) {}
+
+      // 4. Merge with filtered central database
+      try {
+        const centralDbStr = localStorage.getItem('mitra_jamaah_database');
+        if (centralDbStr) {
+          const centralDb = JSON.parse(centralDbStr);
+          const filtered = filterJamaahForCurrentMitra(centralDb);
+          filtered.forEach(addOrMergeJamaah);
+        }
+      } catch (e) {}
+
+      // 5. Fetch certificates from server API endpoints
+      try {
+        const certs = await api.get('/certificates').catch(() => api.get('/admin/certificates').catch(() => []));
+        if (Array.isArray(certs) && certs.length > 0) {
+          certs.forEach((c: any) => {
+            const recipient = (c.recipientName || '').trim().toLowerCase();
+            const regId = c.registrationId;
+            const certUrl = c.certificateUrl;
+            if (!certUrl || (!recipient && !regId)) return;
+
+            for (const [k, v] of combinedMap.entries()) {
+              const vName = (v.userName || v.namaLengkap || v.fullName || v.name || '').trim().toLowerCase();
+              const vRegId = v.registrationId || v.id;
+              if ((regId && vRegId === regId) || (recipient && vName && (vName === recipient || vName.includes(recipient) || recipient.includes(vName)))) {
+                const updated = mergeJamaahObjects(v, {
+                  isCertIssued: true,
+                  certificateUrl: certUrl,
+                  docFiles: {
+                    sertifikat: {
+                      name: `Sertifikat_${(v.fullName || v.userName || 'Jemaah').replace(/\s+/g, '_')}.pdf`,
+                      url: certUrl,
+                      data: certUrl,
+                      uploadedAt: c.createdAt ? new Date(c.createdAt).toLocaleDateString('id-ID') : new Date().toLocaleDateString('id-ID'),
+                      recipientName: c.recipientName || v.fullName || v.userName
+                    }
+                  }
+                });
+                combinedMap.set(k, updated);
+              }
             }
           });
         }
-      }
+      } catch (certErr) {}
 
-      // 4. Merge with filtered central database
-      const centralDbStr = localStorage.getItem('mitra_jamaah_database');
-      if (centralDbStr) {
-        try {
-          const centralDb = JSON.parse(centralDbStr);
-          const filtered = filterJamaahForCurrentMitra(centralDb);
-          filtered.forEach((cItem: any) => {
-            const cName = (cItem.userName || cItem.namaLengkap || cItem.fullName || cItem.name || '').trim();
-            if (cName && !combined.some(c => c.id === cItem.id || (c.userName && c.userName.trim() === cName))) {
-              combined.push(cItem);
-            }
-          });
-        } catch (e) {}
-      }
-
-      // Ensure clean valid items only
-      const validList = combined.filter(j => {
+      const validList = Array.from(combinedMap.values()).filter(j => {
         const name = (j.fullName || j.namaLengkap || j.userName || j.name || '').trim();
         return name !== '' && !name.startsWith('Jamaah #');
       });

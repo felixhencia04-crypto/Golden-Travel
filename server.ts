@@ -5025,14 +5025,15 @@ async function startServer() {
   // Persistent Jamaah Storage Helpers (PostgreSQL Single Source of Truth)
   async function getAllJamaahFromDatabase() {
     try {
-      const [allRegs, allDocs] = await Promise.all([
+      const [allRegs, allDocs, allCerts] = await Promise.all([
         withRetry(() => db.query.registrations.findMany({
           with: {
             package: true,
             user: true
           }
         })).catch(() => []) as Promise<any[]>,
-        withRetry(() => db.query.documents.findMany()).catch(() => []) as Promise<any[]>
+        withRetry(() => db.query.documents.findMany()).catch(() => []) as Promise<any[]>,
+        withRetry(() => db.query.certificates.findMany()).catch(() => []) as Promise<any[]>
       ]);
 
       const docsMap = new Map<string, any>();
@@ -5040,6 +5041,12 @@ async function startServer() {
         if (d.registrationId && d.docType) {
           docsMap.set(`${d.registrationId}_${d.docType}`, d);
         }
+      });
+
+      const certsMap = new Map<string, any>();
+      (allCerts || []).forEach(c => {
+        if (c.registrationId) certsMap.set(c.registrationId, c);
+        if (c.recipientName) certsMap.set(c.recipientName.trim().toLowerCase(), c);
       });
 
       const jamaahList: any[] = [];
@@ -5091,6 +5098,25 @@ async function startServer() {
             }
           });
 
+          // Check certificates
+          const certFromDb = certsMap.get(regId) || certsMap.get(p.id) || certsMap.get(pName.toLowerCase());
+          const certData = p.docFiles?.sertifikat;
+          const certUrl = certFromDb?.certificateUrl || p.certificateUrl || certData?.url || certData?.data || '';
+          const isCertIssued = !!(certFromDb || p.isCertIssued || certUrl || certData);
+
+          const docFiles = {
+            ...(p.docFiles || {}),
+            ...(isCertIssued && certUrl ? {
+              sertifikat: certData || {
+                name: `Sertifikat_${pName.replace(/\s+/g, '_')}.pdf`,
+                url: certUrl,
+                data: certUrl,
+                uploadedAt: certFromDb?.createdAt ? new Date(certFromDb.createdAt).toLocaleDateString('id-ID') : new Date().toLocaleDateString('id-ID'),
+                recipientName: certFromDb?.recipientName || pName
+              }
+            } : {})
+          };
+
           jamaahList.push({
             ...p,
             id: p.id || `JAM-${reg.id.substring(0, 8)}-${idx + 1}`,
@@ -5102,7 +5128,10 @@ async function startServer() {
             mitraEmail: p.mitraEmail || reg.ordererEmail || '',
             statusBiodata: p.statusBiodata || (reg.status === 'VERIFIED' ? 'verified' : 'pending'),
             isComplete: p.isComplete !== undefined ? p.isComplete : true,
-            documents: normalizedDocs
+            documents: normalizedDocs,
+            docFiles: docFiles,
+            isCertIssued: isCertIssued,
+            certificateUrl: certUrl || undefined
           });
         });
       });
@@ -8494,6 +8523,47 @@ async function startServer() {
           recipientName: recipientName || null,
           certificateUrl: finalCertUrl
         }).returning());
+      }
+
+      // Sync certificate info to matching registrations paxData
+      try {
+        const allRegs = await db.query.registrations.findMany();
+        for (const reg of allRegs) {
+          let updated = false;
+          const paxArr = Array.isArray(reg.paxData) ? reg.paxData : [];
+          const targetName = (recipientName || '').trim().toLowerCase();
+          
+          const newPax = paxArr.map((p: any) => {
+            const pName = (p.userName || p.namaLengkap || p.fullName || p.name || '').trim().toLowerCase();
+            if (p.id === registrationId || reg.id === registrationId || (targetName && pName === targetName)) {
+              updated = true;
+              return {
+                ...p,
+                isCertIssued: true,
+                certificateUrl: finalCertUrl,
+                docFiles: {
+                  ...(p.docFiles || {}),
+                  sertifikat: {
+                    name: `Sertifikat_${(recipientName || 'Jemaah').replace(/\s+/g, '_')}.pdf`,
+                    url: finalCertUrl,
+                    data: finalCertUrl,
+                    uploadedAt: new Date().toLocaleDateString('id-ID'),
+                    recipientName: recipientName || p.fullName || p.userName
+                  }
+                }
+              };
+            }
+            return p;
+          });
+
+          if (updated) {
+            await db.update(schema.registrations)
+              .set({ paxData: newPax })
+              .where(eq(schema.registrations.id, reg.id));
+          }
+        }
+      } catch (paxErr) {
+        console.warn("[Certificates POST] Syncing paxData error:", paxErr);
       }
 
       res.json(certificate);

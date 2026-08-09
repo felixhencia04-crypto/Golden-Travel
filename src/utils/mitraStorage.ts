@@ -117,15 +117,56 @@ export function filterJamaahForCurrentMitra(jamaahArray: any[], customMitraInfo?
     if (!item) return false;
     const jMitraId = (item.mitraId || '').toLowerCase().trim();
     const jMitraEmail = (item.mitraEmail || '').toLowerCase().trim();
-    const jMitraName = (item.mitraName || item.ordererName || '').toLowerCase().trim();
+    const jMitraName = (item.mitraName || item.ordererName || item.createdByName || '').toLowerCase().trim();
 
     // Direct ID match
     if (searchId && jMitraId && jMitraId === searchId) return true;
     // Direct Email match
     if (searchEmail && jMitraEmail && jMitraEmail === searchEmail) return true;
     // Direct Name match
-    if (searchName && jMitraName && searchName.length > 2 && jMitraName === searchName) return true;
+    if (searchName && jMitraName) {
+      if (searchName === jMitraName) return true;
+      if (searchName.length >= 3 && (searchName.includes(jMitraName) || jMitraName.includes(searchName))) return true;
+    }
 
     return false;
   });
 }
+
+/**
+ * Merge two jamaah object versions, preserving certificate status and URLs
+ */
+export function mergeJamaahObjects(target: any, source: any): any {
+  if (!target) return source;
+  if (!source) return target;
+
+  const merged = { ...target, ...source };
+
+  const mergedDocFiles = {
+    ...(target.docFiles || {}),
+    ...(source.docFiles || {})
+  };
+
+  const certData = source.docFiles?.sertifikat || target.docFiles?.sertifikat;
+  const certUrl = source.certificateUrl || target.certificateUrl || certData?.url || certData?.data || '';
+  const isIssued = !!(source.isCertIssued || target.isCertIssued || certUrl || certData);
+
+  if (isIssued) {
+    merged.isCertIssued = true;
+    if (certUrl) {
+      merged.certificateUrl = certUrl;
+      const recipientName = certData?.recipientName || source.fullName || source.userName || target.fullName || target.userName || 'Jemaah';
+      mergedDocFiles.sertifikat = certData || {
+        name: `Sertifikat_${recipientName.replace(/\s+/g, '_')}.pdf`,
+        url: certUrl,
+        data: certUrl,
+        uploadedAt: new Date().toLocaleDateString('id-ID'),
+        recipientName: recipientName
+      };
+    }
+  }
+
+  merged.docFiles = mergedDocFiles;
+  return merged;
+}
+

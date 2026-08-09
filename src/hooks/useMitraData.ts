@@ -3,7 +3,7 @@ import { api } from '../lib/api';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { mitraRealtimeService } from '../services/mitraRealtimeService';
-import { setActiveMitraInfo, getScopedKey, filterJamaahForCurrentMitra } from '../utils/mitraStorage';
+import { setActiveMitraInfo, getScopedKey, filterJamaahForCurrentMitra, mergeJamaahObjects } from '../utils/mitraStorage';
 
 export function useMitraData() {
   const [jamaahList, setJamaahList] = useState<any[]>([]);
@@ -40,7 +40,34 @@ export function useMitraData() {
         api.get('/auth/me').catch(() => null)
       ]);
 
-      let combinedJamaah = Array.isArray(jamaah) ? [...jamaah] : [];
+      const combinedMap = new Map<string, any>();
+
+      const addOrMergeJamaah = (item: any) => {
+        if (!item) return;
+        const name = (item.userName || item.namaLengkap || item.fullName || item.name || '').trim();
+        if (!name || name.startsWith('Jamaah #')) return;
+
+        let existingKey: string | null = null;
+        for (const [k, v] of combinedMap.entries()) {
+          const vName = (v.userName || v.namaLengkap || v.fullName || v.name || '').trim();
+          if ((item.id && v.id === item.id) || (vName && name && vName.toLowerCase() === name.toLowerCase())) {
+            existingKey = k;
+            break;
+          }
+        }
+
+        if (existingKey) {
+          const existing = combinedMap.get(existingKey);
+          combinedMap.set(existingKey, mergeJamaahObjects(existing, item));
+        } else {
+          const newKey = item.id || name.toLowerCase();
+          combinedMap.set(newKey, item);
+        }
+      };
+
+      if (Array.isArray(jamaah)) {
+        jamaah.forEach(addOrMergeJamaah);
+      }
 
       // Merge with scoped local storage items if any exist
       try {
@@ -49,26 +76,18 @@ export function useMitraData() {
         if (savedPaxStr) {
           const savedPax = JSON.parse(savedPaxStr);
           if (Array.isArray(savedPax)) {
-            savedPax.forEach((sp: any) => {
-              const spName = (sp.userName || sp.namaLengkap || sp.name || '').trim();
-              if (spName && !combinedJamaah.some((fj: any) => fj.id === sp.id || (fj.userName && fj.userName.trim() === spName))) {
-                combinedJamaah.push(sp);
-              }
-            });
+            savedPax.forEach(addOrMergeJamaah);
           }
         }
 
         const centralDbStr = localStorage.getItem('mitra_jamaah_database');
         if (centralDbStr) {
           const filteredCentral = filterJamaahForCurrentMitra(JSON.parse(centralDbStr));
-          filteredCentral.forEach((cj: any) => {
-            const cjName = (cj.userName || cj.namaLengkap || cj.name || '').trim();
-            if (cjName && !combinedJamaah.some((fj: any) => fj.id === cj.id || (fj.userName && fj.userName.trim() === cjName))) {
-              combinedJamaah.push(cj);
-            }
-          });
+          filteredCentral.forEach(addOrMergeJamaah);
         }
       } catch (e) {}
+
+      const combinedJamaah = Array.from(combinedMap.values());
 
       setJamaahList(combinedJamaah);
       setStats(s);

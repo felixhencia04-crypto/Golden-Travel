@@ -210,6 +210,7 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
   const syncJamaahDatabase = (updatedList: any[]) => {
     setJamaahList(updatedList);
     safeSetLocalStorage('mitra_jamaah_database', updatedList);
+    api.post('/admin/mitra/jamaah/sync', { jamaahList: updatedList }).catch(() => {});
     try {
       const bc = new BroadcastChannel('mitra_catalog_realtime');
       bc.postMessage({ type: 'JAMAAH_UPDATED', timestamp: Date.now() });
@@ -302,8 +303,10 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
         mitraName: mitraName
       };
 
+      const targetNorm = recipientName.trim().toLowerCase();
       const updatedList = jamaahList.map(j => {
-        if (j.id === selectedJamaahId) {
+        const jNorm = (j.fullName || j.namaLengkap || j.userName || '').trim().toLowerCase();
+        if (j.id === selectedJamaahId || (targetNorm && jNorm === targetNorm)) {
           return {
             ...j,
             docFiles: {
