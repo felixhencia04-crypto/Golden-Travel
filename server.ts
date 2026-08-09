@@ -5763,73 +5763,21 @@ async function startServer() {
 
       if (targetUserIds.length > 0 || targetEmail) {
         await withRetry(() => db.transaction(async (tx) => {
-          // A. Set referred users' mitraId to null
+          // A. Set referred users' mitraId to null (unlink referred Jamaah/users)
           if (targetUserIds.length > 0) {
             await tx.update(schema.users)
               .set({ mitraId: null })
               .where(inArray(schema.users.mitraId, targetUserIds));
           }
 
-          // B. Unlink verifiedBy references
+          // B. Unlink verifiedBy references on payments (if Mitra verified any payments)
           if (targetUserIds.length > 0) {
             await tx.update(schema.payments)
               .set({ verifiedBy: null })
               .where(inArray(schema.payments.verifiedBy, targetUserIds));
-
-            await tx.update(schema.registrations)
-              .set({ verifiedBy: null })
-              .where(inArray(schema.registrations.verifiedBy, targetUserIds));
           }
 
-          // C. Find all registrations associated with this user/mitra or ordererEmail
-          const regWhereConds = [];
-          if (targetUserIds.length > 0) {
-            regWhereConds.push(inArray(schema.registrations.userId, targetUserIds));
-          }
-          if (targetEmail) {
-            regWhereConds.push(sql`LOWER(${schema.registrations.ordererEmail}) = LOWER(${targetEmail})`);
-          }
-
-          const assocRegistrations = regWhereConds.length > 0
-            ? await tx.select({ id: schema.registrations.id })
-                .from(schema.registrations)
-                .where(or(...regWhereConds))
-            : [];
-
-          const regIds = assocRegistrations.map(r => r.id).filter(Boolean);
-
-          if (regIds.length > 0) {
-            const assocPayments = await tx.select({ id: schema.payments.id })
-              .from(schema.payments)
-              .where(inArray(schema.payments.registrationId, regIds));
-            const payIds = assocPayments.map(p => p.id).filter(Boolean);
-
-            if (payIds.length > 0) {
-              await tx.delete(schema.financial_ledger)
-                .where(inArray(schema.financial_ledger.paymentId, payIds));
-              await tx.delete(schema.financialVerifications)
-                .where(inArray(schema.financialVerifications.paymentId, payIds));
-              await tx.delete(schema.payments)
-                .where(inArray(schema.payments.id, payIds));
-            }
-
-            await tx.delete(schema.documents)
-              .where(inArray(schema.documents.registrationId, regIds));
-            await tx.delete(schema.certificates)
-              .where(inArray(schema.certificates.registrationId, regIds));
-            await tx.delete(schema.equipment)
-              .where(inArray(schema.equipment.registrationId, regIds));
-            await tx.delete(schema.manifests)
-              .where(inArray(schema.manifests.registrationId, regIds));
-            await tx.delete(schema.memories)
-              .where(inArray(schema.memories.registrationId, regIds));
-            await tx.delete(schema.activities)
-              .where(inArray(schema.activities.registrationId, regIds));
-            await tx.delete(schema.registrations)
-              .where(inArray(schema.registrations.id, regIds));
-          }
-
-          // D. Delete notifications, helpdesk tickets, activities
+          // C. Delete Mitra-specific user data (notifications, tickets, activities)
           if (targetUserIds.length > 0) {
             await tx.delete(schema.notifications)
               .where(inArray(schema.notifications.userId, targetUserIds));
@@ -5839,7 +5787,7 @@ async function startServer() {
               .where(inArray(schema.activities.userId, targetUserIds));
           }
 
-          // E. Delete KYC documents & profiles
+          // D. Delete KYC documents & profiles for Mitra
           if (targetUserIds.length > 0) {
             await tx.delete(schema.kycDocuments)
               .where(inArray(schema.kycDocuments.userId, targetUserIds));
@@ -5847,7 +5795,7 @@ async function startServer() {
               .where(inArray(schema.mitraProfiles.userId, targetUserIds));
           }
 
-          // F. Delete commission payouts
+          // E. Delete commission payouts for Mitra
           const payoutConds = [];
           if (targetUserIds.length > 0) {
             payoutConds.push(inArray(schema.mitraCommissionPayouts.mitraUserId, targetUserIds));
@@ -5860,7 +5808,7 @@ async function startServer() {
               .where(or(...payoutConds));
           }
 
-          // G. Delete from mitraUsers
+          // F. Delete from mitraUsers table
           const mitraUsersConds = [];
           if (targetUserIds.length > 0) {
             mitraUsersConds.push(inArray(schema.mitraUsers.id, targetUserIds));
@@ -5873,7 +5821,7 @@ async function startServer() {
               .where(or(...mitraUsersConds));
           }
 
-          // H. Delete from standard users table
+          // G. Delete from standard users table (role = 'mitra')
           const usersConds = [];
           if (targetUserIds.length > 0) {
             usersConds.push(inArray(schema.users.id, targetUserIds));
