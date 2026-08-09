@@ -154,8 +154,8 @@ function CMSPackageList() {
       toast.success('Paket berhasil dihapus');
       notifyRealtimeCatalogChange();
       fetchPackages();
-    } catch (error) {
-      toast.error('Gagal menghapus paket');
+    } catch (error: any) {
+      toast.error(error?.message || 'Gagal menghapus paket');
     } finally {
       setDeleteConfirmId(null);
     }
@@ -330,6 +330,7 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
         price: Number(formData.price),
         description: formData.description.split('\n').filter((d: string) => d.trim() !== ''),
         excludes: formData.excludes.split('\n').filter((d: string) => d.trim() !== ''),
+        itineraries: itinerary
       };
 
       if (pkg?.id) {
@@ -341,8 +342,8 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
         toast.success('Paket berhasil ditambahkan');
       }
       onSuccess();
-    } catch (error) {
-      toast.error('Gagal menyimpan paket');
+    } catch (error: any) {
+      toast.error(error?.message || 'Gagal menyimpan paket');
     } finally {
       setIsSubmitting(false);
     }
@@ -520,16 +521,6 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
                   placeholder="Pembuatan Paspor&#10;Vaksin Meningitis&#10;Pengeluaran Pribadi"
                 />
               </div>
-            <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Belum Termasuk / Excludes (Satu per baris)</label>
-                <textarea 
-                  value={formData.excludes}
-                  onChange={(e) => setFormData({...formData, excludes: e.target.value})}
-                  rows={3}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all outline-none resize-none"
-                  placeholder="Pembuatan Paspor&#10;Vaksin Meningitis&#10;Pengeluaran Pribadi"
-                />
-              </div>
             </form>
           ) : (
             <div className="space-y-6">
@@ -636,8 +627,8 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
                       try {
                         await api.post(`/api/cms/packages/${pkg.id}/itinerary`, { itineraries: itinerary });
                         toast.success('Itinerary berhasil disimpan');
-                      } catch (err) {
-                        toast.error('Gagal menyimpan itinerary');
+                      } catch (err: any) {
+                        toast.error(err?.message || 'Gagal menyimpan itinerary');
                       }
                     }}
                     className="w-full py-3 bg-gold-100 text-gold-700 rounded-2xl font-bold hover:bg-gold-200 transition-all flex items-center justify-center gap-2"

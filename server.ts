@@ -3220,9 +3220,10 @@ async function startServer() {
     // Delete schedules
     await withRetry(() => db.delete(schema.schedules).where(eq(schema.schedules.packageId, packageId))).catch(() => {});
 
-    // 4. Delete manifests and memories directly referencing packageId
+    // 4. Delete manifests, memories, and itineraries directly referencing packageId
     await withRetry(() => db.delete(schema.manifests).where(eq(schema.manifests.packageId, packageId))).catch(() => {});
     await withRetry(() => db.delete(schema.memories).where(eq(schema.memories.packageId, packageId))).catch(() => {});
+    await withRetry(() => db.delete(schema.package_itineraries).where(eq(schema.package_itineraries.packageId, packageId))).catch(() => {});
 
     // 5. Delete package
     const [deletedPkg] = await withRetry(() => db.delete(schema.packages).where(eq(schema.packages.id, packageId)).returning());
@@ -6969,7 +6970,7 @@ async function startServer() {
     if (req.user?.role !== 'admin' && req.user?.role !== 'super_admin' && req.user?.email !== 'felix.hencia04@gmail.com') return res.status(403).json({ error: "Forbidden" });
     try {
       await ensureTableAndColumns().catch(e => console.error("ensureTableAndColumns error in POST package:", e));
-      const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, excludes } = req.body;
+      const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, excludes, itineraries } = req.body;
       
       const cleanPrice = Number(price) || 0;
       const cleanQuota = Number(quota) || 45;
@@ -7015,7 +7016,24 @@ async function startServer() {
         excludes: cleanExcludes
       };
 
-      const [newPackage] = await withRetry(() => db.insert(schema.packages).values(data).returning());
+      let newPackage: any;
+      await db.transaction(async (tx) => {
+        const [insertedPkg] = await tx.insert(schema.packages).values(data).returning();
+        newPackage = insertedPkg;
+
+        // Save itineraries if passed in the payload
+        if (newPackage && Array.isArray(itineraries) && itineraries.length > 0) {
+          const values = itineraries.map((item: any) => ({
+            packageId: newPackage.id,
+            day: Number(item.day) || 1,
+            title: item.title || '',
+            description: item.description || '',
+            location: item.location || '',
+            meals: item.meals || ''
+          }));
+          await tx.insert(schema.package_itineraries).values(values);
+        }
+      });
       
       // Parse description for client response consistency
       let parsedDesc = newPackage.description;
@@ -7029,7 +7047,8 @@ async function startServer() {
         remainingSeats: newPackage.quota || cleanQuota, 
         takenSeats: 0,
         type: normalizedType,
-        isAvailable: normalizedIsAvailable
+        isAvailable: normalizedIsAvailable,
+        itinerary: Array.isArray(itineraries) ? itineraries.map((item: any) => ({ ...item, packageId: newPackage.id })) : []
       };
 
       res.json(responseObj);
@@ -7044,7 +7063,7 @@ async function startServer() {
   app.put("/api/admin/packages/:id", authenticate, async (req: AuthRequest, res) => {
     if (req.user?.role !== 'admin' && req.user?.role !== 'super_admin' && req.user?.email !== 'felix.hencia04@gmail.com') return res.status(403).json({ error: "Forbidden" });
     try {
-      const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, excludes } = req.body;
+      const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, excludes, itineraries } = req.body;
       
       const cleanPrice = Number(price) || 0;
       const cleanQuota = Number(quota) || 45;
@@ -7088,22 +7107,52 @@ async function startServer() {
         data.manasikPdfUrl = manasikPdfUrl ? saveFileToUploads(manasikPdfUrl, 'doc') : null;
       }
 
-      const [updatedPackage] = await withRetry(() => db.update(schema.packages)
-              .set(data)
-              .where(eq(schema.packages.id, req.params.id))
-              .returning());
+      let updatedPackage: any;
+      await db.transaction(async (tx) => {
+        const [pkg] = await tx.update(schema.packages)
+          .set(data)
+          .where(eq(schema.packages.id, req.params.id))
+          .returning();
+        updatedPackage = pkg;
 
-      if (!updatedPackage) {
-        return res.status(404).json({ error: "Paket tidak ditemukan." });
-      }
+        if (!updatedPackage) {
+          throw new Error("NOT_FOUND");
+        }
+
+        // Update itineraries if passed in the payload
+        if (Array.isArray(itineraries)) {
+          // Delete existing itineraries
+          await tx.delete(schema.package_itineraries).where(eq(schema.package_itineraries.packageId, req.params.id));
+          
+          // Insert new itineraries
+          if (itineraries.length > 0) {
+            const values = itineraries.map((item: any) => ({
+              packageId: req.params.id,
+              day: Number(item.day) || 1,
+              title: item.title || '',
+              description: item.description || '',
+              location: item.location || '',
+              meals: item.meals || ''
+            }));
+            await tx.insert(schema.package_itineraries).values(values);
+          }
+        }
+      });
 
       // Parse description for client response consistency
       let parsedDesc = updatedPackage.description;
       try { parsedDesc = JSON.parse(updatedPackage.description); } catch(e) {}
 
-      res.json({ ...updatedPackage, description: parsedDesc });
+      res.json({ 
+        ...updatedPackage, 
+        description: parsedDesc,
+        itinerary: Array.isArray(itineraries) ? itineraries : []
+      });
       notifyUpdate();
     } catch (error: any) {
+      if (error?.message === "NOT_FOUND") {
+        return res.status(404).json({ error: "Paket tidak ditemukan." });
+      }
       console.error("Error updating package:", error);
       res.status(500).json({ error: "Gagal memperbarui paket. Cek kembali data yang dimasukkan (misalnya harga terlalu besar)." });
     }
