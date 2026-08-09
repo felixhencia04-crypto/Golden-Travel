@@ -210,10 +210,53 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
   const syncJamaahDatabase = (updatedList: any[]) => {
     setJamaahList(updatedList);
     safeSetLocalStorage('mitra_jamaah_database', updatedList);
+
+    // Synchronize scoped pax keys in localStorage
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('mitra_saved_pax_list')) {
+          const val = localStorage.getItem(key);
+          if (val) {
+            try {
+              const list = JSON.parse(val);
+              if (Array.isArray(list)) {
+                let changed = false;
+                const updatedScoped = list.map((pax: any) => {
+                  const pName = (pax.userName || pax.namaLengkap || pax.fullName || pax.name || '').trim().toLowerCase();
+                  const match = updatedList.find(u => u.id === pax.id || (u.userName && pName && u.userName.trim().toLowerCase() === pName));
+                  if (match) {
+                    changed = true;
+                    const newDocs = { ...(pax.docFiles || {}) };
+                    if (match.isCertIssued && match.docFiles?.sertifikat) {
+                      newDocs.sertifikat = match.docFiles.sertifikat;
+                    } else if (match.isCertIssued === false) {
+                      delete newDocs.sertifikat;
+                    }
+                    return {
+                      ...pax,
+                      isCertIssued: match.isCertIssued,
+                      certificateUrl: match.isCertIssued ? (match.certificateUrl || pax.certificateUrl) : undefined,
+                      docFiles: newDocs
+                    };
+                  }
+                  return pax;
+                });
+                if (changed) {
+                  safeSetLocalStorage(key, updatedScoped);
+                }
+              }
+            } catch (err) {}
+          }
+        }
+      }
+    } catch (e) {}
+
     api.post('/admin/mitra/jamaah/sync', { jamaahList: updatedList }).catch(() => {});
     try {
       const bc = new BroadcastChannel('mitra_catalog_realtime');
       bc.postMessage({ type: 'JAMAAH_UPDATED', timestamp: Date.now() });
+      bc.postMessage({ type: 'CERTIFICATE_UPDATED', timestamp: Date.now() });
       bc.close();
     } catch (e) {}
     window.dispatchEvent(new Event('mitra_jamaah_updated'));
@@ -342,22 +385,36 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
       title: 'Hapus Sertifikat Digital',
       message: `Apakah Anda yakin ingin menghapus sertifikat untuk ${recipientName}? Jamaah tidak akan bisa melihat sertifikat ini di portal Mitra.`,
       type: 'danger',
-      onConfirm: () => {
+      onConfirm: async () => {
+        try {
+          if (jamaahId) {
+            await api.delete(`/admin/certificates/${encodeURIComponent(jamaahId)}`).catch(() => {});
+          }
+          if (recipientName) {
+            await api.delete(`/admin/certificates/${encodeURIComponent(recipientName)}`).catch(() => {});
+          }
+        } catch (apiErr) {
+          console.warn('Delete cert API notice:', apiErr);
+        }
+
+        const targetNorm = (recipientName || '').trim().toLowerCase();
         const updatedList = jamaahList.map(j => {
-          if (j.id === jamaahId) {
+          const jNorm = (j.fullName || j.namaLengkap || j.userName || '').trim().toLowerCase();
+          if (j.id === jamaahId || (targetNorm && jNorm === targetNorm)) {
             const newDocs = { ...(j.docFiles || {}) };
             delete newDocs.sertifikat;
             return {
               ...j,
               docFiles: newDocs,
-              isCertIssued: false
+              isCertIssued: false,
+              certificateUrl: undefined
             };
           }
           return j;
         });
 
         syncJamaahDatabase(updatedList);
-        toast.success('Sertifikat berhasil dihapus.');
+        toast.success('Sertifikat berhasil dihapus secara real-time.');
       }
     });
   };

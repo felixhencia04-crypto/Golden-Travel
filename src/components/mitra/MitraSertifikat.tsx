@@ -6,6 +6,7 @@ import {
 import { toast } from 'sonner';
 import { api } from '../../lib/api';
 import { filterJamaahForCurrentMitra, getScopedKey, mergeJamaahObjects } from '../../utils/mitraStorage';
+import { mitraRealtimeService } from '../../services/mitraRealtimeService';
 
 interface MitraSertifikatProps {
   jamaahList?: any[];
@@ -135,11 +136,17 @@ export default function MitraSertifikat({ jamaahList = [] }: MitraSertifikatProp
     window.addEventListener('mitra_jamaah_updated', handleSync);
     window.addEventListener('storage', handleSync);
 
+    const unsubscribeSSE = mitraRealtimeService.subscribeToRealtimeEvents((event) => {
+      if (['data_updated', 'PACKAGE_MUTATED', 'SCHEDULE_MUTATED', 'CERTIFICATE_UPDATED', 'CERTIFICATE_DELETED', 'JAMAAH_UPDATED'].includes(event)) {
+        loadJamaahDatabase();
+      }
+    });
+
     let bc: BroadcastChannel | null = null;
     try {
       bc = new BroadcastChannel('mitra_catalog_realtime');
       bc.onmessage = (e) => {
-        if (e.data?.type === 'JAMAAH_UPDATED' || e.data?.type === 'CERTIFICATE_UPDATED') {
+        if (['JAMAAH_UPDATED', 'CERTIFICATE_UPDATED', 'CERTIFICATE_DELETED'].includes(e.data?.type)) {
           loadJamaahDatabase();
         }
       };
@@ -148,6 +155,7 @@ export default function MitraSertifikat({ jamaahList = [] }: MitraSertifikatProp
     return () => {
       window.removeEventListener('mitra_jamaah_updated', handleSync);
       window.removeEventListener('storage', handleSync);
+      unsubscribeSSE();
       if (bc) bc.close();
     };
   }, [jamaahList]);

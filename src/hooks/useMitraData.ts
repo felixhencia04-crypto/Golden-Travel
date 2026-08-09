@@ -167,11 +167,22 @@ export function useMitraData() {
         }
 
         if (!unsubscribeRealtime) {
-          unsubscribeRealtime = mitraRealtimeService.subscribeToVerificationEvents(({ status }) => {
+          const unsubVerify = mitraRealtimeService.subscribeToVerificationEvents(({ status }) => {
             console.log('[Realtime] Verification status updated:', status);
             setMitraStatus(status);
             refreshData(true);
           });
+
+          const unsubSSE = mitraRealtimeService.subscribeToRealtimeEvents((event) => {
+            if (['data_updated', 'PACKAGE_MUTATED', 'SCHEDULE_MUTATED', 'CERTIFICATE_UPDATED', 'CERTIFICATE_DELETED', 'JAMAAH_UPDATED'].includes(event)) {
+              refreshData(true);
+            }
+          });
+
+          unsubscribeRealtime = () => {
+            unsubVerify();
+            unsubSSE();
+          };
         }
       } else {
         setJamaahList([]);
@@ -186,13 +197,33 @@ export function useMitraData() {
         refreshData(true);
       }
     };
+    
+    const handleMitraSync = () => {
+      refreshData(true);
+    };
+
     window.addEventListener('focus', handleFocus);
+    window.addEventListener('mitra_jamaah_updated', handleMitraSync);
+    window.addEventListener('storage', handleMitraSync);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('mitra_catalog_realtime');
+      bc.onmessage = (e) => {
+        if (['JAMAAH_UPDATED', 'CERTIFICATE_UPDATED', 'CERTIFICATE_DELETED'].includes(e.data?.type)) {
+          refreshData(true);
+        }
+      };
+    } catch (e) {}
 
     return () => {
       unsubscribeAuth();
       if (interval) clearInterval(interval);
       if (unsubscribeRealtime) unsubscribeRealtime();
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('mitra_jamaah_updated', handleMitraSync);
+      window.removeEventListener('storage', handleMitraSync);
+      if (bc) bc.close();
     };
   }, []);
 

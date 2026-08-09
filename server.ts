@@ -5100,22 +5100,22 @@ async function startServer() {
 
           // Check certificates
           const certFromDb = certsMap.get(regId) || certsMap.get(p.id) || certsMap.get(pName.toLowerCase());
-          const certData = p.docFiles?.sertifikat;
-          const certUrl = certFromDb?.certificateUrl || p.certificateUrl || certData?.url || certData?.data || '';
-          const isCertIssued = !!(certFromDb || p.isCertIssued || certUrl || certData);
+          const certData = certFromDb ? p.docFiles?.sertifikat : (p.isCertIssued ? p.docFiles?.sertifikat : undefined);
+          const certUrl = certFromDb?.certificateUrl || (p.isCertIssued ? (p.certificateUrl || certData?.url || certData?.data || '') : '');
+          const isCertIssued = !!(certFromDb || (p.isCertIssued && certUrl));
 
-          const docFiles = {
-            ...(p.docFiles || {}),
-            ...(isCertIssued && certUrl ? {
-              sertifikat: certData || {
-                name: `Sertifikat_${pName.replace(/\s+/g, '_')}.pdf`,
-                url: certUrl,
-                data: certUrl,
-                uploadedAt: certFromDb?.createdAt ? new Date(certFromDb.createdAt).toLocaleDateString('id-ID') : new Date().toLocaleDateString('id-ID'),
-                recipientName: certFromDb?.recipientName || pName
-              }
-            } : {})
-          };
+          const docFiles = { ...(p.docFiles || {}) };
+          if (isCertIssued && certUrl) {
+            docFiles.sertifikat = certData || {
+              name: `Sertifikat_${pName.replace(/\s+/g, '_')}.pdf`,
+              url: certUrl,
+              data: certUrl,
+              uploadedAt: certFromDb?.createdAt ? new Date(certFromDb.createdAt).toLocaleDateString('id-ID') : new Date().toLocaleDateString('id-ID'),
+              recipientName: certFromDb?.recipientName || pName
+            };
+          } else {
+            delete docFiles.sertifikat;
+          }
 
           jamaahList.push({
             ...p,
@@ -8577,13 +8577,68 @@ async function startServer() {
   app.delete("/api/admin/certificates/:id", authenticate, async (req: AuthRequest, res) => {
     if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
     try {
-      if (isValidUuid(req.params.id)) {
-        await withRetry(() => db.delete(schema.certificates).where(eq(schema.certificates.id, req.params.id)));
+      const rawParam = req.params.id || '';
+      const targetIdOrName = decodeURIComponent(rawParam).trim();
+      const lowerTarget = targetIdOrName.toLowerCase();
+
+      // 1. Delete from schema.certificates table in DB
+      try {
+        const allCerts = await db.query.certificates.findMany();
+        for (const cert of allCerts) {
+          const recipientLower = (cert.recipientName || '').trim().toLowerCase();
+          if (
+            cert.id === targetIdOrName ||
+            cert.registrationId === targetIdOrName ||
+            (lowerTarget && recipientLower && (recipientLower === lowerTarget || recipientLower.includes(lowerTarget) || lowerTarget.includes(recipientLower)))
+          ) {
+            await withRetry(() => db.delete(schema.certificates).where(eq(schema.certificates.id, cert.id))).catch(() => {});
+          }
+        }
+      } catch (certDelErr) {
+        console.warn("[Certificates DELETE] DB delete certs notice:", certDelErr);
       }
+
+      // 2. Update registrations paxData in DB to clear cert status
+      try {
+        const allRegs = await db.query.registrations.findMany();
+        for (const reg of allRegs) {
+          let updated = false;
+          const paxArr = Array.isArray(reg.paxData) ? reg.paxData : [];
+          const newPax = paxArr.map((p: any) => {
+            const pName = (p.userName || p.namaLengkap || p.fullName || p.name || '').trim().toLowerCase();
+            if (
+              p.id === targetIdOrName ||
+              reg.id === targetIdOrName ||
+              (lowerTarget && pName && (pName === lowerTarget || pName.includes(lowerTarget) || lowerTarget.includes(pName)))
+            ) {
+              updated = true;
+              const newDocs = { ...(p.docFiles || {}) };
+              delete newDocs.sertifikat;
+              return {
+                ...p,
+                isCertIssued: false,
+                certificateUrl: null,
+                docFiles: newDocs
+              };
+            }
+            return p;
+          });
+
+          if (updated) {
+            await db.update(schema.registrations)
+              .set({ paxData: newPax })
+              .where(eq(schema.registrations.id, reg.id));
+          }
+        }
+      } catch (paxDelErr) {
+        console.warn("[Certificates DELETE] Syncing paxData clear notice:", paxDelErr);
+      }
+
       res.json({ success: true });
       notifyUpdate();
     } catch (error: any) {
-      res.status(500).json({ error: "Terjadi kesalahan pada server" });
+      console.error("[Certificates DELETE Error]", error);
+      res.status(500).json({ error: "Terjadi kesalahan pada server saat menghapus sertifikat" });
     }
   });
 

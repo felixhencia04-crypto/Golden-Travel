@@ -147,13 +147,18 @@ export function mergeJamaahObjects(target: any, source: any): any {
     ...(source.docFiles || {})
   };
 
-  const certData = source.docFiles?.sertifikat || target.docFiles?.sertifikat;
-  const certUrl = source.certificateUrl || target.certificateUrl || certData?.url || certData?.data || '';
-  const isIssued = !!(source.isCertIssued || target.isCertIssued || certUrl || certData);
+  // If source or target explicitly states isCertIssued === false (e.g. deleted), respect the deletion!
+  if (source.isCertIssued === false || target.isCertIssued === false) {
+    merged.isCertIssued = false;
+    delete merged.certificateUrl;
+    delete mergedDocFiles.sertifikat;
+  } else {
+    const certData = source.docFiles?.sertifikat || target.docFiles?.sertifikat;
+    const certUrl = source.certificateUrl || target.certificateUrl || certData?.url || certData?.data || '';
+    const isIssued = !!((source.isCertIssued !== false && source.isCertIssued) || (target.isCertIssued !== false && target.isCertIssued) || certUrl || certData);
 
-  if (isIssued) {
-    merged.isCertIssued = true;
-    if (certUrl) {
+    if (isIssued && certUrl) {
+      merged.isCertIssued = true;
       merged.certificateUrl = certUrl;
       const recipientName = certData?.recipientName || source.fullName || source.userName || target.fullName || target.userName || 'Jemaah';
       mergedDocFiles.sertifikat = certData || {
@@ -163,6 +168,10 @@ export function mergeJamaahObjects(target: any, source: any): any {
         uploadedAt: new Date().toLocaleDateString('id-ID'),
         recipientName: recipientName
       };
+    } else {
+      merged.isCertIssued = false;
+      delete merged.certificateUrl;
+      delete mergedDocFiles.sertifikat;
     }
   }
 
