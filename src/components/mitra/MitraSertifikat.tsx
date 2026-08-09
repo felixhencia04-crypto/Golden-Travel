@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../lib/api';
+import { filterJamaahForCurrentMitra, getScopedKey } from '../../utils/mitraStorage';
 
 interface MitraSertifikatProps {
   jamaahList?: any[];
@@ -16,18 +17,64 @@ export default function MitraSertifikat({ jamaahList = [] }: MitraSertifikatProp
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'issued' | 'pending'>('all');
 
-  const loadJamaahDatabase = () => {
+  const loadJamaahDatabase = async () => {
     setLoading(true);
     try {
-      const stored = localStorage.getItem('mitra_jamaah_database');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          setLocalJamaahList(parsed);
-        } catch (e) {}
-      } else if (jamaahList.length > 0) {
-        setLocalJamaahList(jamaahList);
+      let combined: any[] = [];
+
+      // 1. Fetch real Jamaah list from backend database
+      const dbList = await api.get('/mitra/jamaah/list').catch(() => api.get('/mitra/jamaah').catch(() => []));
+      if (Array.isArray(dbList) && dbList.length > 0) {
+        combined = [...dbList];
       }
+
+      // 2. Merge with jamaahList prop from parent hook
+      if (jamaahList && jamaahList.length > 0) {
+        jamaahList.forEach((j: any) => {
+          const jName = (j.userName || j.namaLengkap || j.fullName || j.name || '').trim();
+          if (jName && !combined.some(c => c.id === j.id || (c.userName && c.userName.trim() === jName))) {
+            combined.push(j);
+          }
+        });
+      }
+
+      // 3. Merge with scoped local storage pax list
+      const scopedKey = getScopedKey('mitra_saved_pax_list');
+      const savedPaxStr = localStorage.getItem(scopedKey);
+      if (savedPaxStr) {
+        const savedPax = JSON.parse(savedPaxStr);
+        if (Array.isArray(savedPax)) {
+          savedPax.forEach((sp: any) => {
+            const spName = (sp.userName || sp.namaLengkap || sp.fullName || sp.name || '').trim();
+            if (spName && !combined.some(c => c.id === sp.id || (c.userName && c.userName.trim() === spName))) {
+              combined.push(sp);
+            }
+          });
+        }
+      }
+
+      // 4. Merge with filtered central database
+      const centralDbStr = localStorage.getItem('mitra_jamaah_database');
+      if (centralDbStr) {
+        try {
+          const centralDb = JSON.parse(centralDbStr);
+          const filtered = filterJamaahForCurrentMitra(centralDb);
+          filtered.forEach((cItem: any) => {
+            const cName = (cItem.userName || cItem.namaLengkap || cItem.fullName || cItem.name || '').trim();
+            if (cName && !combined.some(c => c.id === cItem.id || (c.userName && c.userName.trim() === cName))) {
+              combined.push(cItem);
+            }
+          });
+        } catch (e) {}
+      }
+
+      // Ensure clean valid items only
+      const validList = combined.filter(j => {
+        const name = (j.fullName || j.namaLengkap || j.userName || j.name || '').trim();
+        return name !== '' && !name.startsWith('Jamaah #');
+      });
+
+      setLocalJamaahList(validList);
     } catch (e) {
       console.error('Failed loading jamaah database', e);
     } finally {
@@ -37,6 +84,13 @@ export default function MitraSertifikat({ jamaahList = [] }: MitraSertifikatProp
 
   useEffect(() => {
     loadJamaahDatabase();
+
+    const handleSync = () => {
+      loadJamaahDatabase();
+    };
+
+    window.addEventListener('mitra_jamaah_updated', handleSync);
+    window.addEventListener('storage', handleSync);
 
     let bc: BroadcastChannel | null = null;
     try {
@@ -49,6 +103,8 @@ export default function MitraSertifikat({ jamaahList = [] }: MitraSertifikatProp
     } catch (e) {}
 
     return () => {
+      window.removeEventListener('mitra_jamaah_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
       if (bc) bc.close();
     };
   }, [jamaahList]);

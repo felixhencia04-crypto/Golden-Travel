@@ -3,7 +3,7 @@ import { api } from '../lib/api';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { mitraRealtimeService } from '../services/mitraRealtimeService';
-import { setActiveMitraInfo } from '../utils/mitraStorage';
+import { setActiveMitraInfo, getScopedKey, filterJamaahForCurrentMitra } from '../utils/mitraStorage';
 
 export function useMitraData() {
   const [jamaahList, setJamaahList] = useState<any[]>([]);
@@ -34,13 +34,43 @@ export function useMitraData() {
 
       const [statusRes, jamaah, s, p, me] = await Promise.all([
         mitraRealtimeService.fetchMitraStatus().catch(() => null),
-        api.get('/mitra/jamaah').catch(() => []),
+        api.get('/mitra/jamaah/list').catch(() => api.get('/mitra/jamaah').catch(() => [])),
         api.get('/mitra/stats').catch(() => null),
         api.get('/mitra/profile').catch(() => null),
         api.get('/auth/me').catch(() => null)
       ]);
 
-      setJamaahList(jamaah || []);
+      let combinedJamaah = Array.isArray(jamaah) ? [...jamaah] : [];
+
+      // Merge with scoped local storage items if any exist
+      try {
+        const scopedKey = getScopedKey('mitra_saved_pax_list');
+        const savedPaxStr = localStorage.getItem(scopedKey);
+        if (savedPaxStr) {
+          const savedPax = JSON.parse(savedPaxStr);
+          if (Array.isArray(savedPax)) {
+            savedPax.forEach((sp: any) => {
+              const spName = (sp.userName || sp.namaLengkap || sp.name || '').trim();
+              if (spName && !combinedJamaah.some((fj: any) => fj.id === sp.id || (fj.userName && fj.userName.trim() === spName))) {
+                combinedJamaah.push(sp);
+              }
+            });
+          }
+        }
+
+        const centralDbStr = localStorage.getItem('mitra_jamaah_database');
+        if (centralDbStr) {
+          const filteredCentral = filterJamaahForCurrentMitra(JSON.parse(centralDbStr));
+          filteredCentral.forEach((cj: any) => {
+            const cjName = (cj.userName || cj.namaLengkap || cj.name || '').trim();
+            if (cjName && !combinedJamaah.some((fj: any) => fj.id === cj.id || (fj.userName && fj.userName.trim() === cjName))) {
+              combinedJamaah.push(cj);
+            }
+          });
+        }
+      } catch (e) {}
+
+      setJamaahList(combinedJamaah);
       setStats(s);
       
       const hasActualKycData = !!(p && (p.nik || p.alamatLengkap || p.noRekening || p.npwp));
