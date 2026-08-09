@@ -68,22 +68,28 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
 
   const handleDeleteMitra = async () => {
     if (!deletingMitra) return;
-    try {
-      setIsDeleting(true);
-      await api.delete(`/admin/mitra/${deletingMitra.id}`);
-      toast.success(`Mitra ${deletingMitra.name} berhasil dihapus.`);
+    const target = deletingMitra;
+    setDeletingMitra(null);
+    setIsDeleting(true);
 
-      // Also clean up local storage if cached in mitra_jamaah_database
+    // Optimistically update list state
+    setMitraList(prev => prev.filter(m => m.id !== target.id && (m.email || '').toLowerCase() !== (target.email || '').toLowerCase()));
+
+    try {
+      await api.delete(`/admin/mitra/${target.id}`);
+      toast.success(`Mitra ${target.name} berhasil dihapus.`);
+
+      // Clean up local storage cache if present
       try {
         const stored = localStorage.getItem('mitra_jamaah_database');
         if (stored) {
           const list = JSON.parse(stored);
           if (Array.isArray(list)) {
-            const emailClean = (deletingMitra.email || '').toLowerCase().trim();
+            const emailClean = (target.email || '').toLowerCase().trim();
             const updated = list.filter((item: any) => {
               const itemEmail = (item.mitraEmail || item.email || '').toLowerCase().trim();
               const itemId = item.mitraId || item.id;
-              return itemId !== deletingMitra.id && (!emailClean || itemEmail !== emailClean);
+              return itemId !== target.id && (!emailClean || itemEmail !== emailClean);
             });
             localStorage.setItem('mitra_jamaah_database', JSON.stringify(updated));
           }
@@ -92,15 +98,15 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
         console.warn('LocalStorage cleanup notice:', e);
       }
 
-      if (selectedMitra && selectedMitra.id === deletingMitra.id) {
+      if (selectedMitra && (selectedMitra.id === target.id || (selectedMitra.email && selectedMitra.email === target.email))) {
         setSelectedMitra(null);
       }
-      setDeletingMitra(null);
-      fetchMitraList();
+      await fetchMitraList();
     } catch (error: any) {
       console.error('Error deleting mitra:', error);
       const errMsg = error?.response?.data?.error || error?.message || 'Gagal menghapus data mitra.';
       toast.error(errMsg);
+      await fetchMitraList();
     } finally {
       setIsDeleting(false);
     }
