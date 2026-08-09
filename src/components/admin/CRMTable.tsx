@@ -179,7 +179,7 @@ export const CRMTable: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) =>
         return (
           <div className="text-center">
             <Badge className={`rounded-full px-3 py-0.5 font-black text-[10px] border-none shadow-none uppercase tracking-widest ${colorMap[status] || 'bg-gray-100 text-gray-700'}`}>
-              {status.replace(/_/g, ' ')}
+              {(status || '').replace(/_/g, ' ')}
             </Badge>
           </div>
         );
@@ -335,7 +335,7 @@ export const CRMTable: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) =>
                   }}
                   className="flex items-center justify-between font-bold h-10 rounded-lg cursor-pointer"
                 >
-                  {status.replace(/_/g, ' ')}
+                  {(status || '').replace(/_/g, ' ')}
                   {statusFilter.includes(status) && <CheckCircle2 className="w-4 h-4 text-green-500" />}
                 </DropdownMenuItem>
               ))}

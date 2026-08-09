@@ -72,14 +72,35 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
       setIsDeleting(true);
       await api.delete(`/admin/mitra/${deletingMitra.id}`);
       toast.success(`Mitra ${deletingMitra.name} berhasil dihapus.`);
+
+      // Also clean up local storage if cached in mitra_jamaah_database
+      try {
+        const stored = localStorage.getItem('mitra_jamaah_database');
+        if (stored) {
+          const list = JSON.parse(stored);
+          if (Array.isArray(list)) {
+            const emailClean = (deletingMitra.email || '').toLowerCase().trim();
+            const updated = list.filter((item: any) => {
+              const itemEmail = (item.mitraEmail || item.email || '').toLowerCase().trim();
+              const itemId = item.mitraId || item.id;
+              return itemId !== deletingMitra.id && (!emailClean || itemEmail !== emailClean);
+            });
+            localStorage.setItem('mitra_jamaah_database', JSON.stringify(updated));
+          }
+        }
+      } catch (e) {
+        console.warn('LocalStorage cleanup notice:', e);
+      }
+
       if (selectedMitra && selectedMitra.id === deletingMitra.id) {
         setSelectedMitra(null);
       }
       setDeletingMitra(null);
       fetchMitraList();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting mitra:', error);
-      toast.error('Gagal menghapus data mitra.');
+      const errMsg = error?.response?.data?.error || error?.message || 'Gagal menghapus data mitra.';
+      toast.error(errMsg);
     } finally {
       setIsDeleting(false);
     }

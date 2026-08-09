@@ -5735,66 +5735,129 @@ async function startServer() {
       const idsToDelete = new Set<string>();
       if (id) idsToDelete.add(id);
 
+      // 1. Fetch target from mitraUsers if exists
       const targetMitra = await withRetry(() => db.query.mitraUsers.findFirst({
         where: eq(schema.mitraUsers.id, id)
-      })) as any;
+      })).catch(() => null) as any;
 
+      // 2. Fetch target from users if exists
       const targetAuthUser = await withRetry(() => db.query.users.findFirst({
         where: eq(schema.users.id, id)
-      })) as any;
+      })).catch(() => null) as any;
 
       const targetEmail = (targetMitra?.email || targetAuthUser?.email || '').toLowerCase().trim();
 
       if (targetEmail) {
         const matchingMitras = await withRetry(() => db.select({ id: schema.mitraUsers.id })
           .from(schema.mitraUsers)
-          .where(sql`LOWER(${schema.mitraUsers.email}) = LOWER(${targetEmail})`)) as any[];
+          .where(sql`LOWER(${schema.mitraUsers.email}) = LOWER(${targetEmail})`)).catch(() => []) as any[];
         matchingMitras.forEach(m => idsToDelete.add(m.id));
 
         const matchingAuths = await withRetry(() => db.select({ id: schema.users.id })
           .from(schema.users)
-          .where(sql`LOWER(${schema.users.email}) = LOWER(${targetEmail})`)) as any[];
+          .where(sql`LOWER(${schema.users.email}) = LOWER(${targetEmail})`)).catch(() => []) as any[];
         matchingAuths.forEach(u => idsToDelete.add(u.id));
       }
 
-      const targetUserIds = Array.from(idsToDelete);
+      const targetUserIds = Array.from(idsToDelete).filter(Boolean);
 
       if (targetUserIds.length > 0) {
         await withRetry(() => db.transaction(async (tx) => {
-          // 1. Set referred users' mitraId to null
+          // A. Set referred users' mitraId to null
           await tx.update(schema.users)
             .set({ mitraId: null })
-            .where(inArray(schema.users.mitraId, targetUserIds));
+            .where(inArray(schema.users.mitraId, targetUserIds)).catch(() => {});
 
-          // 2. Delete KYC documents for these users
+          // B. Unlink verifiedBy references
+          await tx.update(schema.payments)
+            .set({ verifiedBy: null })
+            .where(inArray(schema.payments.verifiedBy, targetUserIds)).catch(() => {});
+
+          await tx.update(schema.registrations)
+            .set({ verifiedBy: null })
+            .where(inArray(schema.registrations.verifiedBy, targetUserIds)).catch(() => {});
+
+          // C. Find all registrations associated with this user/mitra
+          const assocRegistrations = await tx.select({ id: schema.registrations.id })
+            .from(schema.registrations)
+            .where(or(
+              inArray(schema.registrations.userId, targetUserIds),
+              targetEmail ? sql`LOWER(${schema.registrations.ordererEmail}) = LOWER(${targetEmail})` : sql`false`
+            )).catch(() => []);
+
+          const regIds = assocRegistrations.map(r => r.id).filter(Boolean);
+
+          if (regIds.length > 0) {
+            const assocPayments = await tx.select({ id: schema.payments.id })
+              .from(schema.payments)
+              .where(inArray(schema.payments.registrationId, regIds)).catch(() => []);
+            const payIds = assocPayments.map(p => p.id).filter(Boolean);
+
+            if (payIds.length > 0) {
+              await tx.delete(schema.financial_ledger)
+                .where(inArray(schema.financial_ledger.paymentId, payIds)).catch(() => {});
+              await tx.delete(schema.financialVerifications)
+                .where(inArray(schema.financialVerifications.paymentId, payIds)).catch(() => {});
+              await tx.delete(schema.payments)
+                .where(inArray(schema.payments.id, payIds)).catch(() => {});
+            }
+
+            await tx.delete(schema.documents)
+              .where(inArray(schema.documents.registrationId, regIds)).catch(() => {});
+            await tx.delete(schema.certificates)
+              .where(inArray(schema.certificates.registrationId, regIds)).catch(() => {});
+            await tx.delete(schema.equipment)
+              .where(inArray(schema.equipment.registrationId, regIds)).catch(() => {});
+            await tx.delete(schema.manifests)
+              .where(inArray(schema.manifests.registrationId, regIds)).catch(() => {});
+            await tx.delete(schema.memories)
+              .where(inArray(schema.memories.registrationId, regIds)).catch(() => {});
+            await tx.delete(schema.activities)
+              .where(inArray(schema.activities.registrationId, regIds)).catch(() => {});
+            await tx.delete(schema.registrations)
+              .where(inArray(schema.registrations.id, regIds)).catch(() => {});
+          }
+
+          // D. Delete notifications & helpdesk tickets
+          await tx.delete(schema.notifications)
+            .where(inArray(schema.notifications.userId, targetUserIds)).catch(() => {});
+          await tx.delete(schema.helpdesk_tickets)
+            .where(inArray(schema.helpdesk_tickets.userId, targetUserIds)).catch(() => {});
+
+          // E. Delete KYC documents & profiles
           await tx.delete(schema.kycDocuments)
-            .where(inArray(schema.kycDocuments.userId, targetUserIds));
-
-          // 3. Delete profiles
+            .where(inArray(schema.kycDocuments.userId, targetUserIds)).catch(() => {});
           await tx.delete(schema.mitraProfiles)
-            .where(inArray(schema.mitraProfiles.userId, targetUserIds));
+            .where(inArray(schema.mitraProfiles.userId, targetUserIds)).catch(() => {});
 
-          // 4. Delete from mitraCommissionPayouts if exists
+          // F. Delete commission payouts
           await tx.delete(schema.mitraCommissionPayouts)
-            .where(inArray(schema.mitraCommissionPayouts.mitraUserId, targetUserIds));
+            .where(or(
+              inArray(schema.mitraCommissionPayouts.mitraUserId, targetUserIds),
+              targetEmail ? sql`LOWER(${schema.mitraCommissionPayouts.mitraNotes}) LIKE ${'%' + targetEmail + '%'}` : sql`false`
+            )).catch(() => {});
 
-          // 5. Delete from mitraUsers
+          // G. Delete from mitraUsers
           await tx.delete(schema.mitraUsers)
-            .where(inArray(schema.mitraUsers.id, targetUserIds));
+            .where(or(
+              inArray(schema.mitraUsers.id, targetUserIds),
+              targetEmail ? sql`LOWER(${schema.mitraUsers.email}) = LOWER(${targetEmail})` : sql`false`
+            )).catch(() => {});
 
-          // 6. Delete from standard users table where role = 'mitra'
+          // H. Delete from standard users table
           await tx.delete(schema.users)
-            .where(and(
+            .where(or(
               inArray(schema.users.id, targetUserIds),
-              eq(schema.users.role, 'mitra')
-            ));
+              targetEmail ? sql`LOWER(${schema.users.email}) = LOWER(${targetEmail})` : sql`false`
+            )).catch(() => {});
         }));
       }
 
-      res.json({ success: true, message: "Mitra deleted successfully" });
-    } catch (error) {
+      res.json({ success: true, message: "Data mitra berhasil dihapus." });
+      notifyUpdate();
+    } catch (error: any) {
       console.error("Admin delete mitra error:", error);
-      res.status(500).json({ error: "Failed to delete mitra" });
+      res.status(500).json({ error: "Gagal menghapus data mitra: " + (error?.message || "Terjadi kesalahan server") });
     }
   });
 

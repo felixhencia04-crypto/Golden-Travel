@@ -2262,7 +2262,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                               <Download className="w-4 h-4 text-amber-600" />
                             </button>
                             <a
-                              href={`https://wa.me/${j.userPhone.replace(/^0/, '62')}?text=Assalamu'alaikum%20Bapak/Ibu%20${encodeURIComponent(j.userName)},%20mengenai%20pendaftaran%20paket%20${encodeURIComponent(j.packageName)}...`}
+                              href={`https://wa.me/${(j.userPhone || j.phone || j.noHp || j.hp || '').toString().replace(/^0/, '62')}?text=Assalamu'alaikum%20Bapak/Ibu%20${encodeURIComponent(j.userName || 'Jamaah')},%20mengenai%20pendaftaran%20paket%20${encodeURIComponent(j.packageName || 'Umroh')}...`}
                               target="_blank"
                               rel="noreferrer"
                               className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition-colors"

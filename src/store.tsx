@@ -4,14 +4,14 @@ import { umrohPackages, hajjPackages } from './data/homeData';
 
 const safeGetItem = (key: string) => {
   try {
-    return safeGetItem(key);
+    return localStorage.getItem(key);
   } catch (e) {
     return null;
   }
 };
 const safeSetItem = (key: string, value: string) => {
   try {
-    safeSetItem(key, value);
+    localStorage.setItem(key, value);
   } catch (e) {}
 };
 
