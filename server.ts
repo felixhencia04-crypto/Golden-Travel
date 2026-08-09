@@ -4166,33 +4166,49 @@ async function startServer() {
   // Get Memories (Gallery)
   app.get("/api/memories", authenticate, async (req: AuthRequest, res) => {
     try {
-      const { packageId } = req.query;
-      
-      // 1. Find all registrations for this user to get targeted memories
-      const userRegs = await withRetry(() => db.query.registrations.findMany({
-        where: eq(schema.registrations.userId, req.user!.id)
+      const allMemories = await withRetry(() => db.query.memories.findMany({
+        orderBy: [desc(schema.memories.createdAt)]
       }));
-      const regIds = userRegs.map(r => r.id);
+      
+      const formatted = allMemories.map((m: any) => {
+        let title = m.title || '';
+        let caption = m.caption || '';
+        let date = m.date || '';
+        let packageName = m.packageName || 'Semua Paket';
+        let targetMitraName = m.targetMitraName || 'Semua Mitra / Publik';
+        let targetJamaahId = m.targetJamaahId || '';
+        let targetJamaahName = m.targetJamaahName || '';
 
-      let filters = [];
-      if (packageId) {
-        filters.push(eq(schema.memories.packageId, packageId as string));
-      }
-      
-      if (regIds.length > 0) {
-        filters.push(inArray(schema.memories.registrationId, regIds));
-      }
+        if (m.caption && typeof m.caption === 'string' && m.caption.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(m.caption);
+            if (parsed && typeof parsed === 'object') {
+              title = parsed.title || title;
+              caption = parsed.caption || '';
+              date = parsed.date || date;
+              packageName = parsed.packageName || packageName;
+              targetMitraName = parsed.targetMitraName || targetMitraName;
+              targetJamaahId = parsed.targetJamaahId || targetJamaahId;
+              targetJamaahName = parsed.targetJamaahName || targetJamaahName;
+            }
+          } catch (e) {}
+        }
 
-      let queryBuilder = db.select().from(schema.memories);
-      
-      if (filters.length > 0) {
-        queryBuilder = queryBuilder.where(or(...filters)) as any;
-      } else if (packageId) {
-        queryBuilder = queryBuilder.where(eq(schema.memories.packageId, packageId as string)) as any;
-      }
-      
-      const memories = await withRetry(() => queryBuilder.orderBy(desc(schema.memories.createdAt)));
-      res.json(memories);
+        return {
+          id: m.id,
+          title: title || caption || 'Momen Perjalanan',
+          caption: caption,
+          imageUrl: m.imageUrl || m.image_url,
+          date: date || (m.createdAt ? new Date(m.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+          packageName: packageName,
+          targetMitraName: targetMitraName,
+          targetJamaahId: targetJamaahId,
+          targetJamaahName: targetJamaahName,
+          createdAt: m.createdAt || new Date().toISOString()
+        };
+      });
+
+      res.json(formatted);
     } catch (error: any) {
       res.status(500).json({ error: "Terjadi kesalahan pada server" });
     }
@@ -8164,13 +8180,51 @@ async function startServer() {
   // --- Memories & Certificates Endpoints ---
 
   app.get("/api/admin/memories", authenticate, async (req: AuthRequest, res) => {
-    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    const workspaceId = req.user!.workspaceId!;
+    if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') return res.status(403).json({ error: "Forbidden" });
     try {
       const allMemories = await withRetry(() => db.query.memories.findMany({
-        where: eq(schema.memories.workspaceId, workspaceId)
+        orderBy: [desc(schema.memories.createdAt)]
       }));
-      res.json(allMemories);
+
+      const formatted = allMemories.map((m: any) => {
+        let title = m.title || '';
+        let caption = m.caption || '';
+        let date = m.date || '';
+        let packageName = m.packageName || 'Semua Paket';
+        let targetMitraName = m.targetMitraName || 'Semua Mitra / Publik';
+        let targetJamaahId = m.targetJamaahId || '';
+        let targetJamaahName = m.targetJamaahName || '';
+
+        if (m.caption && typeof m.caption === 'string' && m.caption.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(m.caption);
+            if (parsed && typeof parsed === 'object') {
+              title = parsed.title || title;
+              caption = parsed.caption || '';
+              date = parsed.date || date;
+              packageName = parsed.packageName || packageName;
+              targetMitraName = parsed.targetMitraName || targetMitraName;
+              targetJamaahId = parsed.targetJamaahId || targetJamaahId;
+              targetJamaahName = parsed.targetJamaahName || targetJamaahName;
+            }
+          } catch (e) {}
+        }
+
+        return {
+          id: m.id,
+          title: title || caption || 'Momen Perjalanan',
+          caption: caption,
+          imageUrl: m.imageUrl || m.image_url,
+          date: date || (m.createdAt ? new Date(m.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+          packageName: packageName,
+          targetMitraName: targetMitraName,
+          targetJamaahId: targetJamaahId,
+          targetJamaahName: targetJamaahName,
+          createdAt: m.createdAt || new Date().toISOString()
+        };
+      });
+
+      res.json(formatted);
     } catch (error: any) {
       res.status(500).json({ error: "Terjadi kesalahan pada server" });
     }
@@ -8179,7 +8233,11 @@ async function startServer() {
   app.post("/api/admin/memories", authenticate, async (req: AuthRequest, res) => {
     if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') return res.status(403).json({ error: "Forbidden" });
     try {
-      const { packageId, registrationId, imageUrl, caption } = req.body;
+      const { 
+        packageId, registrationId, imageUrl, caption, 
+        title, date, packageName, targetMitraName, targetJamaahId, targetJamaahName, id
+      } = req.body;
+
       let finalImageUrl = imageUrl;
       if (imageUrl && imageUrl.startsWith('data:')) {
         finalImageUrl = saveFileToUploads(imageUrl, 'memory');
@@ -8191,14 +8249,40 @@ async function startServer() {
         wsId = defaultWs?.id;
       }
 
-      const [memory] = await withRetry(() => db.insert(schema.memories).values({
+      const packedData = {
+        title: title || caption || 'Momen Perjalanan',
+        caption: caption || '',
+        date: date || new Date().toISOString().split('T')[0],
+        packageName: packageName || 'Semua Paket',
+        targetMitraName: targetMitraName || 'Semua Mitra / Publik',
+        targetJamaahId: targetJamaahId || '',
+        targetJamaahName: targetJamaahName || ''
+      };
+
+      const captionPayload = JSON.stringify(packedData);
+
+      const memoryValues: any = {
         workspaceId: wsId || null,
         packageId: packageId && isValidUuid(packageId) ? packageId : null,
         registrationId: registrationId && isValidUuid(registrationId) ? registrationId : null,
         imageUrl: finalImageUrl,
-        caption
-      }).returning());
-      res.json(memory);
+        caption: captionPayload
+      };
+
+      if (id && isValidUuid(id)) {
+        memoryValues.id = id;
+      }
+
+      const [memory] = await withRetry(() => db.insert(schema.memories).values(memoryValues).returning());
+
+      const resObj = {
+        id: memory.id,
+        ...packedData,
+        imageUrl: memory.imageUrl,
+        createdAt: memory.createdAt
+      };
+
+      res.json(resObj);
       notifyUpdate();
     } catch (error: any) {
       console.error("Error creating memory:", error);

@@ -131,8 +131,21 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
       api.get('/admin/memories').then(res => {
         if (Array.isArray(res)) {
           const cleanRes = res.filter((m: any) => !isDummyMemory(m));
-          setMemories(cleanRes);
-          localStorage.setItem('golden_mitra_memories', JSON.stringify(cleanRes));
+          
+          const mergedMap = new Map<string, any>();
+          mList.forEach((lm: any) => {
+            if (lm && lm.id) mergedMap.set(String(lm.id), lm);
+          });
+          cleanRes.forEach((am: any) => {
+            if (am && am.id) {
+              const existing = mergedMap.get(String(am.id));
+              mergedMap.set(String(am.id), { ...existing, ...am });
+            }
+          });
+
+          const finalMemories = Array.from(mergedMap.values());
+          setMemories(finalMemories);
+          localStorage.setItem('golden_mitra_memories', JSON.stringify(finalMemories));
         }
       }).catch(() => {});
 
@@ -220,6 +233,9 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
     const cleanMemories = (updatedMemories || []).filter(m => !isDummyMemory(m));
     setMemories(cleanMemories);
     localStorage.setItem('golden_mitra_memories', JSON.stringify(cleanMemories));
+
+    window.dispatchEvent(new Event('golden_memories_updated'));
+    window.dispatchEvent(new Event('storage'));
     try {
       const bc = new BroadcastChannel('mitra_catalog_realtime');
       bc.postMessage({ type: 'MEMORIES_UPDATED', timestamp: Date.now() });

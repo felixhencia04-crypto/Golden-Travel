@@ -11,24 +11,36 @@ export interface MitraInfo {
 
 export function getActiveMitraInfo(): MitraInfo {
   try {
-    const id = localStorage.getItem('current_mitra_id') || '';
-    const email = localStorage.getItem('current_mitra_email') || '';
-    const name = localStorage.getItem('current_mitra_name') || '';
-
-    if (id || email) {
-      return { id: id || email, email, name };
-    }
+    let id = localStorage.getItem('current_mitra_id') || '';
+    let email = localStorage.getItem('current_mitra_email') || '';
+    let name = localStorage.getItem('current_mitra_name') || '';
 
     const profStr = localStorage.getItem('mitra_profile');
     if (profStr) {
-      const p = JSON.parse(profStr);
-      if (p.userId || p.id || p.email) {
-        return {
-          id: p.userId || p.id || p.email || '',
-          email: p.email || '',
-          name: p.fullName || p.namaLengkap || p.name || ''
-        };
-      }
+      try {
+        const p = JSON.parse(profStr);
+        if (p) {
+          id = id || p.userId || p.id || p.email || '';
+          email = email || p.email || '';
+          name = name || p.fullName || p.namaLengkap || p.name || '';
+        }
+      } catch (e) {}
+    }
+
+    const userStr = localStorage.getItem('auth_user') || localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        if (u) {
+          id = id || u.id || u.email || '';
+          email = email || u.email || '';
+          name = name || u.fullName || u.namaLengkap || u.name || u.email || '';
+        }
+      } catch (e) {}
+    }
+
+    if (id || email || name) {
+      return { id: id || email, email, name };
     }
   } catch (e) {}
 

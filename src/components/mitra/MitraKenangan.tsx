@@ -46,18 +46,32 @@ export default function MitraKenangan({ jamaahList = [] }: MitraKenanganProps) {
 
       // Filter out any dummy seed items
       localMemories = (localMemories || []).filter(m => !isDummyMemory(m));
-      localStorage.setItem('golden_mitra_memories', JSON.stringify(localMemories));
-
-      setMemories(localMemories);
 
       // Fetch online memories API
       api.get('/memories').then(res => {
         if (Array.isArray(res)) {
           const cleanRes = res.filter((m: any) => !isDummyMemory(m));
-          setMemories(cleanRes);
-          localStorage.setItem('golden_mitra_memories', JSON.stringify(cleanRes));
+          
+          const mergedMap = new Map<string, any>();
+          localMemories.forEach((lm: any) => {
+            if (lm && lm.id) mergedMap.set(String(lm.id), lm);
+          });
+          cleanRes.forEach((am: any) => {
+            if (am && am.id) {
+              const existing = mergedMap.get(String(am.id));
+              mergedMap.set(String(am.id), { ...existing, ...am });
+            }
+          });
+
+          const finalMemories = Array.from(mergedMap.values());
+          setMemories(finalMemories);
+          localStorage.setItem('golden_mitra_memories', JSON.stringify(finalMemories));
+        } else {
+          setMemories(localMemories);
         }
-      }).catch(() => {});
+      }).catch(() => {
+        setMemories(localMemories);
+      });
 
     } catch (e) {
       console.error('Failed to load memories:', e);
@@ -68,6 +82,13 @@ export default function MitraKenangan({ jamaahList = [] }: MitraKenanganProps) {
 
   useEffect(() => {
     fetchMemories();
+
+    const handleSync = () => {
+      fetchMemories();
+    };
+
+    window.addEventListener('golden_memories_updated', handleSync);
+    window.addEventListener('storage', handleSync);
 
     let bc: BroadcastChannel | null = null;
     try {
@@ -80,6 +101,8 @@ export default function MitraKenangan({ jamaahList = [] }: MitraKenanganProps) {
     } catch (e) {}
 
     return () => {
+      window.removeEventListener('golden_memories_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
       if (bc) bc.close();
     };
   }, []);
@@ -93,7 +116,7 @@ export default function MitraKenangan({ jamaahList = [] }: MitraKenanganProps) {
     try {
       const link = document.createElement('a');
       link.href = item.imageUrl;
-      link.download = `${item.title.replace(/\s+/g, '_')}.jpg`;
+      link.download = `${(item.title || 'Momen').replace(/\s+/g, '_')}.jpg`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -108,10 +131,19 @@ export default function MitraKenangan({ jamaahList = [] }: MitraKenanganProps) {
   const filtered = memories.filter(m => {
     // Filter by target Mitra scoping if specified
     if (m.targetMitraName && m.targetMitraName !== 'all' && m.targetMitraName !== 'Semua Mitra / Publik') {
-      const activeName = (activeMitraInfo.name || activeMitraInfo.email || activeMitraInfo.id || '').toLowerCase();
-      const targetName = (m.targetMitraName || '').toLowerCase();
-      if (activeName && !activeName.includes(targetName) && !targetName.includes(activeName)) {
-        return false;
+      const activeName = (activeMitraInfo.name || activeMitraInfo.email || activeMitraInfo.id || '').toLowerCase().trim();
+      const activeEmail = (activeMitraInfo.email || '').toLowerCase().trim();
+      const targetName = (m.targetMitraName || '').toLowerCase().trim();
+      
+      if (targetName === 'all' || targetName.includes('semua mitra')) {
+        // Public / all mitras
+      } else {
+        const matchesName = activeName && (activeName.includes(targetName) || targetName.includes(activeName));
+        const matchesEmail = activeEmail && (activeEmail.includes(targetName) || targetName.includes(activeEmail));
+        
+        if (!matchesName && !matchesEmail) {
+          return false;
+        }
       }
     }
 
