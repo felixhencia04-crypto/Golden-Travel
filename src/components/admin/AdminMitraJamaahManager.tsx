@@ -117,12 +117,47 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                       const pmKey = pm.id || `${pm.date}_${pm.amount}_${pm.step}`;
                       paymentMap.set(pmKey, pm);
                     });
+
+                    // Smart Document Status Merging
+                    const pDocs = pax.documents || {};
+                    const cDocs = merged[existingIdx].documents || {};
+                    const mergedDocs: any = {};
+                    const docKeys = new Set([...Object.keys(pDocs), ...Object.keys(cDocs)]);
+                    docKeys.forEach(dk => {
+                      const pDoc = pDocs[dk];
+                      const cDoc = cDocs[dk];
+                      if (!pDoc) {
+                        mergedDocs[dk] = cDoc;
+                      } else if (!cDoc) {
+                        mergedDocs[dk] = pDoc;
+                      } else {
+                        // Keep whichever is verified or rejected (usually cDoc is the admin's copy)
+                        // UNLESS pDoc has a different file/URL, indicating a new upload.
+                        const isNewUpload = pDoc.url !== cDoc.url && pDoc.status === 'pending';
+                        if (isNewUpload) {
+                          mergedDocs[dk] = pDoc;
+                        } else {
+                          mergedDocs[dk] = {
+                            ...pDoc,
+                            ...cDoc,
+                            status: (cDoc.status === 'verified' || cDoc.status === 'rejected') ? cDoc.status : (pDoc.status || cDoc.status)
+                          };
+                        }
+                      }
+                    });
+
+                    // Smart Passport Info Merging
+                    const mergedPassport = {
+                      ...(pax.passportInfo || {}),
+                      ...(merged[existingIdx].passportInfo || {})
+                    };
+
                     merged[existingIdx] = {
                       ...pax,
                       ...merged[existingIdx],
                       payments: Array.from(paymentMap.values()),
-                      documents: pax.documents || merged[existingIdx].documents,
-                      passportInfo: pax.passportInfo || merged[existingIdx].passportInfo
+                      documents: mergedDocs,
+                      passportInfo: mergedPassport
                     };
                   } else {
                     merged.push(pax);
@@ -403,9 +438,23 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     saveAndSyncState(updated);
   };
 
-  const handleApproveDoc = (docKey: string) => {
+  const handleApproveDoc = async (docKey: string) => {
     const target = activeDokumenJemaah || selectedJamaah;
     if (!target) return;
+    
+    try {
+      await api.patch('/admin/documents/verify', {
+        registrationId: target.id,
+        docType: docKey,
+        status: 'approved',
+        rejectionReason: ''
+      });
+    } catch (err: any) {
+      console.error("Gagal verifikasi dokumen di backend:", err);
+      toast.error(`Gagal verifikasi dokumen di server: ${err.message || 'Server error'}`);
+      return;
+    }
+
     const updated = jamaahList.map((j) => {
       if (j.id === target.id) {
         const docs = j.documents || {};
@@ -425,9 +474,23 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     toast.success(`Dokumen ${docKey.toUpperCase()} jamaah ${target.userName} diverifikasi!`);
   };
 
-  const handleRejectDoc = (docKey: string) => {
+  const handleRejectDoc = async (docKey: string) => {
     const target = activeDokumenJemaah || selectedJamaah;
     if (!target) return;
+
+    try {
+      await api.patch('/admin/documents/verify', {
+        registrationId: target.id,
+        docType: docKey,
+        status: 'rejected',
+        rejectionReason: 'Ditolak oleh admin'
+      });
+    } catch (err: any) {
+      console.error("Gagal menolak dokumen di backend:", err);
+      toast.error(`Gagal menolak dokumen di server: ${err.message || 'Server error'}`);
+      return;
+    }
+
     const updated = jamaahList.map((j) => {
       if (j.id === target.id) {
         const docs = j.documents || {};
