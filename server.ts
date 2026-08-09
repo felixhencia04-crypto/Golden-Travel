@@ -3828,6 +3828,45 @@ async function startServer() {
     }
   });
 
+  // DELETE /api/admin/documents/:registrationId/:docType -> Delete/Reset single document of a passenger
+  app.delete("/api/admin/documents/:registrationId/:docType", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { registrationId, docType } = req.params;
+    if (!isValidUUID(registrationId)) return res.status(400).json({ error: "ID Registrasi tidak valid" });
+    
+    try {
+      await withRetry(() => db.delete(schema.documents).where(
+        and(
+          eq(schema.documents.registrationId, registrationId),
+          eq(schema.documents.docType, docType as any)
+        )
+      ));
+      res.json({ success: true });
+      notifyUpdate();
+    } catch (error: any) {
+      console.error("[DELETE /api/admin/documents error]:", error);
+      res.status(500).json({ error: error.message || "Gagal menghapus berkas dokumen" });
+    }
+  });
+
+  // DELETE /api/admin/documents/:registrationId -> Delete/Reset all documents of a registration
+  app.delete("/api/admin/documents/:registrationId", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { registrationId } = req.params;
+    if (!isValidUUID(registrationId)) return res.status(400).json({ error: "ID Registrasi tidak valid" });
+    
+    try {
+      await withRetry(() => db.delete(schema.documents).where(
+        eq(schema.documents.registrationId, registrationId)
+      ));
+      res.json({ success: true });
+      notifyUpdate();
+    } catch (error: any) {
+      console.error("[DELETE /api/admin/documents all error]:", error);
+      res.status(500).json({ error: error.message || "Gagal menghapus semua berkas dokumen" });
+    }
+  });
+
   // GET /api/admin/dokumens/pending -> Admin: list antrean
   app.get("/api/admin/dokumens/pending", authenticate, async (req: AuthRequest, res) => {
     if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
@@ -4211,8 +4250,21 @@ async function startServer() {
       const reg = await withRetry(() => db.query.registrations.findFirst({
               where: eq(schema.registrations.id, registrationId)
             }));
-      if (!reg || (req.user!.role !== 'admin' && reg.userId !== req.user!.id)) {
-         return res.status(403).json({ error: "Unauthorized" });
+      if (!reg) {
+         return res.status(404).json({ error: "Pendaftaran tidak ditemukan" });
+      }
+
+      const userEmail = req.user!.email ? req.user!.email.toLowerCase() : '';
+      const isOwner = reg.userId === req.user!.id;
+      const isOrderer = reg.ordererEmail && reg.ordererEmail.toLowerCase() === userEmail;
+      const isPax = Array.isArray(reg.paxData) && reg.paxData.some((pax: any) => 
+        pax && typeof pax === 'object' && pax.email && pax.email.toLowerCase() === userEmail
+      );
+
+      const isAuthorized = req.user!.role === 'admin' || isOwner || isOrderer || isPax;
+
+      if (!isAuthorized) {
+         return res.status(403).json({ error: "Akses ditolak. Anda tidak memiliki akses ke pendaftaran ini." });
       }
 
       const validStatusesForPayment = ['ISI_BIODATA', 'UPLOAD_DOKUMEN', 'VERIFIKASI_DOKUMEN', 'CICIL_BAYAR', 'VERIFIKASI_BAYAR', 'LUNAS'];
@@ -4224,6 +4276,9 @@ async function startServer() {
       if (normalizedPaymentType === 'FULL') {
         normalizedPaymentType = 'PELUNASAN';
       }
+
+      // Save file to uploads folder if base64 data url is supplied
+      const savedProofUrl = saveFileToUploads(proofUrl, 'payment');
 
       // Anti-duplicate check: if a PENDING payment exists for this registration
       const existingPending = await withRetry(() => db.query.payments.findFirst({
@@ -4240,11 +4295,11 @@ async function startServer() {
         const isSameAmount = Math.abs(Number(existingPending.amount || 0) - Number(amount || 0)) < 1;
 
         if (isSameType || isSameAmount || timeDiffSec < 60) {
-          if (proofUrl && (!existingPending.proofUrl || existingPending.proofUrl !== proofUrl)) {
+          if (savedProofUrl && (!existingPending.proofUrl || existingPending.proofUrl !== savedProofUrl)) {
             await withRetry(() => db.update(schema.payments)
-              .set({ proofUrl, amount: String(amount) })
+              .set({ proofUrl: savedProofUrl, amount: String(amount) })
               .where(eq(schema.payments.id, existingPending.id)));
-            existingPending.proofUrl = proofUrl;
+            existingPending.proofUrl = savedProofUrl;
             existingPending.amount = String(amount);
           }
           notifyUpdate();
@@ -4257,12 +4312,15 @@ async function startServer() {
               registrationId,
               paymentType: normalizedPaymentType,
               amount: String(amount),
-              proofUrl,
+              proofUrl: savedProofUrl,
               status: 'PENDING',
             } as any).returning(), 5);
 
-      // Update user status to VERIFIKASI_BAYAR
+      // Update user status to VERIFIKASI_BAYAR for both current user and main registration owner
       await withRetry(() => db.update(schema.users).set({ status: 'VERIFIKASI_BAYAR' }).where(eq(schema.users.id, req.user!.id)), 5);
+      if (reg.userId && reg.userId !== req.user!.id) {
+        await withRetry(() => db.update(schema.users).set({ status: 'VERIFIKASI_BAYAR' }).where(eq(schema.users.id, reg.userId)), 5);
+      }
       await withRetry(() => db.update(schema.registrations).set({ status: 'VERIFIKASI_BAYAR' }).where(eq(schema.registrations.id, reg.id)), 5);
 
       res.status(201).json(newPayment);

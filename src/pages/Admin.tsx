@@ -532,6 +532,11 @@ export default function Admin() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
 
+  // Document Deletion States
+  const [deleteAllDocsId, setDeleteAllDocsId] = useState<string | null>(null);
+  const [deleteAllDocsName, setDeleteAllDocsName] = useState<string | null>(null);
+  const [deleteSingleDocInfo, setDeleteSingleDocInfo] = useState<{ registrationId: string; docType: string; label: string } | null>(null);
+
   // Auto-select first available document or first category when modal opens or active pax changes
   useEffect(() => {
     if (isReviewModalOpen && reviewingJamaah) {
@@ -674,6 +679,53 @@ export default function Admin() {
       toast.error('Gagal mengubah status dokumen: ' + (err.message || 'Server error'));
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const handleDeleteSingleDoc = async (registrationId: string, docType: string) => {
+    if (!registrationId || !docType) return;
+    setIsVerifying(true);
+    try {
+      await api.delete(`/admin/documents/${registrationId}/${docType}`);
+      toast.success("Dokumen berhasil dihapus.");
+      
+      // Update local state in reviewingJamaah
+      setReviewingJamaah((prev: any) => {
+        if (!prev) return prev;
+        const updatedDocs = (prev.documents || []).filter((d: any) => d.docType !== docType);
+        return { ...prev, documents: updatedDocs };
+      });
+      
+      refreshData(true);
+    } catch (err: any) {
+      console.error("Delete single doc error:", err);
+      toast.error("Gagal menghapus dokumen: " + (err.message || "Server error"));
+    } finally {
+      setIsVerifying(false);
+      setDeleteSingleDocInfo(null);
+    }
+  };
+
+  const handleDeleteAllDocs = async (registrationId: string) => {
+    if (!registrationId) return;
+    setIsVerifying(true);
+    try {
+      await api.delete(`/admin/documents/${registrationId}`);
+      toast.success("Semua dokumen jamaah berhasil dihapus.");
+      
+      // Update local state if reviewing
+      if (reviewingJamaah && reviewingJamaah.id === registrationId) {
+        setReviewingJamaah((prev: any) => ({ ...prev, documents: [] }));
+      }
+      
+      refreshData(true);
+    } catch (err: any) {
+      console.error("Delete all docs error:", err);
+      toast.error("Gagal menghapus semua dokumen: " + (err.message || "Server error"));
+    } finally {
+      setIsVerifying(false);
+      setDeleteAllDocsId(null);
+      setDeleteAllDocsName(null);
     }
   };
 
@@ -3312,17 +3364,31 @@ export default function Admin() {
                             )}
                           </td>
                           <td className="p-5 text-right">
-                            <button 
-                              onClick={() => {
-                                setReviewingJamaah(c);
-                                setActivePaxIdx(0);
-                                setReviewingDocId('KTP Asli');
-                                setIsReviewModalOpen(true);
-                              }}
-                              className="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-matcha-600 text-white hover:bg-matcha-700 shadow-sm cursor-pointer"
-                            >
-                              Periksa Berkas
-                            </button>
+                            <div className="flex items-center justify-end space-x-2">
+                              <button 
+                                onClick={() => {
+                                  setReviewingJamaah(c);
+                                  setActivePaxIdx(0);
+                                  setReviewingDocId('KTP Asli');
+                                  setIsReviewModalOpen(true);
+                                }}
+                                className="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-matcha-600 text-white hover:bg-matcha-700 shadow-sm cursor-pointer"
+                              >
+                                Periksa Berkas
+                              </button>
+                              {docCount > 0 && (
+                                <button
+                                  onClick={() => {
+                                    setDeleteAllDocsId(c.id);
+                                    setDeleteAllDocsName(c.name);
+                                  }}
+                                  className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 transition-all cursor-pointer flex items-center justify-center w-8 h-8"
+                                  title="Hapus Semua Dokumen Jamaah"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -5624,6 +5690,22 @@ export default function Admin() {
                         <h4 className="text-xl font-bold text-gray-900">{docTitle}</h4>
                         <p className="text-sm text-gray-600 mt-1">Review detail dokumen dan berikan keputusan verifikasi.</p>
                       </div>
+                      {activeDoc && activeDoc.fileUrl && (
+                        <button
+                          onClick={() => {
+                            setDeleteSingleDocInfo({
+                              registrationId: reviewingJamaah.id,
+                              docType: activeDoc.docType,
+                              label: docTitle
+                            });
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-xl border border-red-100 transition-all cursor-pointer hover:scale-105 active:scale-95"
+                          title="Hapus file yang diunggah"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Hapus File
+                        </button>
+                      )}
                     </div>
 
                     <div className="flex-1 min-h-[450px] relative rounded-3xl overflow-hidden border border-gray-200 shadow-inner bg-slate-950">
@@ -5681,6 +5763,65 @@ export default function Admin() {
           </div>
         </div>
       )}
+      {deleteAllDocsId && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[80] p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center animate-in zoom-in-95 duration-300 shadow-2xl">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Hapus Semua Dokumen?</h3>
+            <p className="text-gray-600 mb-6 text-sm leading-relaxed">
+              Apakah Anda yakin ingin menghapus seluruh berkas dokumen yang telah diunggah oleh <strong>{deleteAllDocsName}</strong>? Tindakan ini bersifat permanen, menghapus file fisik di server, dan tidak dapat dibatalkan.
+            </p>
+            <div className="flex space-x-3">
+              <button 
+                onClick={() => {
+                  setDeleteAllDocsId(null);
+                  setDeleteAllDocsName(null);
+                }}
+                className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-xl font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={() => handleDeleteAllDocs(deleteAllDocsId)}
+                className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-colors cursor-pointer"
+              >
+                Hapus Semua
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteSingleDocInfo && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[80] p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center animate-in zoom-in-95 duration-300 shadow-2xl">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Hapus Dokumen?</h3>
+            <p className="text-gray-600 mb-6 text-sm leading-relaxed">
+              Apakah Anda yakin ingin menghapus berkas dokumen <strong>{deleteSingleDocInfo.label}</strong> secara permanen?
+            </p>
+            <div className="flex space-x-3">
+              <button 
+                onClick={() => setDeleteSingleDocInfo(null)}
+                className="flex-1 py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-xl font-bold transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button 
+                onClick={() => handleDeleteSingleDoc(deleteSingleDocInfo.registrationId, deleteSingleDocInfo.docType)}
+                className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold transition-colors cursor-pointer"
+              >
+                Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {deletePackageId && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[80] p-4">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center animate-in zoom-in-95 duration-300">
