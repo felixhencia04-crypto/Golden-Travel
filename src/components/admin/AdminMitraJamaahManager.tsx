@@ -113,8 +113,19 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                     const existingPayments = merged[existingIdx].payments || [];
                     const newPayments = pax.payments || [];
                     const paymentMap = new Map();
+                    
+                    // We want terminal statuses (verified, approved, VERIFIED, rejected, REJECTED) to take precedence over pending status
                     [...existingPayments, ...newPayments].forEach(pm => {
                       const pmKey = pm.id || `${pm.date}_${pm.amount}_${pm.step}`;
+                      const existingPm = paymentMap.get(pmKey);
+                      if (existingPm) {
+                        const isExistingTerminal = ['verified', 'approved', 'VERIFIED', 'rejected', 'REJECTED'].includes(existingPm.status);
+                        const isNewTerminal = ['verified', 'approved', 'VERIFIED', 'rejected', 'REJECTED'].includes(pm.status);
+                        if (isExistingTerminal && !isNewTerminal) {
+                          // Keep the existing terminal status payment, do not overwrite it with the pending one
+                          return;
+                        }
+                      }
                       paymentMap.set(pmKey, pm);
                     });
 
