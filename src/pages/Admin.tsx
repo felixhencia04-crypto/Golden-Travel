@@ -1168,19 +1168,11 @@ export default function Admin() {
 
   // Count jamaah who have active registrations and are scheduled to depart
   const activeJamaahDepartingCount = React.useMemo(() => {
-    if (!registrations || registrations.length === 0) {
-      return dashboardStats?.totalJamaah || 0;
+    if (users && users.length > 0) {
+      return users.filter((u: any) => u.role === 'jamaah' && !u.deletedAt).length;
     }
-    const validRegs = registrations.filter((r: any) => 
-      r.status !== 'CANCELLED' && r.status !== 'PILIH_PAKET' && r.status !== 'none'
-    );
-    const paxTotal = validRegs.reduce((acc: number, r: any) => {
-      const paxCount = (parseInt(r.adultCount) || 0) + (parseInt(r.childCount) || 0) + (parseInt(r.infantCount) || 0);
-      const paxData = Array.isArray(r.paxData) ? r.paxData.length : 0;
-      return acc + Math.max(paxCount, paxData, 1);
-    }, 0);
-    return paxTotal > 0 ? paxTotal : (dashboardStats?.totalJamaah || 0);
-  }, [registrations, dashboardStats]);
+    return dashboardStats?.totalJamaah || 0;
+  }, [users, dashboardStats]);
 
   const stats = [
     { 

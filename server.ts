@@ -478,6 +478,7 @@ async function startServer() {
   let updateTimeout: NodeJS.Timeout | null = null;
   const notifyUpdate = () => {
     invalidatePackagesCache();
+    adminStatsCache.clear();
     if (updateTimeout) return;
     updateTimeout = setTimeout(() => {
       const payload = { timestamp: new Date().toISOString() };
@@ -6568,38 +6569,18 @@ async function startServer() {
       const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
       // 1. Jamaah Aktif (Jemaah yang terdaftar dan akan berangkat)
-      const activeRegsForDeparture = await withRetry(() => db.select({
-        id: schema.registrations.id,
-        adultCount: schema.registrations.adultCount,
-        childCount: schema.registrations.childCount,
-        infantCount: schema.registrations.infantCount,
-        paxData: schema.registrations.paxData
-      })
-      .from(schema.registrations)
-      .where(and(
-        eq(schema.registrations.workspaceId, req.user!.workspaceId!),
-        ne(schema.registrations.status, 'CANCELLED'),
-        ne(schema.registrations.status, 'PILIH_PAKET')
-      )));
-
-      let activeJamaahCount = 0;
-      activeRegsForDeparture.forEach(r => {
-        const paxArray = Array.isArray(r.paxData) ? r.paxData.length : 0;
-        const countFromFields = (parseInt(r.adultCount) || 0) + (parseInt(r.childCount) || 0) + (parseInt(r.infantCount) || 0);
-        activeJamaahCount += Math.max(paxArray, countFromFields, 1);
-      });
-
-      const allJamaahUsers = await withRetry(() => db.select({
-        id: schema.users.id
+      const allJamaahUsersResult = await withRetry(() => db.select({
+        count: sql<number>`count(*)`
       })
       .from(schema.users)
       .where(and(
         eq(schema.users.workspaceId, req.user!.workspaceId!),
         eq(schema.users.role, 'jamaah'),
+        isNull(schema.users.deletedAt),
         ne(schema.users.status, 'suspended')
       )));
       
-      const totalJamaah = activeJamaahCount > 0 ? activeJamaahCount : allJamaahUsers.length;
+      const totalJamaah = Number(allJamaahUsersResult[0]?.count || 0);
  
       // 1b. Mitra Aktif
       const activeMitraResult = await withRetry(() => db.select({
