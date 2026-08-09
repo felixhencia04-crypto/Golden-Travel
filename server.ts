@@ -3809,6 +3809,7 @@ async function startServer() {
       const newStatus = status === 'approved' || status === 'VERIFIED' ? 'VERIFIED' : 
                         status === 'rejected' || status === 'REJECTED' ? 'REJECTED' : 'PENDING';
 
+      let resultDoc = null;
       if (targetDoc) {
         const [updated] = await withRetry(() => db.update(schema.documents)
           .set({
@@ -3818,9 +3819,7 @@ async function startServer() {
           })
           .where(eq(schema.documents.id, targetDoc.id))
           .returning());
-
-        notifyUpdate();
-        return res.json(updated);
+        resultDoc = updated;
       } else if (registrationId && docType) {
         const reg = await db.query.registrations.findFirst({ where: eq(schema.registrations.id, registrationId) });
         const [inserted] = await withRetry(() => db.insert(schema.documents).values({
@@ -3831,9 +3830,40 @@ async function startServer() {
           adminNotes: rejectionReason || null,
           workspaceId: reg?.workspaceId || 'default'
         }).returning());
+        resultDoc = inserted;
+      }
 
+      // Also update paxData in registrations table so pax.documents stays in sync
+      const targetRegId = targetDoc?.registrationId || registrationId;
+      if (targetRegId && isValidUUID(targetRegId)) {
+        try {
+          const reg = await db.query.registrations.findFirst({ where: eq(schema.registrations.id, targetRegId) });
+          if (reg && Array.isArray(reg.paxData)) {
+            const normStatus = newStatus === 'VERIFIED' ? 'verified' : newStatus === 'REJECTED' ? 'rejected' : 'pending';
+            const targetType = docType || targetDoc?.docType;
+            if (targetType) {
+              const updatedPax = reg.paxData.map((p: any) => {
+                const pDocs = { ...(p.documents || {}) };
+                pDocs[targetType] = {
+                  ...(pDocs[targetType] || {}),
+                  status: normStatus,
+                  adminNotes: rejectionReason || null
+                };
+                return { ...p, documents: pDocs };
+              });
+              await withRetry(() => db.update(schema.registrations)
+                .set({ paxData: updatedPax })
+                .where(eq(schema.registrations.id, targetRegId)));
+            }
+          }
+        } catch (syncErr) {
+          console.warn("Failed to update paxData in registration after doc verify:", syncErr);
+        }
+      }
+
+      if (resultDoc) {
         notifyUpdate();
-        return res.json(inserted);
+        return res.json(resultDoc);
       }
 
       res.status(404).json({ error: "Dokumen tidak ditemukan" });
@@ -4966,12 +4996,22 @@ async function startServer() {
   // Persistent Jamaah Storage Helpers (PostgreSQL Single Source of Truth)
   async function getAllJamaahFromDatabase() {
     try {
-      const allRegs = await withRetry(() => db.query.registrations.findMany({
-        with: {
-          package: true,
-          user: true
+      const [allRegs, allDocs] = await Promise.all([
+        withRetry(() => db.query.registrations.findMany({
+          with: {
+            package: true,
+            user: true
+          }
+        })).catch(() => []) as Promise<any[]>,
+        withRetry(() => db.query.documents.findMany()).catch(() => []) as Promise<any[]>
+      ]);
+
+      const docsMap = new Map<string, any>();
+      (allDocs || []).forEach(d => {
+        if (d.registrationId && d.docType) {
+          docsMap.set(`${d.registrationId}_${d.docType}`, d);
         }
-      })).catch(() => []) as any[];
+      });
 
       const jamaahList: any[] = [];
       const seenKeys = new Set<string>();
@@ -4987,17 +5027,53 @@ async function startServer() {
           if (seenKeys.has(pKey)) return;
           seenKeys.add(pKey);
 
+          // Build normalized documents object incorporating schema.documents table status
+          const regId = p.registrationId || reg.id;
+          const rawDocs = { ...(p.documents || {}) };
+          const normalizedDocs: any = {};
+
+          const docTypes = ['ktp', 'kk', 'paspor', 'foto', 'buku_nikah', 'vaksin', 'bpjs'];
+          const allKeys = new Set([...Object.keys(rawDocs), ...docTypes]);
+
+          allKeys.forEach(dt => {
+            const docFromDb = docsMap.get(`${regId}_${dt}`) || docsMap.get(`${p.id}_${dt}`);
+            const rawDoc = rawDocs[dt];
+
+            if (docFromDb) {
+              const dbSt = (docFromDb.status || '').toLowerCase();
+              const normStatus = (dbSt === 'verified' || dbSt === 'approved') ? 'verified' : (dbSt === 'rejected' ? 'rejected' : 'pending');
+              normalizedDocs[dt] = {
+                ...(rawDoc || {}),
+                id: docFromDb.id || rawDoc?.id,
+                url: docFromDb.fileUrl || rawDoc?.url || '',
+                fileUrl: docFromDb.fileUrl || rawDoc?.fileUrl || '',
+                fileName: docFromDb.fileName || rawDoc?.fileName || '',
+                fileType: docFromDb.fileType || rawDoc?.fileType || '',
+                status: normStatus,
+                adminNotes: docFromDb.adminNotes || rawDoc?.adminNotes || ''
+              };
+            } else if (rawDoc) {
+              const rawSt = (rawDoc.status || '').toLowerCase();
+              const normStatus = (rawSt === 'verified' || rawSt === 'approved') ? 'verified' : (rawSt === 'rejected' ? 'rejected' : 'pending');
+              normalizedDocs[dt] = {
+                ...rawDoc,
+                status: normStatus
+              };
+            }
+          });
+
           jamaahList.push({
             ...p,
             id: p.id || `JAM-${reg.id.substring(0, 8)}-${idx + 1}`,
             userName: pName,
-            registrationId: p.registrationId || reg.id,
+            registrationId: regId,
             packageName: p.packageName || reg.package?.name || 'Paket Umroh',
             mitraId: p.mitraId || reg.userId || (reg.ordererNotes && reg.ordererNotes.includes('MitraID: ') ? reg.ordererNotes.replace('MitraID: ', '').trim() : 'mitra-user'),
             mitraName: p.mitraName || reg.ordererName || 'Mitra',
             mitraEmail: p.mitraEmail || reg.ordererEmail || '',
             statusBiodata: p.statusBiodata || (reg.status === 'VERIFIED' ? 'verified' : 'pending'),
-            isComplete: p.isComplete !== undefined ? p.isComplete : true
+            isComplete: p.isComplete !== undefined ? p.isComplete : true,
+            documents: normalizedDocs
           });
         });
       });

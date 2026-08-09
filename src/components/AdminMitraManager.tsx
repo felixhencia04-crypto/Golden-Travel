@@ -81,19 +81,37 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
 
       // Clean up local storage cache if present
       try {
+        const emailClean = (target.email || '').toLowerCase().trim();
+        const targetIdClean = (target.id || '').trim();
+        const targetNameClean = (target.name || '').toLowerCase().trim();
+
         const stored = localStorage.getItem('mitra_jamaah_database');
         if (stored) {
           const list = JSON.parse(stored);
           if (Array.isArray(list)) {
-            const emailClean = (target.email || '').toLowerCase().trim();
             const updated = list.filter((item: any) => {
-              const itemEmail = (item.mitraEmail || item.email || '').toLowerCase().trim();
-              const itemId = item.mitraId || item.id;
-              return itemId !== target.id && (!emailClean || itemEmail !== emailClean);
+              const itemEmail = (item.mitraEmail || item.email || item.ordererEmail || '').toLowerCase().trim();
+              const itemId = (item.mitraId || item.userId || item.id || '').trim();
+              const itemName = (item.mitraName || item.ordererName || '').toLowerCase().trim();
+
+              const isMatchId = targetIdClean && itemId === targetIdClean;
+              const isMatchEmail = emailClean && itemEmail === emailClean;
+              const isMatchName = targetNameClean && itemName === targetNameClean;
+
+              return !isMatchId && !isMatchEmail && !isMatchName;
             });
             localStorage.setItem('mitra_jamaah_database', JSON.stringify(updated));
           }
         }
+
+        // Clean up any scoped pax keys for this mitra
+        if (targetIdClean) localStorage.removeItem(`mitra_saved_pax_list_${targetIdClean}`);
+        if (emailClean) localStorage.removeItem(`mitra_saved_pax_list_${emailClean}`);
+
+        // Broadcast events so other tabs/components (e.g. AdminMitraJamaahManager) update immediately
+        window.dispatchEvent(new CustomEvent('mitra_deleted', { detail: { id: target.id, email: target.email } }));
+        window.dispatchEvent(new Event('mitra_jamaah_updated'));
+        window.dispatchEvent(new Event('storage'));
       } catch (e) {
         console.warn('LocalStorage cleanup notice:', e);
       }

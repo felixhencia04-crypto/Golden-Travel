@@ -152,16 +152,32 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                       } else if (!cDoc) {
                         mergedDocs[dk] = pDoc;
                       } else {
-                        // Keep whichever is verified or rejected (usually cDoc is the admin's copy)
-                        // UNLESS pDoc has a different file/URL, indicating a new upload.
-                        const isNewUpload = pDoc.url !== cDoc.url && pDoc.status === 'pending';
+                        // Keep terminal status (verified/approved/rejected) from cDoc or pDoc
+                        // UNLESS pDoc has a different file URL indicating a new upload.
+                        const pUrl = pDoc.url || pDoc.fileUrl || '';
+                        const cUrl = cDoc.url || cDoc.fileUrl || '';
+                        const pStatus = (pDoc.status || '').toLowerCase();
+                        const cStatus = (cDoc.status || '').toLowerCase();
+
+                        const isNewUpload = pUrl && cUrl && pUrl !== cUrl && (pStatus === 'pending');
+                        const isTerminal = (st?: string) => st && ['verified', 'approved', 'rejected'].includes(st.toLowerCase());
+
                         if (isNewUpload) {
                           mergedDocs[dk] = pDoc;
                         } else {
+                          let finalStatus = 'pending';
+                          if (cDoc && isTerminal(cDoc.status)) {
+                            finalStatus = ['verified', 'approved'].includes(cStatus) ? 'verified' : 'rejected';
+                          } else if (pDoc && isTerminal(pDoc.status)) {
+                            finalStatus = ['verified', 'approved'].includes(pStatus) ? 'verified' : 'rejected';
+                          } else {
+                            finalStatus = (cStatus || pStatus || 'pending');
+                          }
+
                           mergedDocs[dk] = {
                             ...pDoc,
                             ...cDoc,
-                            status: (cDoc.status === 'verified' || cDoc.status === 'rejected') ? cDoc.status : (pDoc.status || cDoc.status)
+                            status: finalStatus
                           };
                         }
                       }
@@ -294,12 +310,12 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     fetchJamaahFromDb();
   }, []);
 
-  // Derive unique mitras from jamaahList and combine with real mitra list
+  // Derive unique mitras strictly from real/active mitra list (authoritative database source)
   const mitras = useMemo(() => {
     const map = new Map<string, any>();
     
-    // Process real mitras first (they take precedence)
-    realMitraList.forEach(m => {
+    // Process real mitras from database (authoritative source)
+    (realMitraList || []).forEach(m => {
       const rawName = m.name || m.profile?.namaLengkap || 'Mitra';
       const baseName = rawName.split(' (')[0].trim();
       const mEmail = (m.email || '').toLowerCase().trim();
@@ -317,61 +333,14 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       });
     });
 
-    // Process from jamaah
-    jamaahList.forEach((j: any) => {
-      const jMitraId = (j.mitraId || '').trim();
-      const jMitraEmail = (j.mitraEmail || j.ordererEmail || '').toLowerCase().trim();
-      const rawName = j.mitraName || j.ordererName || j.mitraId || '';
-      const baseName = rawName.split(' (')[0].trim();
-
-      if (jMitraId || rawName || jMitraEmail) {
-        // Check if matching mitra already exists in map
-        let existingKey: string | null = null;
-        for (const [k, m] of map.entries()) {
-          const mId = (m.id || '').toLowerCase().trim();
-          const mEmail = (m.email || '').toLowerCase().trim();
-          const mBase = (m.baseName || '').toLowerCase().trim();
-          const mName = (m.name || '').toLowerCase().trim();
-          const jBase = baseName.toLowerCase().trim();
-          const jIdLower = jMitraId.toLowerCase();
-
-          if (
-            (jIdLower && mId && jIdLower === mId) ||
-            (jMitraEmail && mEmail && jMitraEmail === mEmail) ||
-            (jIdLower && mEmail && jIdLower === mEmail) ||
-            (jBase && jBase.length > 1 && jBase !== 'mitra' && jBase !== 'mitra travel' && (mBase === jBase || mName.includes(jBase) || jBase.includes(mBase)))
-          ) {
-            existingKey = k;
-            break;
-          }
-        }
-
-        if (!existingKey) {
-          const jKey = (jMitraId || jMitraEmail || baseName || 'unknown').toLowerCase().trim();
-          map.set(jKey, { 
-            id: j.mitraId || jKey, 
-            name: rawName || 'Mitra', 
-            baseName: baseName || 'Mitra',
-            email: jMitraEmail,
-            noWa: j.mitraPhone || ''
-          });
-        } else {
-          const existing = map.get(existingKey);
-          if (existing && (existing.name === 'Mitra' || existing.name.startsWith('Mitra:')) && rawName && !rawName.startsWith('Mitra:')) {
-            existing.name = rawName;
-            existing.baseName = baseName;
-          }
-        }
-      }
-    });
-    
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [realMitraList, jamaahList]);
+  }, [realMitraList]);
 
   // Sync real-time updates from Mitra Panel & storage changes
   React.useEffect(() => {
     const handleSync = async () => {
       try {
+        // Re-fetch all Jamaah from PostgreSQL
         const dbJamaah = await api.get('/admin/mitra/all-jamaah').catch(() => null);
         if (Array.isArray(dbJamaah) && dbJamaah.length > 0) {
           setJamaahList(sanitizeJamaahList(dbJamaah));
@@ -380,13 +349,29 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
           const parsed = stored ? JSON.parse(stored) : [];
           setJamaahList(sanitizeJamaahList(parsed));
         }
+
+        // Re-fetch real mitras from API to keep active Mitra list perfectly in sync
+        const mitrasData = await api.get('/admin/mitra/list').catch(() => null);
+        if (Array.isArray(mitrasData)) {
+          const formatted = mitrasData.map((m: any) => ({
+            id: m.id,
+            name: m.name || m.profile?.namaLengkap || 'Mitra',
+            email: m.email || '',
+            noWa: m.noWa || '',
+            statusAkun: m.statusAkun || 'active',
+            profile: m.profile
+          }));
+          setRealMitraList(formatted);
+        }
       } catch (e) {}
     };
 
     window.addEventListener('mitra_jamaah_updated', handleSync);
+    window.addEventListener('mitra_deleted', handleSync);
     window.addEventListener('storage', handleSync);
     return () => {
       window.removeEventListener('mitra_jamaah_updated', handleSync);
+      window.removeEventListener('mitra_deleted', handleSync);
       window.removeEventListener('storage', handleSync);
     };
   }, []);
@@ -395,6 +380,41 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     setJamaahList(updatedList);
     try {
       localStorage.setItem('mitra_jamaah_database', JSON.stringify(updatedList));
+
+      // Synchronize scoped pax keys in localStorage to prevent reversion
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('mitra_saved_pax_list')) {
+          const val = localStorage.getItem(key);
+          if (val) {
+            try {
+              const list = JSON.parse(val);
+              if (Array.isArray(list)) {
+                let changed = false;
+                const updatedScoped = list.map((pax: any) => {
+                  const match = updatedList.find(u => u.id === pax.id || (u.userName && pax.userName && u.userName.trim().toLowerCase() === pax.userName.trim().toLowerCase()));
+                  if (match) {
+                    changed = true;
+                    return {
+                      ...pax,
+                      documents: {
+                        ...(pax.documents || {}),
+                        ...(match.documents || {})
+                      },
+                      payments: match.payments || pax.payments
+                    };
+                  }
+                  return pax;
+                });
+                if (changed) {
+                  localStorage.setItem(key, JSON.stringify(updatedScoped));
+                }
+              }
+            } catch (err) {}
+          }
+        }
+      }
+
       window.dispatchEvent(new Event('mitra_jamaah_updated'));
     } catch (e) {}
 
@@ -1299,11 +1319,10 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       completeCount: number;
     }>();
 
-    filteredJamaahList.forEach((j) => {
-      const mName = j.mitraName || j.mitraId || 'Mitra Umum';
-      const baseName = mName.split(' (')[0].trim();
-
-      if (!map.has(baseName)) {
+    // Pre-fill for all active mitras
+    mitras.forEach((m) => {
+      const baseName = (m.baseName || m.name || 'Mitra').split(' (')[0].trim();
+      if (baseName && !map.has(baseName)) {
         map.set(baseName, {
           mitraName: baseName,
           totalJamaah: 0,
@@ -1313,23 +1332,30 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
           completeCount: 0
         });
       }
+    });
 
-      const stat = map.get(baseName)!;
-      stat.totalJamaah++;
+    filteredJamaahList.forEach((j) => {
+      const mName = j.mitraName || j.mitraId || '';
+      const baseName = mName.split(' (')[0].trim();
 
-      const eq = j.equipment || {};
-      const isKoper = eq.koper ?? eq.koperTas ?? false;
-      const isIhram = eq.ihram ?? eq.kainIhram ?? false;
-      const isBatik = eq.batik ?? eq.seragamBatik ?? false;
+      if (baseName && map.has(baseName)) {
+        const stat = map.get(baseName)!;
+        stat.totalJamaah++;
 
-      if (isKoper) stat.koperCount++;
-      if (isIhram) stat.ihramCount++;
-      if (isBatik) stat.batikCount++;
-      if (isKoper && isIhram && isBatik) stat.completeCount++;
+        const eq = j.equipment || {};
+        const isKoper = eq.koper ?? eq.koperTas ?? false;
+        const isIhram = eq.ihram ?? eq.kainIhram ?? false;
+        const isBatik = eq.batik ?? eq.seragamBatik ?? false;
+
+        if (isKoper) stat.koperCount++;
+        if (isIhram) stat.ihramCount++;
+        if (isBatik) stat.batikCount++;
+        if (isKoper && isIhram && isBatik) stat.completeCount++;
+      }
     });
 
     return Array.from(map.values()).sort((a, b) => b.totalJamaah - a.totalJamaah);
-  }, [filteredJamaahList]);
+  }, [mitras, filteredJamaahList]);
 
   const handleDownloadEquipmentReceipt = (jamaah: any) => {
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -2322,8 +2348,8 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                       filteredJamaahList.map((j) => {
                         const docs = j.documents || {};
                         const docCount = Object.keys(docs).length;
-                        const pendingCount = Object.values(docs).filter((d: any) => d.status === 'pending').length;
-                        const verifiedCount = Object.values(docs).filter((d: any) => d.status === 'verified').length;
+                        const pendingCount = Object.values(docs).filter((d: any) => d && ['pending', 'PENDING'].includes(d.status)).length;
+                        const verifiedCount = Object.values(docs).filter((d: any) => d && ['verified', 'approved', 'VERIFIED', 'APPROVED'].includes(d.status)).length;
 
                         return (
                           <tr key={j.id} className="hover:bg-slate-50/80 transition-colors">
@@ -2419,20 +2445,24 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                 ].filter(d => d.show !== false).map((docInfo) => {
                   const docKey = docInfo.key;
                   const docVal = activeDokumenJemaah.documents?.[docKey];
+                  const normSt = (docVal?.status || '').toLowerCase();
+                  const isVerified = ['verified', 'approved'].includes(normSt);
+                  const isRejected = normSt === 'rejected';
+                  const isPending = !isVerified && !isRejected && Boolean(docVal?.url);
                   
                   return (
                     <div key={docKey} className="bg-slate-50 border border-slate-200 rounded-3xl p-5 space-y-4 flex flex-col">
                       <div className="flex items-center justify-between">
                         <span className="font-black text-[10px] text-slate-900 uppercase tracking-widest">{docInfo.label}</span>
-                        {docVal?.status === 'verified' ? (
+                        {isVerified ? (
                           <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black border border-emerald-300 flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" /> VERIFIED
                           </span>
-                        ) : docVal?.status === 'pending' ? (
+                        ) : isPending ? (
                           <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black border border-amber-300 flex items-center gap-1">
                             <Clock className="w-3 h-3" /> PENDING
                           </span>
-                        ) : docVal?.status === 'rejected' ? (
+                        ) : isRejected ? (
                           <span className="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-black border border-rose-300 flex items-center gap-1">
                             <AlertCircle className="w-3 h-3" /> REJECTED
                           </span>
@@ -2477,9 +2507,9 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                         <div className="grid grid-cols-2 gap-2 pt-2 mt-auto">
                           <button
                             onClick={() => handleRejectDoc(docKey)}
-                            disabled={docVal.status === 'rejected'}
+                            disabled={isRejected}
                             className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all border ${
-                              docVal.status === 'rejected'
+                              isRejected
                                 ? 'bg-rose-50 text-rose-300 border-rose-100 cursor-not-allowed'
                                 : 'bg-white text-rose-600 border-rose-200 hover:bg-rose-50'
                             }`}
@@ -2488,9 +2518,9 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                           </button>
                           <button
                             onClick={() => handleApproveDoc(docKey)}
-                            disabled={docVal.status === 'verified'}
+                            disabled={isVerified}
                             className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all border ${
-                              docVal.status === 'verified'
+                              isVerified
                                 ? 'bg-emerald-50 text-emerald-400 border-emerald-100 cursor-not-allowed'
                                 : 'bg-emerald-900 text-white border-emerald-900 hover:bg-emerald-800 shadow-md active:scale-95'
                             }`}
