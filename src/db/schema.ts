@@ -164,7 +164,7 @@ export const paymentsRelations = relations(payments, ({ one }) => ({
 export const documents = pgTable('documents', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').references(() => workspaces.id),
-  registrationId: uuid('registration_id').references(() => registrations.id).notNull(),
+  registrationId: text('registration_id').notNull(),
   docType: text('doc_type').notNull(),
   fileUrl: text('file_url').notNull(),
   status: documentStatusEnum('status').default('PENDING').notNull(),
