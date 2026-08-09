@@ -4963,6 +4963,277 @@ async function startServer() {
 
   // --- Mitra Endpoints ---
 
+  // Persistent Jamaah Storage Helpers (PostgreSQL Single Source of Truth)
+  async function getAllJamaahFromDatabase() {
+    try {
+      const allRegs = await withRetry(() => db.query.registrations.findMany({
+        with: {
+          package: true,
+          user: true
+        }
+      })).catch(() => []) as any[];
+
+      const jamaahList: any[] = [];
+      const seenKeys = new Set<string>();
+
+      allRegs.forEach(reg => {
+        const paxArr = Array.isArray(reg.paxData) ? reg.paxData : [];
+        paxArr.forEach((p, idx) => {
+          if (!p) return;
+          const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
+          if (!pName || pName.startsWith('Jamaah #')) return;
+
+          const pKey = p.id || `${pName}_${p.nik || p.pasporNo || reg.id}_${idx}`;
+          if (seenKeys.has(pKey)) return;
+          seenKeys.add(pKey);
+
+          jamaahList.push({
+            ...p,
+            id: p.id || `JAM-${reg.id.substring(0, 8)}-${idx + 1}`,
+            userName: pName,
+            registrationId: p.registrationId || reg.id,
+            packageName: p.packageName || reg.package?.name || 'Paket Umroh',
+            mitraId: p.mitraId || reg.userId || (reg.ordererNotes && reg.ordererNotes.includes('MitraID: ') ? reg.ordererNotes.replace('MitraID: ', '').trim() : 'mitra-user'),
+            mitraName: p.mitraName || reg.ordererName || 'Mitra',
+            mitraEmail: p.mitraEmail || reg.ordererEmail || '',
+            statusBiodata: p.statusBiodata || (reg.status === 'VERIFIED' ? 'verified' : 'pending'),
+            isComplete: p.isComplete !== undefined ? p.isComplete : true
+          });
+        });
+      });
+
+      return jamaahList;
+    } catch (err) {
+      console.error("Error in getAllJamaahFromDatabase:", err);
+      return [];
+    }
+  }
+
+  async function syncJamaahListToDatabase(jamaahItems: any[], reqUser: any) {
+    if (!Array.isArray(jamaahItems)) return { count: 0 };
+
+    const defaultWorkspaceId = reqUser?.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef';
+    const groupMap = new Map<string, any[]>();
+
+    jamaahItems.forEach((j: any) => {
+      if (!j) return;
+      const jName = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
+      if (!jName || jName.startsWith('Jamaah #')) return;
+
+      const regKey = j.registrationId || `REG-MITRA-${j.mitraId || reqUser.id}`;
+      if (!groupMap.has(regKey)) {
+        groupMap.set(regKey, []);
+      }
+      groupMap.get(regKey)!.push(j);
+    });
+
+    let totalSaved = 0;
+
+    for (const [regId, items] of groupMap.entries()) {
+      if (items.length === 0) continue;
+
+      const sample = items[0];
+      const mId = sample.mitraId || reqUser.id;
+      const mName = sample.mitraName || sample.ordererName || reqUser.name || 'Mitra';
+      const mEmail = (sample.mitraEmail || sample.ordererEmail || reqUser.email || '').toLowerCase().trim();
+
+      // Resolve package ID
+      let targetPkgId = sample.packageId;
+      if (!targetPkgId || typeof targetPkgId !== 'string' || targetPkgId.length < 10) {
+        const firstPkg = await withRetry(() => db.query.packages.findFirst()).catch(() => null);
+        if (firstPkg) targetPkgId = firstPkg.id;
+      }
+
+      // Find registration by regId or mEmail
+      let existingReg = await withRetry(() => db.query.registrations.findFirst({
+        where: eq(schema.registrations.id, regId)
+      })).catch(() => null);
+
+      if (!existingReg && mEmail) {
+        existingReg = await withRetry(() => db.query.registrations.findFirst({
+          where: eq(schema.registrations.ordererEmail, mEmail)
+        })).catch(() => null);
+      }
+
+      if (existingReg) {
+        const existingPax: any[] = Array.isArray(existingReg.paxData) ? existingReg.paxData : [];
+        const mergedMap = new Map<string, any>();
+
+        existingPax.forEach(p => {
+          const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
+          const pKey = p.id || pName;
+          if (pKey) mergedMap.set(pKey, p);
+        });
+
+        items.forEach(p => {
+          const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
+          const pKey = p.id || pName;
+          if (pKey) {
+            const ex = mergedMap.get(pKey);
+            mergedMap.set(pKey, {
+              ...(ex || {}),
+              ...p,
+              userName: pName || ex?.userName || 'Jemaah',
+              mitraId: mId,
+              mitraName: mName,
+              mitraEmail: mEmail
+            });
+          }
+        });
+
+        const updatedPax = Array.from(mergedMap.values());
+
+        await withRetry(() => db.update(schema.registrations)
+          .set({
+            paxData: updatedPax,
+            adultCount: updatedPax.length.toString(),
+            ordererName: mName,
+            ordererEmail: mEmail,
+            ordererNotes: `MitraID: ${mId}`,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.registrations.id, existingReg.id)));
+
+        totalSaved += items.length;
+      } else {
+        if (targetPkgId) {
+          try {
+            await withRetry(() => db.insert(schema.registrations).values({
+              userId: reqUser.id,
+              packageId: targetPkgId,
+              workspaceId: defaultWorkspaceId,
+              ordererName: mName,
+              ordererEmail: mEmail,
+              ordererNotes: `MitraID: ${mId}`,
+              adultCount: items.length.toString(),
+              childCount: '0',
+              infantCount: '0',
+              totalAmount: (items.length * 32500000).toString(),
+              paxData: items,
+              status: 'ISI_BIODATA'
+            }));
+            totalSaved += items.length;
+          } catch (e) {
+            console.error("Error inserting registration in syncJamaahListToDatabase:", e);
+          }
+        }
+      }
+    }
+
+    return { count: totalSaved };
+  }
+
+  // --- Mitra Jamaah Persistent Endpoints ---
+
+  // POST /api/mitra/jamaah/sync -> Mitra syncs/saves Jamaah to PostgreSQL
+  app.post("/api/mitra/jamaah/sync", authenticate, async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'mitra' && req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    try {
+      const jamaahList = req.body.jamaahList || req.body.paxList || [];
+      const result = await syncJamaahListToDatabase(jamaahList, req.user);
+      res.json({ success: true, count: result.count, message: "Data jamaah tersimpan ke PostgreSQL" });
+    } catch (error: any) {
+      console.error("Sync mitra jamaah error:", error);
+      res.status(500).json({ error: "Gagal menyimpan data jamaah ke PostgreSQL" });
+    }
+  });
+
+  // GET /api/mitra/jamaah/list -> Fetch current Mitra's Jamaah from PostgreSQL
+  app.get("/api/mitra/jamaah/list", authenticate, async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'mitra' && req.user?.role !== 'admin') {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    try {
+      const all = await getAllJamaahFromDatabase();
+      const userEmail = (req.user.email || '').toLowerCase().trim();
+      const userId = (req.user.id || '').toLowerCase().trim();
+
+      const myJamaah = all.filter(j => {
+        const jmId = (j.mitraId || '').toLowerCase().trim();
+        const jmEmail = (j.mitraEmail || '').toLowerCase().trim();
+        return (jmId && jmId === userId) || (jmEmail && jmEmail === userEmail);
+      });
+
+      res.json(myJamaah);
+    } catch (error) {
+      console.error("Get mitra jamaah list error:", error);
+      res.status(500).json({ error: "Gagal mengambil data jamaah dari database" });
+    }
+  });
+
+  // GET /api/admin/mitra/all-jamaah -> Fetch ALL Jamaah from PostgreSQL for Admin Panel
+  app.get("/api/admin/mitra/all-jamaah", authenticate, async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const all = await getAllJamaahFromDatabase();
+      res.json(all);
+    } catch (error) {
+      console.error("Admin all jamaah error:", error);
+      res.status(500).json({ error: "Gagal mengambil semua data jamaah" });
+    }
+  });
+
+  // POST /api/admin/mitra/jamaah/sync -> Admin syncs/updates Jamaah in PostgreSQL
+  app.post("/api/admin/mitra/jamaah/sync", authenticate, async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const jamaahList = req.body.jamaahList || req.body.paxList || [];
+      const result = await syncJamaahListToDatabase(jamaahList, req.user);
+      res.json({ success: true, count: result.count });
+    } catch (error) {
+      console.error("Admin sync jamaah error:", error);
+      res.status(500).json({ error: "Gagal mengupdate database jamaah" });
+    }
+  });
+
+  // GET /api/admin/mitra/stats-summary -> Get accurate count per Mitra directly from PostgreSQL
+  app.get("/api/admin/mitra/stats-summary", authenticate, async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const allMitras = await getComprehensiveMitraList();
+      const allJamaah = await getAllJamaahFromDatabase();
+
+      const summary = allMitras.map(mitra => {
+        const mId = (mitra.id || '').toLowerCase().trim();
+        const mEmail = (mitra.email || '').toLowerCase().trim();
+        const mName = (mitra.name || '').toLowerCase().trim();
+        const mBaseName = mName.split(' (')[0].trim();
+
+        const mitraJamaah = allJamaah.filter(j => {
+          const jmId = (j.mitraId || '').toLowerCase().trim();
+          const jmEmail = (j.mitraEmail || '').toLowerCase().trim();
+          const jmName = (j.mitraName || '').toLowerCase().trim();
+
+          if (jmId && mId && jmId === mId) return true;
+          if (jmEmail && mEmail && jmEmail === mEmail) return true;
+          if (jmId && mEmail && jmId === mEmail) return true;
+          if (jmName && mBaseName && jmName.includes(mBaseName)) return true;
+          return false;
+        });
+
+        const totalJamaah = mitraJamaah.length;
+        const verified = mitraJamaah.filter(j => j.statusBiodata === 'verified' || j.statusBiodata === 'approved').length;
+        const pending = totalJamaah - verified;
+
+        return {
+          mitraId: mitra.id,
+          mitraName: mitra.name,
+          mitraEmail: mitra.email,
+          totalJamaah,
+          verified,
+          pending
+        };
+      });
+
+      res.json(summary);
+    } catch (error) {
+      console.error("Admin stats summary error:", error);
+      res.status(500).json({ error: "Gagal mengambil statistik mitra" });
+    }
+  });
+
   // Get Mitra's Jamaah (referrals)
   app.get("/api/mitra/jamaah", authenticate, async (req: AuthRequest, res) => {
     if (req.user?.role !== 'mitra' && req.user?.role !== 'admin') {

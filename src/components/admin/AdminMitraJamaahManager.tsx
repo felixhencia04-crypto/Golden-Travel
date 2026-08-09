@@ -250,7 +250,6 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
 
     return fixed.filter(j => {
       if (!j) return false;
-      if (j.paxCount === 9 || j.jumlahPax === 9) return false;
       const name = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
       return name !== '' && !name.startsWith('Jamaah #');
     });
@@ -268,6 +267,32 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
   };
 
   const [jamaahList, setJamaahList] = useState<any[]>(loadInitialDatabase);
+
+  // Fetch Jamaah directly from PostgreSQL API on mount
+  useEffect(() => {
+    const fetchJamaahFromDb = async () => {
+      try {
+        const dbJamaah = await api.get('/admin/mitra/all-jamaah');
+        if (Array.isArray(dbJamaah) && dbJamaah.length > 0) {
+          const sanitizedDb = sanitizeJamaahList(dbJamaah);
+          setJamaahList(sanitizedDb);
+          try {
+            localStorage.setItem('mitra_jamaah_database', JSON.stringify(sanitizedDb));
+          } catch (e) {}
+        } else {
+          // If PostgreSQL is currently empty, push any local storage data to PostgreSQL
+          const localData = loadInitialDatabase();
+          if (localData.length > 0) {
+            await api.post('/admin/mitra/jamaah/sync', { jamaahList: localData }).catch(() => {});
+            setJamaahList(localData);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to fetch jamaah from PostgreSQL, using local database:', err);
+      }
+    };
+    fetchJamaahFromDb();
+  }, []);
 
   // Derive unique mitras from jamaahList and combine with real mitra list
   const mitras = useMemo(() => {
@@ -345,11 +370,16 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
 
   // Sync real-time updates from Mitra Panel & storage changes
   React.useEffect(() => {
-    const handleSync = () => {
+    const handleSync = async () => {
       try {
-        const stored = localStorage.getItem('mitra_jamaah_database');
-        const parsed = stored ? JSON.parse(stored) : [];
-        setJamaahList(sanitizeJamaahList(parsed));
+        const dbJamaah = await api.get('/admin/mitra/all-jamaah').catch(() => null);
+        if (Array.isArray(dbJamaah) && dbJamaah.length > 0) {
+          setJamaahList(sanitizeJamaahList(dbJamaah));
+        } else {
+          const stored = localStorage.getItem('mitra_jamaah_database');
+          const parsed = stored ? JSON.parse(stored) : [];
+          setJamaahList(sanitizeJamaahList(parsed));
+        }
       } catch (e) {}
     };
 
@@ -361,12 +391,19 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     };
   }, []);
 
-  const saveAndSyncState = (updatedList: any[]) => {
+  const saveAndSyncState = async (updatedList: any[]) => {
     setJamaahList(updatedList);
     try {
       localStorage.setItem('mitra_jamaah_database', JSON.stringify(updatedList));
       window.dispatchEvent(new Event('mitra_jamaah_updated'));
     } catch (e) {}
+
+    // Persist permanently to PostgreSQL
+    try {
+      await api.post('/admin/mitra/jamaah/sync', { jamaahList: updatedList });
+    } catch (err) {
+      console.warn('Failed to sync updated jamaah list to PostgreSQL:', err);
+    }
   };
 
   const [selectedJamaahIdx, setSelectedJamaahIdx] = useState(0);
@@ -375,8 +412,6 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
   // Filter list by selected Mitra and search query
   const filteredJamaahList = jamaahList.filter((j) => {
     if (!j) return false;
-    // Hide entries with 9 pax as requested by user, and empty placeholders
-    if (j.paxCount === 9 || j.jumlahPax === 9) return false;
     const jName = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
     if (!jName || jName.startsWith('Jamaah #')) return false;
 
@@ -469,7 +504,6 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     // Count valid jamaah entries
     const validJamaah = jamaahList.filter(j => {
       if (!j) return false;
-      if (j.paxCount === 9 || j.jumlahPax === 9) return false;
       const name = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
       return name !== '' && !name.startsWith('Jamaah #');
     });

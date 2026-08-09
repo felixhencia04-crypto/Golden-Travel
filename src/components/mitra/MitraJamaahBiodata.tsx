@@ -163,6 +163,28 @@ export default function MitraJamaahBiodata({ jamaahList, onRefresh }: MitraJamaa
     return [];
   });
 
+  // Fetch Jamaah list from PostgreSQL for active Mitra on mount
+  useEffect(() => {
+    const fetchMitraJamaahFromDb = async () => {
+      try {
+        const dbList = await api.get('/mitra/jamaah/list');
+        if (Array.isArray(dbList) && dbList.length > 0) {
+          setPaxList(prev => {
+            const merged = [...dbList];
+            prev.forEach(p => {
+              const pName = (p.userName || p.namaLengkap || p.nama || '').trim();
+              if (pName && !merged.some(m => m.id === p.id || m.userName === pName)) {
+                merged.push(p);
+              }
+            });
+            return merged;
+          });
+        }
+      } catch (e) {}
+    };
+    fetchMitraJamaahFromDb();
+  }, []);
+
   useEffect(() => {
     if (tempRegInfo?.registrationId) {
       const hasGroup = paxList.some(p => p.registrationId === tempRegInfo.registrationId);
@@ -758,6 +780,9 @@ export default function MitraJamaahBiodata({ jamaahList, onRefresh }: MitraJamaa
 
       // Trigger custom sync event
       window.dispatchEvent(new Event('mitra_jamaah_updated'));
+
+      // Persist permanently to PostgreSQL
+      api.post('/mitra/jamaah/sync', { jamaahList: validItemsToSync }).catch(() => {});
     } catch (err) {
       console.error('Sync failed:', err);
     }
