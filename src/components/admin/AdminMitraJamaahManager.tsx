@@ -106,8 +106,12 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
             const list = JSON.parse(val);
             if (Array.isArray(list)) {
               list.forEach((pax: any) => {
-                if (pax && pax.userName && pax.userName.trim() !== '' && !pax.userName.startsWith('Jamaah #')) {
-                  const existingIdx = merged.findIndex(m => m.id === pax.id || (m.userName === pax.userName && (m.mitraEmail === pax.mitraEmail || m.mitraId === pax.mitraId)));
+                const paxName = (pax?.userName || pax?.namaLengkap || pax?.nama || pax?.fullName || pax?.name || pax?.pasporNama || '').trim();
+                if (pax && paxName !== '' && !paxName.startsWith('Jamaah #')) {
+                  const existingIdx = merged.findIndex(m => {
+                    const mName = (m?.userName || m?.namaLengkap || m?.nama || m?.fullName || m?.name || m?.pasporNama || '').trim();
+                    return m.id === pax.id || (mName === paxName && (m.mitraEmail === pax.mitraEmail || m.mitraId === pax.mitraId));
+                  });
                   if (existingIdx >= 0) {
                     // Combine payments
                     const existingPayments = merged[existingIdx].payments || [];
@@ -166,12 +170,16 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                     merged[existingIdx] = {
                       ...pax,
                       ...merged[existingIdx],
+                      userName: paxName || merged[existingIdx].userName,
                       payments: Array.from(paymentMap.values()),
                       documents: mergedDocs,
                       passportInfo: mergedPassport
                     };
                   } else {
-                    merged.push(pax);
+                    merged.push({
+                      ...pax,
+                      userName: paxName
+                    });
                   }
                 }
               });
@@ -185,6 +193,11 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       if (!j) return j;
       let newJ = { ...j };
       
+      const resolvedName = (newJ.userName || newJ.namaLengkap || newJ.nama || newJ.fullName || newJ.name || newJ.pasporNama || '').trim();
+      if (resolvedName) {
+        newJ.userName = resolvedName;
+      }
+
       const oName = newJ.ordererName && newJ.ordererName !== 'Mitra Travel' ? newJ.ordererName : '';
       const oEmail = newJ.ordererEmail ? newJ.ordererEmail : '';
 
@@ -203,14 +216,12 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       return newJ;
     });
 
-    return fixed.filter(j => 
-      j &&
-      j.paxCount !== 9 && 
-      j.jumlahPax !== 9 && 
-      j.userName && 
-      j.userName.trim() !== '' && 
-      !j.userName.startsWith('Jamaah #')
-    );
+    return fixed.filter(j => {
+      if (!j) return false;
+      if (j.paxCount === 9 || j.jumlahPax === 9) return false;
+      const name = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
+      return name !== '' && !name.startsWith('Jamaah #');
+    });
   };
 
   // Load initial database from localStorage or fallback
@@ -331,9 +342,11 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
 
   // Filter list by selected Mitra and search query
   const filteredJamaahList = jamaahList.filter((j) => {
+    if (!j) return false;
     // Hide entries with 9 pax as requested by user, and empty placeholders
     if (j.paxCount === 9 || j.jumlahPax === 9) return false;
-    if (!j.userName || j.userName.trim() === '' || j.userName.startsWith('Jamaah #')) return false;
+    const jName = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
+    if (!jName || jName.startsWith('Jamaah #')) return false;
 
     let matchesMitra = false;
     if (selectedMitraFilter === 'all') {
@@ -343,7 +356,8 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       const targetMitra = mitras.find(m => 
         (m.id && m.id.toLowerCase().trim() === selLower) || 
         (m.baseName && m.baseName.toLowerCase().trim() === selLower) || 
-        (m.email && m.email.toLowerCase().trim() === selLower)
+        (m.email && m.email.toLowerCase().trim() === selLower) ||
+        (m.name && m.name.toLowerCase().trim() === selLower)
       );
 
       const jMitraId = (j.mitraId || '').toLowerCase().trim();
@@ -366,7 +380,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
             jBaseName.length > 1 && 
             jBaseName !== 'mitra' && 
             jBaseName !== 'mitra travel' && 
-            (tBaseName === jBaseName || tName.includes(jBaseName) || jBaseName.includes(tBaseName))
+            (tBaseName === jBaseName || tName.includes(jBaseName) || jBaseName.includes(tBaseName) || tBaseName.includes(jBaseName))
           );
       } else {
         matchesMitra = (jMitraId === selLower) || (jBaseName === selLower) || (jMitraEmail === selLower);
@@ -374,7 +388,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     }
 
     const matchesSearch = searchQuery === '' || 
-      (j.userName && j.userName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (jName && jName.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (j.nik && j.nik.includes(searchQuery)) ||
       (j.pasporNo && j.pasporNo.toLowerCase().includes(searchQuery.toLowerCase())) ||
       (j.mitraName && j.mitraName.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -421,12 +435,12 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     });
 
     // Count valid jamaah entries
-    const validJamaah = jamaahList.filter(j => 
-      j.paxCount !== 9 && 
-      j.jumlahPax !== 9 &&
-      j.userName && j.userName.trim() !== '' &&
-      !j.userName.startsWith('Jamaah #')
-    );
+    const validJamaah = jamaahList.filter(j => {
+      if (!j) return false;
+      if (j.paxCount === 9 || j.jumlahPax === 9) return false;
+      const name = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
+      return name !== '' && !name.startsWith('Jamaah #');
+    });
 
     validJamaah.forEach(j => {
       const jMitraId = (j.mitraId || '').toLowerCase().trim();
@@ -449,20 +463,20 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
           jBaseName.length > 1 && 
           jBaseName !== 'mitra' && 
           jBaseName !== 'mitra travel' && 
-          (mBase === jBaseName || mName.includes(jBaseName) || jBaseName.includes(mBase))
+          (mBase === jBaseName || mName.includes(jBaseName) || jBaseName.includes(mBase) || mBase.includes(jBaseName))
         ) return true;
         return false;
       });
 
       const key = matchingMitra ? matchingMitra.id : (j.mitraId || j.mitraEmail || jRawName || 'unknown');
       
-      if (!stats[key]) {
-        const newObj = { total: 0, unverified: 0, verified: 0, totalPax: 0, recentJamaah: [] };
-        stats[key] = newObj;
-        stats[key.toLowerCase().trim()] = newObj;
+      let targetObj = stats[key] || stats[key.toLowerCase().trim()];
+      if (!targetObj) {
+        targetObj = { total: 0, unverified: 0, verified: 0, totalPax: 0, recentJamaah: [] };
+        stats[key] = targetObj;
+        stats[key.toLowerCase().trim()] = targetObj;
       }
       
-      const targetObj = stats[key] || stats[key.toLowerCase().trim()];
       targetObj.total++;
       if (j.statusBiodata === 'verified' || j.isComplete) {
         targetObj.verified++;
@@ -472,7 +486,8 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       
       targetObj.totalPax++;
       
-      if (j.userName && targetObj.recentJamaah.length < 3) {
+      const jName = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
+      if (jName && targetObj.recentJamaah.length < 3) {
         targetObj.recentJamaah.push(j);
       }
     });

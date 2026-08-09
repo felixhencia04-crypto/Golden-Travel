@@ -134,20 +134,31 @@ export default function MitraJamaahBiodata({ jamaahList, onRefresh }: MitraJamaa
   // Initialize pax list from localStorage scoped to active Mitra
   const [paxList, setPaxList] = useState<any[]>(() => {
     try {
+      let combined: any[] = [];
       const scopedKey = getScopedKey('mitra_saved_pax_list');
       const saved = localStorage.getItem(scopedKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) combined = [...parsed];
       }
 
-      // Check central DB filtered for current mitra
       const centralDbStr = localStorage.getItem('mitra_jamaah_database');
       if (centralDbStr) {
         const centralDb = JSON.parse(centralDbStr);
         const filtered = filterJamaahForCurrentMitra(centralDb);
-        if (filtered.length > 0) return filtered;
+        filtered.forEach((cItem: any) => {
+          const cName = (cItem.userName || cItem.namaLengkap || cItem.name || '').trim();
+          const exists = combined.some(p => 
+            p.id === cItem.id || 
+            (cName && (p.userName || p.namaLengkap || p.name) === cName && p.registrationId === cItem.registrationId)
+          );
+          if (!exists) {
+            combined.push(cItem);
+          }
+        });
       }
+
+      if (combined.length > 0) return combined;
     } catch (e) {}
     return [];
   });
@@ -591,10 +602,10 @@ export default function MitraJamaahBiodata({ jamaahList, onRefresh }: MitraJamaa
       localStorage.setItem('selected_mitra_package', JSON.stringify(updatedInfo));
     }
 
-    syncToCentralDatabase(updated);
+    syncToCentralDatabase(updated, targetPax?.id);
   };
 
-  const syncToCentralDatabase = (updatedPaxList: any[]) => {
+  const syncToCentralDatabase = (updatedPaxList: any[], deletedPaxId?: string) => {
     try {
       const activeMitra = getActiveMitraInfo();
       const scopedKey = getScopedKey('mitra_saved_pax_list');
@@ -625,138 +636,115 @@ export default function MitraJamaahBiodata({ jamaahList, onRefresh }: MitraJamaa
         if (stored) centralDb = JSON.parse(stored);
       } catch (e) {}
 
-      // Keep records belonging to other mitras cleanly
-      const isSameMitraRecord = (j: any) => {
-        if (!j) return false;
-        const jId = (j.mitraId || '').trim();
-        const jEmail = (j.mitraEmail || '').toLowerCase().trim();
-        const jName = (j.mitraName || j.ordererName || '').trim();
-
-        const cId = (currentMitraId || '').trim();
-        const cEmail = (currentMitraEmail || '').toLowerCase().trim();
-        const cName = (currentMitraName || '').trim();
-
-        // 1. Match by Email if both are present
-        if (cEmail && jEmail && cEmail === jEmail) {
-          return true;
-        }
-
-        // 2. Match by ID if both are present and not generic 'mitra-user'
-        if (
-          cId && 
-          cId.toLowerCase() !== 'mitra-user' && 
-          jId && 
-          jId.toLowerCase() !== 'mitra-user' && 
-          cId.toLowerCase() === jId.toLowerCase()
-        ) {
-          return true;
-        }
-
-        // 3. Match by Name if both are present and not generic 'Mitra' / 'Mitra Travel'
-        const cleanCName = cName.toLowerCase().replace('mitra:', '').trim();
-        const cleanJName = jName.toLowerCase().replace('mitra:', '').trim();
-        if (
-          cleanCName && 
-          cleanJName && 
-          cleanCName !== 'mitra' && 
-          cleanCName !== 'mitra travel' && 
-          cleanJName !== 'mitra' && 
-          cleanJName !== 'mitra travel' && 
-          cleanCName === cleanJName
-        ) {
-          return true;
-        }
-
-        return false;
-      };
-
-      const otherMitraRecords = centralDb.filter((j) => !isSameMitraRecord(j));
+      // If explicit deletion requested, remove that ID from centralDb
+      if (deletedPaxId) {
+        centralDb = centralDb.filter(ex => ex.id !== deletedPaxId);
+      }
 
       const now = new Date();
-      // Only sync entries that have a name or are marked complete, to avoid cluttering Admin with empty slots
-      const thisMitraRecords = updatedPaxList
-        .filter(p => p.userName && p.userName.trim() !== '')
-        .map((p, idx) => {
-          const isActuallyComplete = p.userName && p.userName.trim() !== '' && p.isComplete;
-          const jamaahId = p.id || `JAM-10${idx + 1}`;
-          
-          // CRITICAL: Preserve verification status if it exists in central DB
-          const existingRecord = centralDb.find(ex => ex.id === jamaahId);
-          const currentStatus = existingRecord?.statusBiodata || p.statusBiodata || (isActuallyComplete ? 'verified' : 'pending');
-          const currentDocStatus = existingRecord?.statusDokumen || p.statusDokumen || 'pending';
-          
-          return {
-            id: jamaahId,
-            mitraId: currentMitraId,
-            mitraName: currentMitraName,
-            registrationId: p.registrationId || tempRegInfo?.registrationId || 'REG-LEGACY',
-            mitraLevel: currentMitraLevel,
-            mitraPhone: currentMitraPhone,
-            mitraEmail: currentMitraEmail,
-            ordererName: currentMitraName,
-            ordererPhone: currentMitraPhone,
-            ordererEmail: currentMitraEmail,
-            userName: p.userName,
-            userPhone: p.userPhone || '-',
-            userEmail: p.userEmail || '-',
-            nik: p.nik || '-',
-            paxCount: p.paxCount || tempRegInfo?.paxCount || 1,
-            jumlahPax: p.paxCount || tempRegInfo?.paxCount || 1,
-            packageName: p.packageName || currentPkgName,
-            packagePrice: p.packagePrice || currentPkgPrice,
-            departureDate: p.departureDate || tempRegInfo?.departureDate || '-',
-            statusBiodata: currentStatus,
-            statusDokumen: currentDocStatus,
-            isComplete: isActuallyComplete,
-            paxNo: p.paxNo || idx + 1,
-          registeredAt: p.registeredAt || now.toISOString(),
-          registeredAtFormatted: p.registeredAtFormatted || now.toLocaleString('id-ID'),
-          // Include sub-objects
-          documents: p.documents || p.docs || {
+      
+      // Process valid pax items from updatedPaxList that have a name filled or marked complete
+      const validItemsToSync = updatedPaxList.filter(p => {
+        const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
+        return pName !== '' && !pName.startsWith('Jamaah #');
+      });
+
+      validItemsToSync.forEach((p, idx) => {
+        const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || 'Jemaah').trim();
+        const isActuallyComplete = Boolean(pName && p.isComplete);
+        const jamaahId = p.id || `JAM-10${idx + 1}`;
+
+        // Find existing record in central DB (match by ID or Name+Email/MitraId)
+        const existingIdx = centralDb.findIndex(ex => 
+          ex.id === jamaahId || 
+          (ex.userName === pName && (
+            (ex.mitraEmail && currentMitraEmail && ex.mitraEmail.toLowerCase() === currentMitraEmail.toLowerCase()) || 
+            (ex.mitraId && currentMitraId && ex.mitraId.toLowerCase() === currentMitraId.toLowerCase())
+          ))
+        );
+        const existingRecord = existingIdx >= 0 ? centralDb[existingIdx] : null;
+
+        const currentStatus = existingRecord?.statusBiodata || p.statusBiodata || (isActuallyComplete ? 'verified' : 'pending');
+        const currentDocStatus = existingRecord?.statusDokumen || p.statusDokumen || 'pending';
+
+        const formattedRecord = {
+          ...(existingRecord || {}),
+          ...p,
+          id: existingRecord?.id || jamaahId,
+          mitraId: currentMitraId,
+          mitraName: currentMitraName,
+          registrationId: p.registrationId || tempRegInfo?.registrationId || existingRecord?.registrationId || 'REG-LEGACY',
+          mitraLevel: currentMitraLevel,
+          mitraPhone: currentMitraPhone,
+          mitraEmail: currentMitraEmail,
+          ordererName: currentMitraName,
+          ordererPhone: currentMitraPhone,
+          ordererEmail: currentMitraEmail,
+          userName: pName,
+          userPhone: p.userPhone || p.phone || existingRecord?.userPhone || '-',
+          userEmail: p.userEmail || p.email || existingRecord?.userEmail || '-',
+          nik: p.nik || existingRecord?.nik || '-',
+          paxCount: p.paxCount || tempRegInfo?.paxCount || existingRecord?.paxCount || 1,
+          jumlahPax: p.paxCount || tempRegInfo?.paxCount || existingRecord?.jumlahPax || 1,
+          packageName: p.packageName || currentPkgName,
+          packagePrice: p.packagePrice || currentPkgPrice,
+          departureDate: p.departureDate || tempRegInfo?.departureDate || existingRecord?.departureDate || '-',
+          statusBiodata: currentStatus,
+          statusDokumen: currentDocStatus,
+          isComplete: isActuallyComplete || p.isComplete || false,
+          paxNo: p.paxNo || idx + 1,
+          registeredAt: p.registeredAt || existingRecord?.registeredAt || now.toISOString(),
+          registeredAtFormatted: p.registeredAtFormatted || existingRecord?.registeredAtFormatted || now.toLocaleString('id-ID'),
+          documents: p.documents || p.docs || existingRecord?.documents || {
             ktp: { status: 'pending', url: '' },
             kk: { status: 'pending', url: '' },
             paspor: { status: 'pending', url: '' },
           },
-          passportInfo: p.passportInfo || {},
-          personalInfo: p.personalInfo || {},
-          tempatLahir: p.tempatLahir || '-',
-          tanggalLahir: p.tanggalLahir || '-',
-          jenisKelamin: p.jenisKelamin || 'Laki-laki',
-          statusPernikahan: p.statusPernikahan || 'Menikah',
-          namaPasangan: p.namaPasangan || '',
-          pekerjaan: p.pekerjaan || '-',
-          alamatLengkap: p.alamatLengkap || '-',
-          pasporNo: p.pasporNo || '-',
-          pasporNama: p.pasporNama || (p.userName ? p.userName.toUpperCase() : '-'),
-          pasporTempat: p.pasporTempat || '-',
-          pasporTglTerbit: p.pasporTglTerbit || '-',
-          pasporTglExpired: p.pasporTglExpired || '-',
-          kontakDaruratNama: p.kontakDaruratNama || '-',
-          kontakDaruratHubungan: p.kontakDaruratHubungan || '-',
-          kontakDaruratPhone: p.kontakDaruratPhone || '-',
+          passportInfo: p.passportInfo || existingRecord?.passportInfo || {},
+          personalInfo: p.personalInfo || existingRecord?.personalInfo || {},
+          tempatLahir: p.tempatLahir || existingRecord?.tempatLahir || '-',
+          tanggalLahir: p.tanggalLahir || existingRecord?.tanggalLahir || '-',
+          jenisKelamin: p.jenisKelamin || existingRecord?.jenisKelamin || 'Laki-laki',
+          statusPernikahan: p.statusPernikahan || existingRecord?.statusPernikahan || 'Menikah',
+          namaPasangan: p.namaPasangan || existingRecord?.namaPasangan || '',
+          pekerjaan: p.pekerjaan || existingRecord?.pekerjaan || '-',
+          alamatLengkap: p.alamatLengkap || existingRecord?.alamatLengkap || '-',
+          pasporNo: p.pasporNo || existingRecord?.pasporNo || '-',
+          pasporNama: p.pasporNama || existingRecord?.pasporNama || (pName ? pName.toUpperCase() : '-'),
+          pasporTempat: p.pasporTempat || existingRecord?.pasporTempat || '-',
+          pasporTglTerbit: p.pasporTglTerbit || existingRecord?.pasporTglTerbit || '-',
+          pasporTglExpired: p.pasporTglExpired || existingRecord?.pasporTglExpired || '-',
+          kontakDaruratNama: p.kontakDaruratNama || existingRecord?.kontakDaruratNama || '-',
+          kontakDaruratHubungan: p.kontakDaruratHubungan || existingRecord?.kontakDaruratHubungan || '-',
+          kontakDaruratPhone: p.kontakDaruratPhone || existingRecord?.kontakDaruratPhone || '-',
           payments: (existingRecord?.payments && existingRecord.payments.length > 0) ? existingRecord.payments : (p.payments || []),
           totalPaid: existingRecord?.totalPaid ?? p.totalPaid ?? ((p.packagePrice || currentPkgPrice) * 0.3),
           paymentStep: existingRecord?.paymentStep || p.paymentStep || 'dp1',
           statusPayment: existingRecord?.statusPayment || p.statusPayment || 'pending',
-          riwayatMedisPenyakit: p.riwayatMedisPenyakit || p.medicalConditions || ['Sehat / Tidak ada'],
-          riwayatMedisDetail: p.riwayatMedisDetail || p.medicalHistoryDetails || '',
-          equipment: p.equipment || {
+          riwayatMedisPenyakit: p.riwayatMedisPenyakit || p.medicalConditions || existingRecord?.riwayatMedisPenyakit || ['Sehat / Tidak ada'],
+          riwayatMedisDetail: p.riwayatMedisDetail || p.medicalHistoryDetails || existingRecord?.riwayatMedisDetail || '',
+          equipment: p.equipment || existingRecord?.equipment || {
             koper: true,
             tasPaspor: true,
             kainIhram: true,
             seragamBatik: false
           },
-          issuedDocs: p.issuedDocs || {
+          issuedDocs: p.issuedDocs || existingRecord?.issuedDocs || {
             tiketPesawat: true,
             visaUmroh: false,
             hotelVoucher: false,
             idCardDigital: true
           }
         };
+
+        if (existingIdx >= 0) {
+          centralDb[existingIdx] = formattedRecord;
+        } else {
+          centralDb.push(formattedRecord);
+        }
       });
 
-      const newCentralDb = [...thisMitraRecords, ...otherMitraRecords];
-      localStorage.setItem('mitra_jamaah_database', JSON.stringify(newCentralDb));
+      localStorage.setItem('mitra_jamaah_database', JSON.stringify(centralDb));
 
       // Trigger custom sync event
       window.dispatchEvent(new Event('mitra_jamaah_updated'));
