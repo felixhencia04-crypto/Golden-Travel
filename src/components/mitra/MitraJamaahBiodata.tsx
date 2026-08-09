@@ -608,8 +608,6 @@ export default function MitraJamaahBiodata({ jamaahList, onRefresh }: MitraJamaa
   const syncToCentralDatabase = (updatedPaxList: any[], deletedPaxId?: string) => {
     try {
       const activeMitra = getActiveMitraInfo();
-      const scopedKey = getScopedKey('mitra_saved_pax_list');
-      localStorage.setItem(scopedKey, JSON.stringify(updatedPaxList));
 
       const currentMitraId = (mitraInfo.id && mitraInfo.id !== 'mitra-user') 
         ? mitraInfo.id 
@@ -626,6 +624,18 @@ export default function MitraJamaahBiodata({ jamaahList, onRefresh }: MitraJamaa
       const currentMitraLevel = mitraInfo.level || 'Mitra';
       const currentMitraPhone = mitraInfo.phone || '';
       const currentMitraEmail = mitraInfo.email || activeMitra.email || localStorage.getItem('current_mitra_email') || '';
+
+      const updatedPaxWithMitra = updatedPaxList.map(p => ({
+        ...p,
+        mitraId: p.mitraId || currentMitraId,
+        mitraName: (p.mitraName && p.mitraName !== 'Mitra Travel') ? p.mitraName : currentMitraName,
+        mitraEmail: p.mitraEmail || currentMitraEmail,
+        ordererName: (p.ordererName && p.ordererName !== 'Mitra Travel') ? p.ordererName : currentMitraName,
+        ordererEmail: p.ordererEmail || currentMitraEmail,
+      }));
+
+      const scopedKey = getScopedKey('mitra_saved_pax_list');
+      localStorage.setItem(scopedKey, JSON.stringify(updatedPaxWithMitra));
 
       const currentPkgName = tempRegInfo?.packageName || activePax?.packageName || 'Paket Umroh Executive 12 Hari';
       const currentPkgPrice = tempRegInfo?.packagePrice || 32500000;
