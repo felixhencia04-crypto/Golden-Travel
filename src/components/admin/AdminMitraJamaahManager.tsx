@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { api } from '../../lib/api';
+import { safeSetLocalStorage } from '../../utils/mitraStorage';
 import { generateRegistrationFormPdf } from '../../utils/generateRegistrationFormPdf';
 import { generateManifestPdf } from '../../utils/generateManifestPdf';
 import ConfirmModal from '../ui/ConfirmModal';
@@ -383,7 +384,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     isSyncingRef.current = true;
     setJamaahList(updatedList);
     try {
-      localStorage.setItem('mitra_jamaah_database', JSON.stringify(updatedList));
+      safeSetLocalStorage('mitra_jamaah_database', updatedList);
 
       // Synchronize scoped pax keys in localStorage to prevent reversion
       for (let i = 0; i < localStorage.length; i++) {
@@ -413,7 +414,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                   return pax;
                 });
                 if (changed) {
-                  localStorage.setItem(key, JSON.stringify(updatedScoped));
+                  safeSetLocalStorage(key, updatedScoped);
                 }
               }
             } catch (err) {}

@@ -7,6 +7,7 @@ import {
 import { toast } from 'sonner';
 import { api } from '../../lib/api';
 import ConfirmModal from '../ui/ConfirmModal';
+import { safeSetLocalStorage } from '../../utils/mitraStorage';
 
 // Helper functions for extracting Jamaah data robustly
 export const getJamaahName = (j: any) => {
@@ -208,12 +209,14 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
   // Sync jamaah database helper
   const syncJamaahDatabase = (updatedList: any[]) => {
     setJamaahList(updatedList);
-    localStorage.setItem('mitra_jamaah_database', JSON.stringify(updatedList));
+    safeSetLocalStorage('mitra_jamaah_database', updatedList);
     try {
       const bc = new BroadcastChannel('mitra_catalog_realtime');
       bc.postMessage({ type: 'JAMAAH_UPDATED', timestamp: Date.now() });
       bc.close();
     } catch (e) {}
+    window.dispatchEvent(new Event('mitra_jamaah_updated'));
+    window.dispatchEvent(new Event('storage'));
     if (onRefresh) onRefresh();
   };
 
@@ -232,7 +235,7 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
     };
     const cleanMemories = (updatedMemories || []).filter(m => !isDummyMemory(m));
     setMemories(cleanMemories);
-    localStorage.setItem('golden_mitra_memories', JSON.stringify(cleanMemories));
+    safeSetLocalStorage('golden_mitra_memories', cleanMemories);
 
     window.dispatchEvent(new Event('golden_memories_updated'));
     window.dispatchEvent(new Event('storage'));
@@ -272,11 +275,29 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
       const recipientName = certRecipientName.trim() || targetJamaah?.fullName || targetJamaah?.namaLengkap || 'Jemaah';
       const mitraName = targetJamaah?.mitraName || targetJamaah?.createdByName || certModalMitra;
 
+      // 1. Post to backend server endpoint first to store file on disk and get short URL
+      let serverCertUrl = '';
+      try {
+        const certRes = await api.post('/admin/certificates', {
+          registrationId: selectedJamaahId,
+          recipientName: recipientName,
+          certificateUrl: base64Data
+        });
+        if (certRes && certRes.certificateUrl) {
+          serverCertUrl = certRes.certificateUrl;
+        }
+      } catch (apiErr) {
+        console.warn('API post certificate notice:', apiErr);
+      }
+
+      const finalCertUrl = serverCertUrl || base64Data;
+
       const fileObj = {
         name: certFile.name,
         size: (certFile.size / 1024).toFixed(1) + ' KB',
         uploadedAt: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-        data: base64Data,
+        data: finalCertUrl,
+        url: finalCertUrl,
         recipientName: recipientName,
         mitraName: mitraName
       };
@@ -289,7 +310,8 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
               ...(j.docFiles || {}),
               sertifikat: fileObj
             },
-            isCertIssued: true
+            isCertIssued: true,
+            certificateUrl: finalCertUrl
           };
         }
         return j;
@@ -297,19 +319,13 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
 
       syncJamaahDatabase(updatedList);
 
-      // Call API endpoint
-      api.post('/admin/certificates', {
-        registrationId: selectedJamaahId,
-        recipientName: recipientName,
-        certificateUrl: base64Data
-      }).catch(() => {});
-
       toast.success(`🎉 Sertifikat berhasil diterbitkan untuk ${recipientName}!`);
       setIsCertModalOpen(false);
       setSelectedJamaahId('');
       setCertRecipientName('');
       setCertFile(null);
     } catch (error: any) {
+      console.error('Upload cert error:', error);
       toast.error('Gagal mengunggah sertifikat: ' + (error.message || 'Error'));
     } finally {
       setIsSubmittingCert(false);

@@ -8441,7 +8441,7 @@ async function startServer() {
   });
 
   app.get("/api/admin/certificates", authenticate, async (req: AuthRequest, res) => {
-    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') return res.status(403).json({ error: "Forbidden" });
     const workspaceId = req.user!.workspaceId!;
     try {
       const allCerts = await getCertificatesQuery({
@@ -8454,10 +8454,15 @@ async function startServer() {
   });
 
   app.post("/api/admin/certificates", authenticate, async (req: AuthRequest, res) => {
-    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') return res.status(403).json({ error: "Forbidden" });
     try {
       const { registrationId, certificateUrl, recipientName } = req.body;
       
+      let finalCertUrl = certificateUrl || '';
+      if (certificateUrl && typeof certificateUrl === 'string' && certificateUrl.startsWith('data:')) {
+        finalCertUrl = saveFileToUploads(certificateUrl, 'certificate');
+      }
+
       let validRegistrationId: string | null = null;
       if (isValidUuid(registrationId)) {
         try {
@@ -8478,7 +8483,7 @@ async function startServer() {
           workspaceId: req.user!.workspaceId!,
           registrationId: validRegistrationId,
           recipientName: recipientName || null,
-          certificateUrl: certificateUrl || ''
+          certificateUrl: finalCertUrl
         }).returning());
       } catch (insertErr) {
         // Fallback without registrationId if FK constraint failed
@@ -8487,7 +8492,7 @@ async function startServer() {
           workspaceId: req.user!.workspaceId!,
           registrationId: null,
           recipientName: recipientName || null,
-          certificateUrl: certificateUrl || ''
+          certificateUrl: finalCertUrl
         }).returning());
       }
 
@@ -8495,7 +8500,7 @@ async function startServer() {
       notifyUpdate();
     } catch (error: any) {
       console.error("[Certificates POST Error]", error);
-      res.status(500).json({ error: "Terjadi kesalahan pada server saat menyimpang sertifikat" });
+      res.status(500).json({ error: "Terjadi kesalahan pada server saat menyimpan sertifikat" });
     }
   });
 

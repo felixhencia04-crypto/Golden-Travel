@@ -60,6 +60,32 @@ export function clearActiveMitraSession() {
 }
 
 /**
+ * Safely set localStorage items without crashing on QuotaExceededError.
+ * Automatically cleans large base64 data strings if quota limit is reached.
+ */
+export function safeSetLocalStorage(key: string, value: any): void {
+  try {
+    const stringified = typeof value === 'string' ? value : JSON.stringify(value);
+    localStorage.setItem(key, stringified);
+  } catch (err: any) {
+    console.warn(`[safeSetLocalStorage] Storage quota exceeded for key "${key}". Cleaning large data URLs...`, err);
+    try {
+      if (typeof value === 'object' && value !== null) {
+        const cleaned = JSON.parse(JSON.stringify(value, (k, v) => {
+          if (typeof v === 'string' && v.startsWith('data:') && v.length > 500) {
+            return ''; // Strip heavy base64 to preserve core data structure
+          }
+          return v;
+        }));
+        localStorage.setItem(key, JSON.stringify(cleaned));
+      }
+    } catch (cleanErr) {
+      console.error(`[safeSetLocalStorage] Failed to save cleaned data for "${key}":`, cleanErr);
+    }
+  }
+}
+
+/**
  * Get a storage key scoped to the active logged-in Mitra
  */
 export function getScopedKey(baseKey: string, customId?: string): string {
