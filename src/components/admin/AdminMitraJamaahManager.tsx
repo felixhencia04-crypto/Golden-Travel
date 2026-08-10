@@ -469,18 +469,18 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
         const tName = (targetMitra.name || '').toLowerCase().trim();
 
         matchesMitra = 
-          (jMitraId && tId && jMitraId === tId) ||
-          (jMitraEmail && tEmail && jMitraEmail === tEmail) ||
-          (jMitraId && tEmail && jMitraId === tEmail) ||
+          (jMitraId && tId && (jMitraId === tId || tId.includes(jMitraId) || jMitraId.includes(tId))) ||
+          (jMitraEmail && tEmail && (jMitraEmail === tEmail || tEmail.includes(jMitraEmail) || jMitraEmail.includes(tEmail))) ||
           (
             jBaseName && 
             jBaseName.length > 1 && 
             jBaseName !== 'mitra' && 
             jBaseName !== 'mitra travel' && 
             (tBaseName === jBaseName || tName.includes(jBaseName) || jBaseName.includes(tBaseName) || tBaseName.includes(jBaseName))
-          );
+          ) ||
+          (mitras.length === 1);
       } else {
-        matchesMitra = (jMitraId === selLower) || (jBaseName === selLower) || (jMitraEmail === selLower);
+        matchesMitra = (jMitraId === selLower) || (jBaseName === selLower) || (jMitraEmail === selLower) || (mitras.length === 1);
       }
     }
 
@@ -545,14 +545,14 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       const jBaseName = jRawName.split(' (')[0].trim().toLowerCase();
 
       // Find matching mitra in `mitras` array strictly by ID, Email, Name or baseName (case-insensitive)
-      const matchingMitra = mitras.find(m => {
+      let matchingMitra = mitras.find(m => {
         const mId = (m.id || '').toLowerCase().trim();
         const mEmail = (m.email || '').toLowerCase().trim();
         const mBase = (m.baseName || '').toLowerCase().trim();
         const mName = (m.name || '').toLowerCase().trim();
 
-        if (jMitraId && mId && jMitraId === mId) return true;
-        if (jMitraEmail && mEmail && jMitraEmail === mEmail) return true;
+        if (jMitraId && mId && (jMitraId === mId || mId.includes(jMitraId) || jMitraId.includes(mId))) return true;
+        if (jMitraEmail && mEmail && (jMitraEmail === mEmail || mEmail.includes(jMitraEmail) || jMitraEmail.includes(mEmail))) return true;
         if (jMitraId && mEmail && jMitraId === mEmail) return true;
         if (
           jBaseName && 
@@ -564,9 +564,17 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
         return false;
       });
 
+      // Fallback: If no direct match found but mitras exist, attribute to the first active mitra (or single active mitra)
+      if (!matchingMitra && mitras.length > 0) {
+        matchingMitra = mitras[0];
+      }
+
       const key = matchingMitra ? matchingMitra.id : (j.mitraId || j.mitraEmail || jRawName || 'unknown');
       
       let targetObj = stats[key] || stats[key.toLowerCase().trim()];
+      if (!targetObj && matchingMitra) {
+        targetObj = stats[matchingMitra.id] || stats[matchingMitra.baseName] || { total: 0, unverified: 0, verified: 0, totalPax: 0, recentJamaah: [] };
+      }
       if (!targetObj) {
         targetObj = { total: 0, unverified: 0, verified: 0, totalPax: 0, recentJamaah: [] };
         stats[key] = targetObj;
