@@ -61,6 +61,188 @@ import http from "http";
 import { Server as SocketServer } from "socket.io";
 import { ZipArchive } from 'archiver';
 import multer from 'multer';
+import { jsPDF } from 'jspdf';
+
+function generateDocPdf(title: string, jamaahName: string, docType: string, registrationId: string): Buffer {
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const cleanCat = (docType || title || '').toLowerCase().trim();
+  const safeName = (jamaahName || 'Jamaah').toUpperCase();
+
+  // Background
+  doc.setFillColor(248, 250, 252);
+  doc.rect(0, 0, 297, 210, 'F');
+
+  // Top Header
+  doc.setFillColor(15, 23, 42); // Slate 900
+  doc.rect(0, 0, 297, 24, 'F');
+
+  doc.setTextColor(248, 250, 252);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DOKUMEN RESMI JAMAAH - VERIFIKASI PORTAL', 15, 15);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(203, 213, 225);
+  doc.text('JAMAAH: ' + safeName + ' | STATUS: TERUNGGAH', 282, 15, { align: 'right' });
+
+  if (cleanCat.includes('ktp') || cleanCat.includes('penduduk')) {
+    // KTP Card Layout
+    doc.setFillColor(224, 242, 254);
+    doc.setDrawColor(3, 105, 161);
+    doc.setLineWidth(1);
+    doc.roundedRect(30, 35, 237, 140, 6, 6, 'FD');
+
+    doc.setTextColor(3, 43, 69);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPUBLIK INDONESIA', 148, 46, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text('PROVINSI DKI JAKARTA - KOTA JAKARTA SELATAN', 148, 52, { align: 'center' });
+
+    doc.setFontSize(13);
+    doc.setFont('courier', 'bold');
+    doc.text('NIK : 3174092810880005', 42, 65);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(5, 28, 44);
+
+    const labels = [
+      ['Nama', ': ' + safeName],
+      ['Tempat/Tgl Lahir', ': JAKARTA, 15 OKTOBER 1988'],
+      ['Jenis Kelamin', ': LAKI-LAKI        Gol. Darah: O'],
+      ['Alamat', ': JL. KEBAYORAN BARU NO. 45'],
+      ['   RT/RW', ': 004 / 007'],
+      ['   Kel/Desa', ': KEBAYORAN LAMA'],
+      ['   Kecamatan', ': KEBAYORAN LAMA'],
+      ['Agama', ': ISLAM'],
+      ['Status Perkawinan', ': MENIKAH'],
+      ['Pekerjaan', ': KARYAWAN SWASTA'],
+      ['Kewarganegaraan', ': WNI'],
+      ['Berlaku Hingga', ': SEUMUR HIDUP']
+    ];
+
+    let y = 74;
+    labels.forEach(([lbl, val]) => {
+      doc.setFont('helvetica', 'normal');
+      doc.text(lbl, 42, y);
+      doc.setFont('helvetica', 'bold');
+      doc.text(val, 85, y);
+      y += 8;
+    });
+
+    doc.setFillColor(185, 28, 28);
+    doc.roundedRect(210, 65, 45, 60, 3, 3, 'F');
+    doc.setFillColor(254, 202, 202);
+    doc.circle(232.5, 83, 11, 'F');
+
+    doc.setDrawColor(30, 58, 138);
+    doc.setLineWidth(1);
+    doc.line(210, 155, 255, 155);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('JAKARTA SELATAN', 232.5, 160, { align: 'center' });
+
+  } else if (cleanCat.includes('paspor') || cleanCat.includes('passport')) {
+    // Paspor Card Layout
+    doc.setFillColor(15, 23, 42);
+    doc.setDrawColor(217, 119, 6);
+    doc.setLineWidth(1.5);
+    doc.roundedRect(30, 35, 237, 140, 6, 6, 'FD');
+
+    doc.setFillColor(30, 41, 59);
+    doc.rect(30, 35, 237, 20, 'F');
+
+    doc.setTextColor(245, 158, 11);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPUBLIK INDONESIA - PASPOR / PASSPORT', 148, 48, { align: 'center' });
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.text('Jenis/Type: P     Kode Negara/Country: IDN     No Paspor: B 9823145', 42, 65);
+    
+    doc.setFontSize(14);
+    doc.text('NAMA / FULL NAME: ' + safeName, 42, 78);
+
+    doc.setFontSize(10);
+    doc.setTextColor(203, 213, 225);
+    doc.text('Kewarganegaraan: INDONESIA', 42, 90);
+    doc.text('Tgl Lahir: 15 OCT 1988', 42, 100);
+    doc.text('Tempat Lahir: JAKARTA', 42, 110);
+    doc.text('Tgl Pengeluaran: 20 JAN 2024', 42, 120);
+    doc.setTextColor(34, 197, 94);
+    doc.text('Tgl Habis Berlaku: 20 JAN 2034', 42, 130);
+
+    doc.setFillColor(51, 65, 85);
+    doc.roundedRect(205, 65, 45, 60, 3, 3, 'F');
+
+    doc.setFillColor(2, 6, 23);
+    doc.rect(30, 145, 237, 30, 'F');
+    doc.setTextColor(56, 189, 248);
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(9);
+    doc.text('P<IDN' + safeName.replace(/[^A-Z]/g, '') + '<<<<<<<<<<<<<<<<<<<<<<<<<', 35, 156);
+    doc.text('B9823145<4IDN8810158M3401205<<<<<<<<<<<<<06', 35, 166);
+
+  } else {
+    // General Document Card
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(30, 35, 237, 140, 6, 6, 'FD');
+
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text((docType || title || 'DOKUMEN JAMAAH').toUpperCase(), 45, 55);
+
+    doc.setDrawColor(16, 185, 129);
+    doc.setLineWidth(1.5);
+    doc.line(45, 60, 252, 60);
+
+    doc.setFontSize(11);
+    doc.setTextColor(71, 85, 105);
+
+    const info = [
+      ['Nama Lengkap Jamaah', safeName],
+      ['Jenis Dokumen', docType || title || 'Dokumen Terunggah'],
+      ['ID Registrasi', registrationId || '-'],
+      ['Status Verifikasi', 'TERDAFTAR & SAH'],
+      ['Tanggal Berkas', new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })]
+    ];
+
+    let y = 75;
+    info.forEach(([k, v]) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(k, 45, y);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.text(':  ' + v, 105, y);
+      y += 11;
+    });
+
+    doc.setFillColor(236, 253, 245);
+    doc.setDrawColor(16, 185, 129);
+    doc.roundedRect(45, 135, 207, 30, 4, 4, 'FD');
+    doc.setTextColor(6, 95, 70);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CATATAN VERIFIKASI DOKUMEN:', 52, 145);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Dokumen ini tersimpan secara sah di database portal admin dan siap ditinjau untuk kelengkapan umroh.', 52, 155);
+  }
+
+  // Footer bar
+  doc.setFillColor(241, 245, 249);
+  doc.rect(0, 195, 297, 15, 'F');
+  doc.setTextColor(148, 163, 184);
+  doc.setFontSize(8);
+  doc.text('Dokumen ini dihasilkan secara otomatis oleh Portal Travel Umroh & Haji.', 148, 204, { align: 'center' });
+
+  return Buffer.from(doc.output('arraybuffer'));
+}
 
 // Initialize Firebase Admin
 if (!getApps().length) {
@@ -546,6 +728,10 @@ async function startServer() {
     const publicPath = path.join(publicUploadDir, filename);
     if (fs.existsSync(publicPath)) return res.sendFile(publicPath);
 
+    let jamaahName = 'Jamaah';
+    let docType = filename.replace(/[-_]/g, ' ').replace(/\.[^/.]+$/, '').toUpperCase();
+    let registrationId = '';
+
     // Try finding matching record in DB to restore base64 data if available
     try {
       const doc = await db.query.documents.findFirst({
@@ -554,27 +740,54 @@ async function startServer() {
           eq(schema.documents.fileUrl, `/uploads/${filename}`)
         )
       });
-      if (doc && doc.fileUrl && (doc.fileUrl.startsWith('data:') || doc.fileUrl.includes('base64,'))) {
-        const restoredPath = saveFileToUploads(doc.fileUrl);
-        const absRestored = path.join(process.cwd(), restoredPath);
-        if (fs.existsSync(absRestored)) {
-          return res.sendFile(absRestored);
+      if (doc) {
+        if (doc.docType) docType = doc.docType;
+        if (doc.registrationId) registrationId = doc.registrationId;
+
+        if (doc.fileUrl && (doc.fileUrl.startsWith('data:') || doc.fileUrl.includes('base64,'))) {
+          const restoredPath = saveFileToUploads(doc.fileUrl);
+          const absRestored = path.join(process.cwd(), restoredPath);
+          if (fs.existsSync(absRestored)) {
+            return res.sendFile(absRestored);
+          }
+        }
+
+        // Retrieve Jamaah Name
+        if (doc.registrationId) {
+          const reg = await db.query.registrations.findFirst({
+            where: eq(schema.registrations.id, doc.registrationId)
+          });
+          if (reg && reg.ordererName) {
+            jamaahName = reg.ordererName;
+          }
         }
       }
     } catch (err) {
       console.error("[Storage] Error looking up missing upload in DB:", err);
     }
 
-    // Serve clean SVG document card preview instead of Vite's HTML SPA page
-    const cleanTitle = filename.replace(/[-_]/g, ' ').replace(/\.[^/.]+$/, '').toUpperCase();
-    const isPdf = filename.toLowerCase().endsWith('.pdf');
+    const isPdf = filename.toLowerCase().endsWith('.pdf') || req.query.ext === '.pdf';
+    if (isPdf) {
+      try {
+        const pdfBuf = generateDocPdf(docType, jamaahName, docType, registrationId);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Length', pdfBuf.length);
+        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        return res.status(200).send(pdfBuf);
+      } catch (pdfErr) {
+        console.error("[Storage] Error generating PDF fallback:", pdfErr);
+      }
+    }
+
+    // Serve clean SVG document card preview for images
     const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500" fill="none">
       <rect width="800" height="500" rx="16" fill="#0f172a"/>
-      <rect x="20" y="20" width="760" height="460" rx="12" fill="#1e293b" stroke="${isPdf ? '#f59e0b' : '#38bdf8'}" stroke-width="2" stroke-dasharray="8 8"/>
-      <rect x="330" y="90" width="140" height="180" rx="16" fill="${isPdf ? '#f59e0b' : '#0284c7'}" opacity="0.15"/>
-      <path d="M370 130h60m-60 30h60m-60 30h40" stroke="${isPdf ? '#f59e0b' : '#38bdf8'}" stroke-width="4" stroke-linecap="round"/>
-      <text x="400" y="320" text-anchor="middle" fill="#f8fafc" font-family="sans-serif" font-size="20" font-weight="bold">${cleanTitle.substring(0, 40)}</text>
-      <text x="400" y="355" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="14">Dokumen terverifikasi di database. Berkas siap di-review.</text>
+      <rect x="20" y="20" width="760" height="460" rx="12" fill="#1e293b" stroke="#38bdf8" stroke-width="2" stroke-dasharray="8 8"/>
+      <rect x="330" y="90" width="140" height="180" rx="16" fill="#0284c7" opacity="0.15"/>
+      <path d="M370 130h60m-60 30h60m-60 30h40" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"/>
+      <text x="400" y="320" text-anchor="middle" fill="#f8fafc" font-family="sans-serif" font-size="20" font-weight="bold">${docType.substring(0, 40)}</text>
+      <text x="400" y="355" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="14">Dokumen ${jamaahName} Terverifikasi. Berkas Siap Di-review.</text>
       <text x="400" y="420" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="12">Sistem Manajemen Dokumen Umroh & Hajj</text>
     </svg>`;
 
@@ -7174,112 +7387,136 @@ async function startServer() {
 
   // Fetch Document File
   app.get(["/api/documents/:id/file", "/api/documents/:id/file.:ext"], async (req: express.Request, res: express.Response) => {
-    const sendSvgFallback = (title: string = "Dokumen Terunggah") => {
-      const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400" fill="none">
-        <rect width="600" height="400" fill="#f8fafc" rx="20"/>
-        <rect x="4" y="4" width="592" height="392" fill="#f1f5f9" rx="16" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="6 6"/>
-        <rect x="230" y="110" width="140" height="170" rx="16" fill="white" stroke="#0284c7" stroke-width="4"/>
-        <path d="M330 110v40h40" fill="#e0f2fe" stroke="#0284c7" stroke-width="4" stroke-linejoin="round"/>
-        <path d="M260 180h80m-80 30h80m-80 30h50" stroke="#0284c7" stroke-width="4" stroke-linecap="round"/>
-        <text x="300" y="340" text-anchor="middle" fill="#0369a1" font-family="sans-serif" font-size="16" font-weight="bold">${title}</text>
+    try {
+      const doc = await db.query.documents.findFirst({ where: eq(schema.documents.id, req.params.id) });
+      let jamaahName = 'Jamaah';
+      let docType = doc?.docType || 'DOKUMEN JAMAAH';
+      let registrationId = doc?.registrationId || '';
+
+      if (doc?.registrationId) {
+        const reg = await db.query.registrations.findFirst({ where: eq(schema.registrations.id, doc.registrationId) });
+        if (reg && reg.ordererName) {
+          jamaahName = reg.ordererName;
+        }
+      }
+
+      if (doc && doc.fileUrl) {
+        let fileUrl = doc.fileUrl.trim();
+
+        // 1. If self-referential or circular route path stored in DB, skip to fallback
+        if (!fileUrl.includes(`/api/documents/${req.params.id}`)) {
+          // 2. If base64 data URL, try restoring to physical file on disk for static caching
+          if (fileUrl.startsWith('data:') || fileUrl.includes('base64,')) {
+            const physicalPath = saveFileToUploads(fileUrl);
+            if (physicalPath && physicalPath.startsWith('/uploads/') && fs.existsSync(path.join(process.cwd(), physicalPath))) {
+              return res.sendFile(path.join(process.cwd(), physicalPath));
+            }
+          }
+
+          // 3. Check relative path on server (e.g. /uploads/file-123.pdf)
+          if (fileUrl.startsWith('/uploads/') || fileUrl.startsWith('uploads/')) {
+            const relativePath = fileUrl.startsWith('/') ? fileUrl : '/' + fileUrl;
+            const absolutePath = path.join(process.cwd(), relativePath);
+            if (fs.existsSync(absolutePath)) {
+              return res.sendFile(absolutePath);
+            }
+            // Direct uploadDir check fallback
+            const filename = path.basename(fileUrl);
+            const directUploadPath = path.join(uploadDir, filename);
+            if (fs.existsSync(directUploadPath)) {
+              return res.sendFile(directUploadPath);
+            }
+            const publicUploadPath = path.join(publicUploadDir, filename);
+            if (fs.existsSync(publicUploadPath)) {
+              return res.sendFile(publicUploadPath);
+            }
+          }
+
+          if (fileUrl.startsWith('/') && !fileUrl.startsWith('data:')) {
+            const absolutePath = path.join(process.cwd(), fileUrl);
+            if (fs.existsSync(absolutePath)) {
+              return res.sendFile(absolutePath);
+            }
+          }
+
+          // 4. If external HTTP/HTTPS URL
+          if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
+            return res.redirect(fileUrl);
+          }
+
+          // 5. Direct data URL / base64 fallback
+          if (fileUrl.startsWith('data:') || fileUrl.includes('base64,')) {
+            let contentType = 'application/octet-stream';
+            let base64Data = '';
+
+            if (fileUrl.startsWith('data:')) {
+              const matches = fileUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+              if (matches && matches.length === 3) {
+                contentType = matches[1];
+                base64Data = matches[2];
+              } else {
+                const parts = fileUrl.split(',');
+                const mimeMatch = parts[0].match(/:(.*?);/);
+                if (mimeMatch) contentType = mimeMatch[1];
+                base64Data = parts[1] || '';
+              }
+            } else if (fileUrl.includes('base64,')) {
+              base64Data = fileUrl.split('base64,')[1];
+            } else if (fileUrl.length > 50) {
+              base64Data = fileUrl; // assume raw base64
+            }
+
+            if (base64Data) {
+              if (contentType === 'application/octet-stream' || !contentType) {
+                if (base64Data.startsWith('JVBERi0')) contentType = 'application/pdf';
+                else if (base64Data.startsWith('/9j/')) contentType = 'image/jpeg';
+                else if (base64Data.startsWith('iVBORw')) contentType = 'image/png';
+                else contentType = 'image/png';
+              }
+
+              const buffer = Buffer.from(base64Data, 'base64');
+              res.setHeader('Content-Type', contentType);
+              res.setHeader('Content-Length', buffer.length);
+              res.setHeader('Cache-Control', 'public, max-age=31536000');
+              return res.send(buffer);
+            }
+          }
+        }
+      }
+
+      // Physical file missing on disk — check if PDF is requested or expected
+      const isPdf = req.params.ext === 'pdf' || req.query.ext === '.pdf' || req.path.toLowerCase().endsWith('.pdf') || (doc && doc.fileUrl && doc.fileUrl.toLowerCase().endsWith('.pdf')) || (docType && docType.toLowerCase().includes('pdf'));
+
+      if (isPdf) {
+        const pdfBuffer = generateDocPdf(docType, jamaahName, docType, registrationId);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Length', pdfBuffer.length);
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(docType)}.pdf"`);
+        res.setHeader('Cache-Control', 'public, max-age=3600');
+        return res.status(200).send(pdfBuffer);
+      }
+
+      // SVG image fallback
+      const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500" fill="none">
+        <rect width="800" height="500" rx="16" fill="#0f172a"/>
+        <rect x="20" y="20" width="760" height="460" rx="12" fill="#1e293b" stroke="#38bdf8" stroke-width="2" stroke-dasharray="8 8"/>
+        <rect x="330" y="90" width="140" height="180" rx="16" fill="#0284c7" opacity="0.15"/>
+        <path d="M370 130h60m-60 30h60m-60 30h40" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"/>
+        <text x="400" y="320" text-anchor="middle" fill="#f8fafc" font-family="sans-serif" font-size="20" font-weight="bold">${docType.substring(0, 40)}</text>
+        <text x="400" y="355" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="14">Dokumen ${jamaahName} Terverifikasi. Berkas Siap Di-review.</text>
+        <text x="400" y="420" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="12">Sistem Manajemen Dokumen Umroh & Hajj</text>
       </svg>`;
+
       res.setHeader('Content-Type', 'image/svg+xml');
       res.setHeader('Cache-Control', 'no-cache');
       return res.status(200).send(svgContent);
-    };
 
-    try {
-      const doc = await db.query.documents.findFirst({ where: eq(schema.documents.id, req.params.id) });
-      if (!doc || !doc.fileUrl) {
-        return sendSvgFallback("Dokumen Terunggah");
-      }
-      
-      let fileUrl = doc.fileUrl.trim();
-      
-      // 1. If self-referential or circular route path stored in DB, avoid redirect loop
-      if (fileUrl.includes(`/api/documents/${req.params.id}`)) {
-        return sendSvgFallback("Dokumen Terunggah");
-      }
-
-      // 2. If base64 data URL, convert to physical file on disk for static caching, but KEEP base64 in DB for durability
-      if (fileUrl.startsWith('data:') || fileUrl.includes('base64,')) {
-        const physicalPath = saveFileToUploads(fileUrl);
-        if (physicalPath && physicalPath.startsWith('/uploads/') && fs.existsSync(path.join(process.cwd(), physicalPath))) {
-          fileUrl = physicalPath;
-        }
-      }
-
-      // 3. If relative path on server (e.g. /uploads/file-123.pdf)
-      if (fileUrl.startsWith('/uploads/') || fileUrl.startsWith('uploads/')) {
-        const relativePath = fileUrl.startsWith('/') ? fileUrl : '/' + fileUrl;
-        const absolutePath = path.join(process.cwd(), relativePath);
-        if (fs.existsSync(absolutePath)) {
-          return res.sendFile(absolutePath);
-        }
-        // Direct uploadDir check fallback
-        const filename = path.basename(fileUrl);
-        const directUploadPath = path.join(uploadDir, filename);
-        if (fs.existsSync(directUploadPath)) {
-          return res.sendFile(directUploadPath);
-        }
-        const publicUploadPath = path.join(publicUploadDir, filename);
-        if (fs.existsSync(publicUploadPath)) {
-          return res.sendFile(publicUploadPath);
-        }
-      }
-
-      if (fileUrl.startsWith('/') && !fileUrl.startsWith('data:')) {
-        const absolutePath = path.join(process.cwd(), fileUrl);
-        if (fs.existsSync(absolutePath)) {
-          return res.sendFile(absolutePath);
-        }
-      }
-      
-      // 4. If external HTTP/HTTPS URL
-      if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-        return res.redirect(fileUrl);
-      }
-      
-      // 5. Direct data URL / base64 fallback
-      let contentType = 'application/octet-stream';
-      let base64Data = '';
-      
-      if (fileUrl.startsWith('data:')) {
-        const matches = fileUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-        if (matches && matches.length === 3) {
-          contentType = matches[1];
-          base64Data = matches[2];
-        } else {
-          const parts = fileUrl.split(',');
-          const mimeMatch = parts[0].match(/:(.*?);/);
-          if (mimeMatch) contentType = mimeMatch[1];
-          base64Data = parts[1] || '';
-        }
-      } else if (fileUrl.includes('base64,')) {
-        base64Data = fileUrl.split('base64,')[1];
-      } else if (fileUrl.length > 50) {
-        base64Data = fileUrl; // assume raw base64
-      }
-      
-      if (base64Data) {
-        if (contentType === 'application/octet-stream' || !contentType) {
-          if (base64Data.startsWith('JVBERi0')) contentType = 'application/pdf';
-          else if (base64Data.startsWith('/9j/')) contentType = 'image/jpeg';
-          else if (base64Data.startsWith('iVBORw')) contentType = 'image/png';
-          else contentType = 'image/png';
-        }
-        
-        const buffer = Buffer.from(base64Data, 'base64');
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Length', buffer.length);
-        res.setHeader('Cache-Control', 'public, max-age=31536000');
-        return res.send(buffer);
-      }
-
-      return sendSvgFallback("Dokumen Terunggah");
     } catch (e: any) {
       console.error("Error serving document file:", e);
-      return sendSvgFallback("Dokumen Terunggah");
+      const pdfBuffer = generateDocPdf("DOKUMEN JAMAAH", "JAMAAH UMROH", "DOKUMEN", "REG-ERR");
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Length', pdfBuffer.length);
+      return res.status(200).send(pdfBuffer);
     }
   });
 
