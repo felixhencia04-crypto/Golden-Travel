@@ -5981,28 +5981,6 @@ async function startServer() {
       });
     }
 
-    if (reqUser?.role === 'admin') {
-      try {
-        const allRegsInDb = await db.query.registrations.findMany().catch(() => []);
-        for (const reg of allRegsInDb) {
-          if (!syncedRegIds.has(reg.id)) {
-            const currentPax = Array.isArray(reg.paxData) ? reg.paxData : [];
-            if (currentPax.length > 0) {
-              await db.update(schema.registrations)
-                .set({
-                  paxData: [],
-                  adultCount: '0',
-                  updatedAt: new Date()
-                })
-                .where(eq(schema.registrations.id, reg.id));
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Error cleaning up empty registrations for admin sync:", err);
-      }
-    }
-
     return { count: totalSaved };
   }
 

@@ -520,8 +520,31 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     if (!jName || jName.startsWith('Jamaah #')) return false;
 
     let matchesMitra = false;
+    const jMitraId = (j.mitraId || '').toLowerCase().trim();
+    const jMitraEmail = (j.mitraEmail || j.ordererEmail || '').toLowerCase().trim();
+    const jRawName = j.mitraName || j.ordererName || j.mitraId || '';
+    const jBaseName = jRawName.split(' (')[0].trim().toLowerCase();
+
     if (selectedMitraFilter === 'all') {
-      matchesMitra = true;
+      // Must match at least one registered Mitra in our mitras list
+      matchesMitra = mitras.some(m => {
+        const tId = (m.id || '').toLowerCase().trim();
+        const tAuthIds = (m.authIds || []).map((aid: string) => aid.toLowerCase().trim());
+        const tEmail = (m.email || '').toLowerCase().trim();
+        const tBaseName = (m.baseName || '').toLowerCase().trim();
+        const tName = (m.name || '').toLowerCase().trim();
+
+        return (jMitraId && tId && (jMitraId === tId || tId.includes(jMitraId) || jMitraId.includes(tId))) ||
+               (jMitraId && tAuthIds.includes(jMitraId)) ||
+               (jMitraEmail && tEmail && (jMitraEmail === tEmail || tEmail.includes(jMitraEmail) || jMitraEmail.includes(tEmail))) ||
+               (
+                 jBaseName && 
+                 jBaseName.length > 1 && 
+                 jBaseName !== 'mitra' && 
+                 jBaseName !== 'mitra travel' && 
+                 (tBaseName === jBaseName || tName.includes(jBaseName) || jBaseName.includes(tBaseName) || tBaseName.includes(jBaseName))
+               );
+      });
     } else {
       const selLower = selectedMitraFilter.toLowerCase().trim();
       const targetMitra = mitras.find(m => 
@@ -531,11 +554,6 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
         (m.email && m.email.toLowerCase().trim() === selLower) ||
         (m.name && m.name.toLowerCase().trim() === selLower)
       );
-
-      const jMitraId = (j.mitraId || '').toLowerCase().trim();
-      const jMitraEmail = (j.mitraEmail || j.ordererEmail || '').toLowerCase().trim();
-      const jRawName = j.mitraName || j.ordererName || j.mitraId || '';
-      const jBaseName = jRawName.split(' (')[0].trim().toLowerCase();
 
       if (targetMitra) {
         const tId = (targetMitra.id || '').toLowerCase().trim();
@@ -1980,7 +1998,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Menunggu Verifikasi</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-900 font-playfair">{jamaahList.filter(j => j.statusBiodata !== 'verified' && j.paxCount !== 9 && j.jumlahPax !== 9).length}</span>
+            <span className="text-3xl font-black text-slate-900 font-playfair">{filteredJamaahList.filter(j => j.statusBiodata !== 'verified' && j.paxCount !== 9 && j.jumlahPax !== 9).length}</span>
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black uppercase">Segera Review</span>
           </div>
         </div>
@@ -1993,7 +2011,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sudah Terverifikasi</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-black text-slate-900 font-playfair">{jamaahList.filter(j => j.statusBiodata === 'verified' && j.paxCount !== 9 && j.jumlahPax !== 9).length}</span>
+            <span className="text-3xl font-black text-slate-900 font-playfair">{filteredJamaahList.filter(j => j.statusBiodata === 'verified' && j.paxCount !== 9 && j.jumlahPax !== 9).length}</span>
             <span className="text-xs font-bold text-emerald-600 font-mono">READY</span>
           </div>
         </div>
