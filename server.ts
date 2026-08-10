@@ -5183,6 +5183,20 @@ async function startServer() {
     }
   });
 
+  // Get Jamaah Documents List
+  app.get("/api/jamaah/documents", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const registration = await getRegistrationForUser(req.user!.id, req.user?.email);
+      if (!registration) {
+        return res.json([]);
+      }
+      res.json(registration.documents || []);
+    } catch (error) {
+      console.warn("Failed to fetch jamaah documents:", error);
+      res.status(500).json({ error: "Gagal mengambil daftar dokumen." });
+    }
+  });
+
   // Create Registration (Select Package)
   app.post("/api/jamaah/register", authenticate, async (req: AuthRequest, res) => {
     const { packageId, paxCount } = req.body;

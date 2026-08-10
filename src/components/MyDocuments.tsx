@@ -110,22 +110,26 @@ export default function MyDocuments() {
             const status = getDocStatus(type.id);
             const isUploading = uploading === type.id;
 
+            const isApproved = ['approved', 'VERIFIED'].includes(status?.status);
+            const isRejected = ['rejected', 'REJECTED'].includes(status?.status);
+            const isPending = status && !isApproved && !isRejected;
+
             return (
               <div 
                 key={type.id} 
                 className={`p-5 rounded-2xl border transition-all duration-300 ${
-                  status?.status === 'approved' ? 'border-green-100 bg-green-50/30' : 
-                  status?.status === 'rejected' ? 'border-red-100 bg-red-50/30' :
-                  status?.status === 'pending' ? 'border-blue-100 bg-blue-50/30' :
+                  isApproved ? 'border-green-100 bg-green-50/30' : 
+                  isRejected ? 'border-red-100 bg-red-50/30' :
+                  isPending ? 'border-blue-100 bg-blue-50/30' :
                   'border-gray-100 bg-white'
                 }`}
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className={`p-2.5 rounded-xl ${
-                      status?.status === 'approved' ? 'bg-green-100 text-green-600' : 
-                      status?.status === 'rejected' ? 'bg-red-100 text-red-600' :
-                      status?.status === 'pending' ? 'bg-blue-100 text-blue-600' :
+                      isApproved ? 'bg-green-100 text-green-600' : 
+                      isRejected ? 'bg-red-100 text-red-600' :
+                      isPending ? 'bg-blue-100 text-blue-600' :
                       'bg-gray-100 text-gray-400'
                     }`}>
                       <FileText className="w-6 h-6" />
@@ -138,27 +142,30 @@ export default function MyDocuments() {
                   
                   {status && (
                     <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                      status.status === 'approved' ? 'bg-green-100 text-green-700' : 
-                      status.status === 'rejected' ? 'bg-red-100 text-red-700' :
+                      isApproved ? 'bg-green-100 text-green-700' : 
+                      isRejected ? 'bg-red-100 text-red-700' :
                       'bg-blue-100 text-blue-700'
                     }`}>
-                      {status.status === 'approved' && <CheckCircle2 className="w-3.5 h-3.5" />}
-                      {status.status === 'rejected' && <AlertCircle className="w-3.5 h-3.5" />}
-                      {status.status === 'pending' && <Clock className="w-3.5 h-3.5" />}
-                      {status.status === 'approved' ? 'Tervalidasi' : 
-                       status.status === 'rejected' ? 'Ditolak' : 
+                      {isApproved && <CheckCircle2 className="w-3.5 h-3.5" />}
+                      {isRejected && <AlertCircle className="w-3.5 h-3.5" />}
+                      {isPending && <Clock className="w-3.5 h-3.5" />}
+                      {isApproved ? 'Tervalidasi' : 
+                       isRejected ? 'Ditolak' : 
                        'Menunggu Verifikasi'}
                     </div>
                   )}
                 </div>
 
-                {status?.status === 'rejected' && (
+                {isRejected && (
                   <div className="mb-4 p-3.5 bg-red-50/90 rounded-xl border border-red-200 text-xs text-red-900 flex items-start gap-2.5 shadow-xs">
                     <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-bold text-red-950">Catatan Verifikasi (Alasan Penolakan):</p>
-                      <p className="text-red-800 mt-0.5 leading-relaxed font-medium">
-                        {status.adminNotes || status.rejectionReason || status.notes || status.reason || 'Dokumen belum memenuhi standar. Silakan unggah berkas pengganti yang baru.'}
+                    <div className="flex-1">
+                      <p className="font-bold text-red-950">Catatan Verifikasi Admin (Alasan Penolakan):</p>
+                      <p className="text-red-900 mt-1 leading-relaxed font-semibold bg-white/80 p-2.5 rounded-lg border border-red-100 text-xs">
+                        "{status.adminNotes || status.rejectionReason || status.notes || status.reason || 'Dokumen belum memenuhi standar. Silakan unggah berkas pengganti yang baru.'}"
+                      </p>
+                      <p className="text-[10px] text-red-600 font-medium mt-1">
+                        💡 Silakan pilih dan unggah ulang berkas pengganti melalui tombol di bawah ini.
                       </p>
                     </div>
                   </div>

@@ -2461,8 +2461,8 @@ export default function DashboardJamaah() {
                                       {['approved', 'VERIFIED'].includes(t.status) ? 'Lunas/Diterima' : 
                                        ['rejected', 'REJECTED'].includes(t.status) ? 'Ditolak' : 'Menunggu Konfirmasi'}
                                     </span>
-                                    {t.rejectionReason && (
-                                      <p className="text-[9px] text-red-500 italic mt-1 max-w-[150px]">"{t.rejectionReason}"</p>
+                                    {(t.adminNotes || t.rejectionReason || t.notes || t.reason) && ['rejected', 'REJECTED'].includes(t.status) && (
+                                      <p className="text-[9px] text-red-500 font-medium italic mt-1 max-w-[180px]">"{t.adminNotes || t.rejectionReason || t.notes || t.reason}"</p>
                                     )}
                                   </td>
                                   <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
@@ -2856,20 +2856,36 @@ export default function DashboardJamaah() {
                     ...(paxDataList[activeDocPaxIdx]?.maritalStatus === 'Menikah' ? [{ id: 'Buku Nikah', label: 'Buku Nikah', desc: 'Scan buku nikah asli (halaman biodata).' }] : [])
                   ].map((doc, idx) => {
                     const docKey = `${doc.id}_${activeDocPaxIdx}`;
+                    const currentPaxObj = paxDataList[activeDocPaxIdx];
+                    const paxDocObj = currentPaxObj?.documents;
+
                     const docItem = Array.isArray(userConsultation?.documents) 
                       ? userConsultation.documents.find((d: any) => {
                           if (!d || !d.docType) return false;
                           if (d.docType === docKey) return true;
                           if (d.docType.toLowerCase() === docKey.toLowerCase()) return true;
-                          // Legacy support for Jamaah 1 (index 0) where docType might be stored without index suffix
                           if (activeDocPaxIdx === 0 && (d.docType === doc.id || d.docType.toLowerCase() === doc.id.toLowerCase())) return true;
                           return false;
                         }) 
                       : null;
-                    const isUploaded = !!docItem;
-                    const docStatus = docItem?.status || 'pending';
-                    const rejectionNote = docItem?.rejectionReason;
-                    const fileUrl = docItem?.fileUrl;
+
+                    let paxDocInfo = null;
+                    if (paxDocObj && typeof paxDocObj === 'object') {
+                      paxDocInfo = paxDocObj[docKey] || paxDocObj[doc.id] || paxDocObj[doc.id.toLowerCase()];
+                    }
+
+                    const isUploaded = !!docItem || !!paxDocInfo;
+                    const docStatus = docItem?.status || paxDocInfo?.status || 'pending';
+                    const rejectionNote = 
+                      docItem?.adminNotes || 
+                      docItem?.rejectionReason || 
+                      docItem?.notes || 
+                      docItem?.reason || 
+                      paxDocInfo?.adminNotes || 
+                      paxDocInfo?.rejectionReason || 
+                      paxDocInfo?.notes || 
+                      paxDocInfo?.reason;
+                    const fileUrl = docItem?.fileUrl || paxDocInfo?.fileUrl;
 
                     return (
                       <div key={idx} className="bg-white shadow-md rounded-xl p-6 border border-gray-100 hover:shadow-md transition-all flex flex-col group">
@@ -2892,10 +2908,18 @@ export default function DashboardJamaah() {
                         <h4 className="font-bold text-gray-900 text-sm mb-1">{doc.label}</h4>
                         <p className="text-[11px] text-gray-400 mb-6 flex-1">{doc.desc}</p>
 
-                        {rejectionNote && ['rejected', 'REJECTED'].includes(docStatus) && (
-                          <div className="mb-4 p-2 bg-red-50 border border-red-100 rounded-lg">
-                            <p className="text-[10px] text-red-600 font-bold">Alasan Penolakan:</p>
-                            <p className="text-[10px] text-red-500 italic">{rejectionNote}</p>
+                        {['rejected', 'REJECTED'].includes(docStatus) && (
+                          <div className="mb-4 p-3.5 bg-red-50/90 border border-red-200/90 rounded-xl text-xs space-y-1.5 shadow-2xs">
+                            <div className="flex items-center gap-1.5 text-red-800 font-bold">
+                              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                              <span>Catatan Verifikasi Admin (Alasan Penolakan):</span>
+                            </div>
+                            <p className="text-red-900 font-semibold bg-white/90 p-2.5 rounded-lg border border-red-100 text-[11px] leading-relaxed">
+                              "{rejectionNote || 'Dokumen belum memenuhi standar (kurang jelas / terpotong). Silakan unggah berkas baru.'}"
+                            </p>
+                            <p className="text-[10px] text-red-600 font-medium pt-0.5">
+                              💡 Mohon periksa kembali foto/scan dokumen dan unggah berkas pengganti yang baru di bawah ini.
+                            </p>
                           </div>
                         )}
 
