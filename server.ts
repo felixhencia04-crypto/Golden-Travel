@@ -5617,7 +5617,17 @@ async function startServer() {
       const seenKeys = new Set<string>();
 
       allRegs.forEach(reg => {
+        // Check if registration is genuinely from Mitra or Portal Mitra
+        const isMitraUser = reg.user?.role === 'mitra' || reg.user?.role === 'partner';
+        const hasMitraNotes = reg.ordererNotes && reg.ordererNotes.includes('MitraID:');
         const paxArr = Array.isArray(reg.paxData) ? reg.paxData : [];
+        const hasMitraPax = paxArr.some((p: any) => p && (p.mitraId || p.mitraEmail));
+
+        // If user registered directly via Portal Jamaah (role === 'jamaah' or 'user' without any mitra attribution), skip it!
+        if (reg.user && (reg.user.role === 'jamaah' || reg.user.role === 'user') && !hasMitraNotes && !hasMitraPax && !isMitraUser) {
+          return;
+        }
+
         paxArr.forEach((p, idx) => {
           if (!p) return;
           const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
