@@ -404,7 +404,12 @@ export const downloadFile = async (dataUrl: string | undefined | null, defaultFi
         }
 
         // Determine MIME & extension accurately from server response or URL
-        if (mime.includes('pdf') || cleanUrl.toLowerCase().includes('.pdf')) {
+        if (mime.includes('image/svg+xml') || cleanUrl.toLowerCase().includes('.svg')) {
+          mime = 'image/svg+xml';
+          if (!finalFilename.toLowerCase().endsWith('.svg') && !finalFilename.toLowerCase().endsWith('.png')) {
+            finalFilename = finalFilename.replace(/\.[^/.]+$/, '') + '.svg';
+          }
+        } else if (mime.includes('pdf') || cleanUrl.toLowerCase().includes('.pdf')) {
           mime = 'application/pdf';
           if (!finalFilename.toLowerCase().endsWith('.pdf')) {
             finalFilename = finalFilename.replace(/\.[^/.]+$/, '') + '.pdf';

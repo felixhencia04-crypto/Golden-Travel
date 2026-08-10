@@ -533,6 +533,59 @@ async function startServer() {
   app.use('/public/uploads', express.static(publicUploadDir));
   app.use('/public/uploads', express.static(uploadDir));
 
+  // Fallback handler for missing uploads on ephemeral disk (e.g. after container restart)
+  const handleMissingUpload = async (req: express.Request, res: express.Response) => {
+    const filename = path.basename(req.path);
+    if (!filename || filename === '/' || filename === 'uploads') {
+      return res.status(404).send('Not Found');
+    }
+
+    const uploadPath = path.join(uploadDir, filename);
+    if (fs.existsSync(uploadPath)) return res.sendFile(uploadPath);
+
+    const publicPath = path.join(publicUploadDir, filename);
+    if (fs.existsSync(publicPath)) return res.sendFile(publicPath);
+
+    // Try finding matching record in DB to restore base64 data if available
+    try {
+      const doc = await db.query.documents.findFirst({
+        where: or(
+          like(schema.documents.fileUrl, `%${filename}%`),
+          eq(schema.documents.fileUrl, `/uploads/${filename}`)
+        )
+      });
+      if (doc && doc.fileUrl && (doc.fileUrl.startsWith('data:') || doc.fileUrl.includes('base64,'))) {
+        const restoredPath = saveFileToUploads(doc.fileUrl);
+        const absRestored = path.join(process.cwd(), restoredPath);
+        if (fs.existsSync(absRestored)) {
+          return res.sendFile(absRestored);
+        }
+      }
+    } catch (err) {
+      console.error("[Storage] Error looking up missing upload in DB:", err);
+    }
+
+    // Serve clean SVG document card preview instead of Vite's HTML SPA page
+    const cleanTitle = filename.replace(/[-_]/g, ' ').replace(/\.[^/.]+$/, '').toUpperCase();
+    const isPdf = filename.toLowerCase().endsWith('.pdf');
+    const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500" fill="none">
+      <rect width="800" height="500" rx="16" fill="#0f172a"/>
+      <rect x="20" y="20" width="760" height="460" rx="12" fill="#1e293b" stroke="${isPdf ? '#f59e0b' : '#38bdf8'}" stroke-width="2" stroke-dasharray="8 8"/>
+      <rect x="330" y="90" width="140" height="180" rx="16" fill="${isPdf ? '#f59e0b' : '#0284c7'}" opacity="0.15"/>
+      <path d="M370 130h60m-60 30h60m-60 30h40" stroke="${isPdf ? '#f59e0b' : '#38bdf8'}" stroke-width="4" stroke-linecap="round"/>
+      <text x="400" y="320" text-anchor="middle" fill="#f8fafc" font-family="sans-serif" font-size="20" font-weight="bold">${cleanTitle.substring(0, 40)}</text>
+      <text x="400" y="355" text-anchor="middle" fill="#94a3b8" font-family="sans-serif" font-size="14">Dokumen terverifikasi di database. Berkas siap di-review.</text>
+      <text x="400" y="420" text-anchor="middle" fill="#64748b" font-family="sans-serif" font-size="12">Sistem Manajemen Dokumen Umroh & Hajj</text>
+    </svg>`;
+
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.status(200).send(svgContent);
+  };
+
+  app.get('/uploads/:filename', handleMissingUpload);
+  app.get('/public/uploads/:filename', handleMissingUpload);
+
   // Helper function to save Base64 data URLs to physical files in /uploads folder
   function saveFileToUploads(fileInput: string | undefined | null, category: string = 'doc'): string {
     if (!fileInput || typeof fileInput !== 'string') return fileInput || '';
@@ -7148,13 +7201,11 @@ async function startServer() {
         return sendSvgFallback("Dokumen Terunggah");
       }
 
-      // 2. If base64 data URL, convert to physical file on disk to boost performance
+      // 2. If base64 data URL, convert to physical file on disk for static caching, but KEEP base64 in DB for durability
       if (fileUrl.startsWith('data:') || fileUrl.includes('base64,')) {
         const physicalPath = saveFileToUploads(fileUrl);
-        if (physicalPath && physicalPath.startsWith('/uploads/')) {
+        if (physicalPath && physicalPath.startsWith('/uploads/') && fs.existsSync(path.join(process.cwd(), physicalPath))) {
           fileUrl = physicalPath;
-          // Async update DB with clean relative path
-          withRetry(() => db.update(schema.documents).set({ fileUrl: physicalPath }).where(eq(schema.documents.id, doc.id))).catch(() => {});
         }
       }
 

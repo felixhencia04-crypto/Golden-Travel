@@ -26,8 +26,9 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title = 'Dokumen', cl
   const [imgSrc, setImgSrc] = useState<string>('');
   const [imgLoading, setImgLoading] = useState<boolean>(true);
   const [imgError, setImgError] = useState<boolean>(false);
+  const [forceImageMode, setForceImageMode] = useState<boolean>(false);
 
-  const isImage = isImageUrl(url);
+  const isImage = isImageUrl(url) || forceImageMode;
 
   // Reset controls state whenever URL changes
   useEffect(() => {
@@ -35,6 +36,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title = 'Dokumen', cl
     setRotation(0);
     setError(null);
     setImgError(false);
+    setForceImageMode(false);
   }, [url]);
 
   // Handle image preparation
@@ -94,9 +96,17 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title = 'Dokumen', cl
           setLoading(false);
         }
       } catch (err: any) {
-        console.error('PdfViewer load error:', err);
+        console.warn('PdfViewer PDF load error, automatically falling back to image view:', err);
         if (isMounted) {
-          setError('Gagal memuat pratinjau PDF. File mungkin tidak dalam format PDF standar atau rusak.');
+          try {
+            const blobUrl = getBlobUrlFromDataUrl(url);
+            setImgSrc(blobUrl || url);
+          } catch (e) {
+            setImgSrc(url);
+          }
+          setImgLoading(true);
+          setImgError(false);
+          setForceImageMode(true);
           setLoading(false);
         }
       }

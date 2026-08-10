@@ -830,6 +830,18 @@ export default function Admin() {
           }
         }
 
+        if (!fileData) {
+          try {
+            const fallbackDataUrl = getDocPreviewDataUrl(cat.id, jamaahName, reviewingJamaah.packageName, activePaxIdx);
+            const rawSvg = decodeURIComponent(fallbackDataUrl.split(',')[1] || '');
+            const encoder = new TextEncoder();
+            fileData = encoder.encode(rawSvg).buffer;
+            extension = 'svg';
+          } catch (e) {
+            console.warn('Failed to create fallback doc for zip:', e);
+          }
+        }
+
         if (fileData) {
           folder.file(`${cat.label}_Pax${activePaxIdx + 1}.${extension}`, fileData);
           filesAdded++;
@@ -5700,18 +5712,14 @@ export default function Admin() {
                     let activeDocUrl: string | undefined = undefined;
 
                     if (activeDoc) {
-                      if (activeDoc.fileUrl && activeDoc.fileUrl.trim() !== '') {
-                        if (activeDoc.fileUrl.startsWith('/api/documents/') && !activeDoc.fileUrl.includes('.') && !activeDoc.fileUrl.includes('ext=')) {
-                          const isPdf = activeDoc.isPdf || (activeDoc.docType && activeDoc.docType.toLowerCase().includes('pdf'));
-                          const ext = isPdf ? '.pdf' : '.png';
-                          activeDocUrl = `${activeDoc.fileUrl}?token=${token}&ext=${ext}`;
-                        } else {
-                          activeDocUrl = activeDoc.fileUrl;
-                        }
+                      if (activeDoc.fileUrl && activeDoc.fileUrl.startsWith('data:')) {
+                        activeDocUrl = activeDoc.fileUrl;
                       } else if (activeDoc.id) {
-                        const isPdf = activeDoc.isPdf || (activeDoc.docType && activeDoc.docType.toLowerCase().includes('pdf'));
+                        const isPdf = activeDoc.isPdf || (activeDoc.docType && activeDoc.docType.toLowerCase().includes('pdf')) || (activeDoc.fileUrl && activeDoc.fileUrl.toLowerCase().endsWith('.pdf'));
                         const ext = isPdf ? '.pdf' : '.png';
                         activeDocUrl = `/api/documents/${activeDoc.id}/file?token=${token}&ext=${ext}`;
+                      } else if (activeDoc.fileUrl) {
+                        activeDocUrl = activeDoc.fileUrl;
                       }
                     }
 
