@@ -5618,13 +5618,15 @@ async function startServer() {
 
       allRegs.forEach(reg => {
         // Check if registration is genuinely from Mitra or Portal Mitra
-        const isMitraUser = reg.user?.role === 'mitra' || reg.user?.role === 'partner';
+        const userRole = reg.user?.role ? reg.user.role.toLowerCase() : '';
+        const isMitraUser = userRole === 'mitra' || userRole === 'partner';
         const hasMitraNotes = reg.ordererNotes && reg.ordererNotes.includes('MitraID:');
         const paxArr = Array.isArray(reg.paxData) ? reg.paxData : [];
         const hasMitraPax = paxArr.some((p: any) => p && (p.mitraId || p.mitraEmail));
 
-        // If user registered directly via Portal Jamaah (role === 'jamaah' or 'user' without any mitra attribution), skip it!
-        if (reg.user && (reg.user.role === 'jamaah' || reg.user.role === 'user') && !hasMitraNotes && !hasMitraPax && !isMitraUser) {
+        // STRICT ISOLATION: Must have mitra attribution (isMitraUser, hasMitraNotes, or hasMitraPax).
+        // If it lacks mitra attribution (e.g. registered directly via Portal Jamaah), skip it completely!
+        if (!isMitraUser && !hasMitraNotes && !hasMitraPax) {
           return;
         }
 
