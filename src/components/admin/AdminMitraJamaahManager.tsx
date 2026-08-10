@@ -430,7 +430,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     };
   }, []);
 
-  const saveAndSyncState = async (updatedList: any[]) => {
+  const saveAndSyncState = async (updatedList: any[], deletedId?: string, deletedName?: string) => {
     isSyncingRef.current = true;
     setJamaahList(updatedList);
     try {
@@ -446,7 +446,28 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
               const list = JSON.parse(val);
               if (Array.isArray(list)) {
                 let changed = false;
-                const updatedScoped = list.map((pax: any) => {
+                let updatedScoped = list;
+
+                // If deletion occurred, filter it out from the scoped key
+                if (deletedId || deletedName) {
+                  const normDelName = deletedName?.trim().toLowerCase().replace(/\s+/g, ' ');
+                  updatedScoped = updatedScoped.filter((pax: any) => {
+                    if (deletedId && pax.id === deletedId) {
+                      changed = true;
+                      return false;
+                    }
+                    if (normDelName) {
+                      const pName = (pax.userName || pax.namaLengkap || pax.nama || pax.fullName || pax.name || pax.pasporNama || '').trim().toLowerCase().replace(/\s+/g, ' ');
+                      if (pName === normDelName) {
+                        changed = true;
+                        return false;
+                      }
+                    }
+                    return true;
+                  });
+                }
+
+                updatedScoped = updatedScoped.map((pax: any) => {
                   const match = updatedList.find(u => u.id === pax.id || (u.userName && pax.userName && u.userName.trim().toLowerCase() === pax.userName.trim().toLowerCase()));
                   if (match) {
                     changed = true;
@@ -475,7 +496,10 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
 
     // Persist permanently to PostgreSQL FIRST before notifying listeners
     try {
-      await api.post('/admin/mitra/jamaah/sync', { jamaahList: updatedList });
+      await api.post('/admin/mitra/jamaah/sync', { 
+        jamaahList: updatedList,
+        deletedPaxId: deletedId
+      });
     } catch (err) {
       console.warn('Failed to sync updated jamaah list to PostgreSQL:', err);
     } finally {
@@ -1924,7 +1948,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       type: 'danger',
       onConfirm: () => {
         const updated = jamaahList.filter((j) => j.id !== id);
-        saveAndSyncState(updated);
+        saveAndSyncState(updated, id, userName);
         toast.success(`Data jamaah ${userName} telah dihapus dari Portal Admin.`);
       }
     });

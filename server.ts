@@ -5743,7 +5743,29 @@ async function startServer() {
     }
   }
 
-  async function syncJamaahListToDatabase(jamaahItems: any[], reqUser: any) {
+  async function syncJamaahListToDatabase(jamaahItems: any[], reqUser: any, deletedPaxId?: string) {
+    if (deletedPaxId) {
+      try {
+        const allRegs = await db.query.registrations.findMany().catch(() => []);
+        for (const reg of allRegs) {
+          const regPax = Array.isArray(reg.paxData) ? reg.paxData : [];
+          const hasPax = regPax.some((p: any) => p && p.id === deletedPaxId);
+          if (hasPax) {
+            const cleanedPax = regPax.filter((p: any) => p && p.id !== deletedPaxId);
+            await db.update(schema.registrations)
+              .set({
+                paxData: cleanedPax,
+                adultCount: cleanedPax.length.toString(),
+                updatedAt: new Date()
+              })
+              .where(eq(schema.registrations.id, reg.id));
+          }
+        }
+      } catch (err) {
+        console.error("Error cleaning up deletedPaxId:", err);
+      }
+    }
+
     if (!Array.isArray(jamaahItems)) return { count: 0 };
 
     const defaultWorkspaceId = reqUser?.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef';
@@ -5761,6 +5783,7 @@ async function startServer() {
       groupMap.get(regKey)!.push(j);
     });
 
+    const syncedRegIds = new Set(Array.from(groupMap.keys()));
     let totalSaved = 0;
 
     for (const [regId, items] of groupMap.entries()) {
@@ -5861,26 +5884,27 @@ async function startServer() {
              });
              
              if (duplicateIdx >= 0) {
-                const ex = existingPax[duplicateIdx];
-                existingPax[duplicateIdx] = { ...ex, ...raw, documents: { ...(ex.documents || {}), ...(raw.documents || {}) } };
+                 const ex = existingPax[duplicateIdx];
+                 existingPax[duplicateIdx] = { ...ex, ...raw, documents: { ...(ex.documents || {}), ...(raw.documents || {}) } };
              } else {
-                existingPax.push(raw);
+                 existingPax.push(raw);
              }
           });
           
-          const updatedPaxList = [...existingPax];
+          // Reconcile pilgrims for this registration: only keep the incoming items
+          const updatedPaxList: any[] = [];
           
           items.forEach(p => {
             const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
             
-            const exIdx = updatedPaxList.findIndex(ex => {
+            const exIdx = existingPax.findIndex(ex => {
               const exName = (ex.userName || ex.namaLengkap || ex.nama || ex.fullName || ex.name || ex.pasporNama || '').trim();
               if (p.id && ex.id && p.id === ex.id) return true;
               if (pName && exName && pName.toLowerCase().replace(/\s+/g, ' ') === exName.toLowerCase().replace(/\s+/g, ' ')) return true;
               return false;
             });
             
-            const ex = exIdx >= 0 ? updatedPaxList[exIdx] : null;
+            const ex = exIdx >= 0 ? existingPax[exIdx] : null;
             const exDocs = ex?.documents || {};
             const pDocs = p.documents || {};
             const mergedDocs: any = { ...exDocs, ...pDocs };
@@ -5913,11 +5937,7 @@ async function startServer() {
               documents: mergedDocs
             };
             
-            if (exIdx >= 0) {
-              updatedPaxList[exIdx] = mergedItem;
-            } else {
-              updatedPaxList.push(mergedItem);
-            }
+            updatedPaxList.push(mergedItem);
           });
 
           await tx.update(schema.registrations)
@@ -5961,6 +5981,28 @@ async function startServer() {
       });
     }
 
+    if (reqUser?.role === 'admin') {
+      try {
+        const allRegsInDb = await db.query.registrations.findMany().catch(() => []);
+        for (const reg of allRegsInDb) {
+          if (!syncedRegIds.has(reg.id)) {
+            const currentPax = Array.isArray(reg.paxData) ? reg.paxData : [];
+            if (currentPax.length > 0) {
+              await db.update(schema.registrations)
+                .set({
+                  paxData: [],
+                  adultCount: '0',
+                  updatedAt: new Date()
+                })
+                .where(eq(schema.registrations.id, reg.id));
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error cleaning up empty registrations for admin sync:", err);
+      }
+    }
+
     return { count: totalSaved };
   }
 
@@ -5973,7 +6015,8 @@ async function startServer() {
     }
     try {
       const jamaahList = req.body.jamaahList || req.body.paxList || [];
-      const result = await syncJamaahListToDatabase(jamaahList, req.user);
+      const deletedPaxId = req.body.deletedPaxId;
+      const result = await syncJamaahListToDatabase(jamaahList, req.user, deletedPaxId);
       res.json({ success: true, count: result.count, message: "Data jamaah tersimpan ke PostgreSQL" });
     } catch (error: any) {
       console.error("Sync mitra jamaah error:", error);
@@ -6021,7 +6064,8 @@ async function startServer() {
     if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
     try {
       const jamaahList = req.body.jamaahList || req.body.paxList || [];
-      const result = await syncJamaahListToDatabase(jamaahList, req.user);
+      const deletedPaxId = req.body.deletedPaxId;
+      const result = await syncJamaahListToDatabase(jamaahList, req.user, deletedPaxId);
       res.json({ success: true, count: result.count });
     } catch (error) {
       console.error("Admin sync jamaah error:", error);

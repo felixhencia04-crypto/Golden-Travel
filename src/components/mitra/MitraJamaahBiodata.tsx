@@ -782,7 +782,10 @@ export default function MitraJamaahBiodata({ jamaahList, onRefresh }: MitraJamaa
       window.dispatchEvent(new Event('mitra_jamaah_updated'));
 
       // Persist permanently to PostgreSQL
-      api.post('/mitra/jamaah/sync', { jamaahList: validItemsToSync }).catch(() => {});
+      api.post('/mitra/jamaah/sync', { 
+        jamaahList: validItemsToSync,
+        deletedPaxId: deletedPaxId
+      }).catch(() => {});
     } catch (err) {
       console.error('Sync failed:', err);
     }
