@@ -27,8 +27,9 @@ import MitraSertifikat from '../components/mitra/MitraSertifikat';
 import MitraPengajuanKomisi from '../components/mitra/MitraPengajuanKomisi';
 import MitraPengaturanAkun from '../components/mitra/MitraPengaturanAkun';
 import MitraInfoKomisi from '../components/mitra/MitraInfoKomisi';
+import { MitraDokumenMOU } from '../components/mitra/MitraDokumenMOU';
 
-type DashboardTab = 'info_komisi' | 'dashboard' | 'registration' | 'verification' | 'pilih_paket' | 'katalog_paket' | 'informasi_jadwal' | 'daftar_jamaah_biodata' | 'daftar_jamaah_dokumen' | 'pembayaran' | 'persiapan_keberangkatan' | 'dokumen_keberangkatan' | 'kenangan' | 'sertifikat' | 'pengajuan_komisi' | 'pengaturan_akun';
+type DashboardTab = 'info_komisi' | 'dashboard' | 'registration' | 'verification' | 'mou' | 'pilih_paket' | 'katalog_paket' | 'informasi_jadwal' | 'daftar_jamaah_biodata' | 'daftar_jamaah_dokumen' | 'pembayaran' | 'persiapan_keberangkatan' | 'dokumen_keberangkatan' | 'kenangan' | 'sertifikat' | 'pengajuan_komisi' | 'pengaturan_akun';
 
 const PulseIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -683,6 +684,22 @@ export default function DashboardMitra() {
                     {mitraStatus === 'pending_verification' ? 'Ditinjau' : 'Belum'}
                   </span>
                 )}
+              </div>
+            )}
+          </button>
+
+          <button
+            onClick={() => handleTabClick('mou')}
+            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all font-bold text-sm ${
+              activeTab === 'mou' 
+                ? 'sidebar-item-active' 
+                : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-900'
+            }`}
+          >
+            <FileText className={`w-5 h-5 shrink-0 ${activeTab === 'mou' ? 'text-amber-300' : 'text-emerald-700'}`} />
+            {isSidebarOpen && (
+              <div className="flex items-center justify-between flex-1 min-w-0">
+                <span className="truncate">Dokumen MOU</span>
               </div>
             )}
           </button>
@@ -1398,6 +1415,10 @@ export default function DashboardMitra() {
                   </div>
                 </div>
               </>
+            )}
+
+            {activeTab === 'mou' && (
+              <MitraDokumenMOU />
             )}
 
             {activeTab === 'verification' && (

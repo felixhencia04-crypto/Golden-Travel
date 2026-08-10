@@ -1089,6 +1089,29 @@ async function startServer() {
     await runSql(`ALTER TABLE "admin_settings" ADD COLUMN IF NOT EXISTS "travel_logo_url" text;`);
     await runSql(`ALTER TABLE "admin_settings" ADD COLUMN IF NOT EXISTS "bank_accounts" jsonb DEFAULT '[]'::jsonb;`);
 
+    // 22. Mitra MOUs Table
+    await runSql(`
+      CREATE TABLE IF NOT EXISTS "mitra_mous" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "mou_number" text NOT NULL,
+        "title" text NOT NULL,
+        "mitra_id" text NOT NULL,
+        "mitra_name" text,
+        "file_url" text NOT NULL,
+        "file_name" text,
+        "file_size" text,
+        "status" text DEFAULT 'menunggu_tanda_tangan' NOT NULL,
+        "effective_date" text,
+        "expiry_date" text,
+        "notes" text,
+        "signed_file_url" text,
+        "signed_at" timestamp,
+        "signed_by_name" text,
+        "created_at" timestamp DEFAULT now() NOT NULL,
+        "updated_at" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+
     console.log('[DB Auto-Migration] All tables and columns verified & created successfully.');
   }
 
@@ -6122,6 +6145,216 @@ async function startServer() {
     } catch (error) {
       console.error("Admin mitra verify error:", error);
       res.status(500).json({ error: "Failed to verify mitra" });
+    }
+  });
+
+  // --- MOU Management API Routes ---
+  const mouFallbackStore: any[] = [];
+
+  // GET /api/admin/mou -> Get all MOUs for Admin
+  app.get("/api/admin/mou", authenticate, async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const result: any = await db.execute(sql`SELECT * FROM "mitra_mous" ORDER BY created_at DESC;`).catch(() => null);
+      const dbRows = result?.rows || (Array.isArray(result) ? result : []);
+      
+      const combined = [...dbRows];
+      mouFallbackStore.forEach(m => {
+        if (!combined.some(c => c.id === m.id)) {
+          combined.push(m);
+        }
+      });
+
+      res.json(combined);
+    } catch (error) {
+      console.error("Fetch admin MOUs error:", error);
+      res.json(mouFallbackStore);
+    }
+  });
+
+  // POST /api/admin/mou -> Admin creates/uploads MOU
+  app.post("/api/admin/mou", authenticate, async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { 
+        mouNumber, title, mitraId, mitraName, fileUrl, fileName, fileSize, 
+        effectiveDate, expiryDate, notes, status 
+      } = req.body;
+
+      if (!mouNumber || !title || !mitraId || !fileUrl) {
+        return res.status(400).json({ error: "Nomor MOU, Judul, Target Mitra, dan Berkas MOU wajib diisi." });
+      }
+
+      const newId = crypto.randomUUID();
+      const newRecord = {
+        id: newId,
+        mou_number: mouNumber,
+        title: title,
+        mitra_id: mitraId,
+        mitra_name: mitraName || (mitraId === 'ALL' ? 'Semua Mitra (Global)' : 'Mitra Agent'),
+        file_url: fileUrl,
+        file_name: fileName || 'MOU_Kemitraan.pdf',
+        file_size: fileSize || 'PDF',
+        status: status || 'menunggu_tanda_tangan',
+        effective_date: effectiveDate || '',
+        expiry_date: expiryDate || '',
+        notes: notes || '',
+        signed_file_url: null,
+        signed_at: null,
+        signed_by_name: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      mouFallbackStore.unshift(newRecord);
+
+      try {
+        await db.execute(sql`
+          INSERT INTO "mitra_mous" 
+          (id, mou_number, title, mitra_id, mitra_name, file_url, file_name, file_size, status, effective_date, expiry_date, notes, created_at, updated_at)
+          VALUES 
+          (${newId}::uuid, ${mouNumber}, ${title}, ${mitraId}, ${newRecord.mitra_name}, ${fileUrl}, ${newRecord.file_name}, ${newRecord.file_size}, ${newRecord.status}, ${effectiveDate || ''}, ${expiryDate || ''}, ${notes || ''}, NOW(), NOW());
+        `);
+      } catch (dbErr) {
+        console.warn("DB Insert for MOU warning (using memory fallback):", dbErr);
+      }
+
+      res.json({ success: true, data: newRecord });
+    } catch (error: any) {
+      console.error("Create MOU error:", error);
+      res.status(500).json({ error: "Gagal menyimpan berkas MOU" });
+    }
+  });
+
+  // PUT /api/admin/mou/:id -> Admin updates MOU
+  app.put("/api/admin/mou/:id", authenticate, async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { id } = req.params;
+    try {
+      const { status, notes, effectiveDate, expiryDate } = req.body;
+
+      const idx = mouFallbackStore.findIndex(m => m.id === id);
+      if (idx !== -1) {
+        if (status) mouFallbackStore[idx].status = status;
+        if (notes !== undefined) mouFallbackStore[idx].notes = notes;
+        if (effectiveDate) mouFallbackStore[idx].effective_date = effectiveDate;
+        if (expiryDate) mouFallbackStore[idx].expiry_date = expiryDate;
+        mouFallbackStore[idx].updated_at = new Date().toISOString();
+      }
+
+      try {
+        await db.execute(sql`
+          UPDATE "mitra_mous"
+          SET status = COALESCE(${status || null}, status),
+              notes = COALESCE(${notes !== undefined ? notes : null}, notes),
+              effective_date = COALESCE(${effectiveDate || null}, effective_date),
+              expiry_date = COALESCE(${expiryDate || null}, expiry_date),
+              updated_at = NOW()
+          WHERE id = ${id}::uuid;
+        `);
+      } catch (dbErr) {
+        console.warn("DB Update MOU warning:", dbErr);
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Update MOU error:", error);
+      res.status(500).json({ error: "Gagal mengupdate MOU" });
+    }
+  });
+
+  // DELETE /api/admin/mou/:id -> Admin deletes MOU
+  app.delete("/api/admin/mou/:id", authenticate, async (req: AuthRequest, res) => {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
+    const { id } = req.params;
+    try {
+      const idx = mouFallbackStore.findIndex(m => m.id === id);
+      if (idx !== -1) mouFallbackStore.splice(idx, 1);
+
+      try {
+        await db.execute(sql`DELETE FROM "mitra_mous" WHERE id = ${id}::uuid;`);
+      } catch (dbErr) {
+        console.warn("DB Delete MOU warning:", dbErr);
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Delete MOU error:", error);
+      res.status(500).json({ error: "Gagal menghapus MOU" });
+    }
+  });
+
+  // GET /api/mitra/mou -> Mitra gets MOUs assigned to them or ALL
+  app.get("/api/mitra/mou", authenticate, async (req: AuthRequest, res) => {
+    try {
+      const userId = (req.user?.id || '').toString();
+      const userEmail = (req.user?.email || '').toLowerCase().trim();
+
+      let dbRows: any[] = [];
+      try {
+        const result: any = await db.execute(sql`
+          SELECT * FROM "mitra_mous"
+          WHERE mitra_id = 'ALL' 
+             OR LOWER(mitra_id) = LOWER(${userId})
+             OR LOWER(mitra_id) = LOWER(${userEmail})
+          ORDER BY created_at DESC;
+        `);
+        dbRows = result?.rows || (Array.isArray(result) ? result : []);
+      } catch (err) {
+        console.warn("Fetch mitra MOUs from DB failed, using fallback:", err);
+      }
+
+      const combined = [...dbRows];
+      mouFallbackStore.forEach(m => {
+        const mMitraId = (m.mitra_id || '').toLowerCase();
+        if (mMitraId === 'all' || mMitraId === userId.toLowerCase() || mMitraId === userEmail) {
+          if (!combined.some(c => c.id === m.id)) {
+            combined.push(m);
+          }
+        }
+      });
+
+      res.json(combined);
+    } catch (error) {
+      console.error("Fetch mitra MOUs error:", error);
+      res.status(500).json({ error: "Gagal mengambil berkas MOU" });
+    }
+  });
+
+  // POST /api/mitra/mou/:id/sign -> Mitra signs MOU
+  app.post("/api/mitra/mou/:id/sign", authenticate, async (req: AuthRequest, res) => {
+    const { id } = req.params;
+    const { signedByName, notes } = req.body;
+    try {
+      const nowIso = new Date().toISOString();
+      const signer = signedByName || req.user?.name || 'Mitra Agent';
+
+      const idx = mouFallbackStore.findIndex(m => m.id === id);
+      if (idx !== -1) {
+        mouFallbackStore[idx].status = 'aktif';
+        mouFallbackStore[idx].signed_at = nowIso;
+        mouFallbackStore[idx].signed_by_name = signer;
+        if (notes) mouFallbackStore[idx].notes = `${mouFallbackStore[idx].notes || ''} | Ttd Mitra: ${notes}`;
+        mouFallbackStore[idx].updated_at = nowIso;
+      }
+
+      try {
+        await db.execute(sql`
+          UPDATE "mitra_mous"
+          SET status = 'aktif',
+              signed_at = NOW(),
+              signed_by_name = ${signer},
+              updated_at = NOW()
+          WHERE id = ${id}::uuid;
+        `);
+      } catch (dbErr) {
+        console.warn("DB Update MOU sign warning:", dbErr);
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Sign MOU error:", error);
+      res.status(500).json({ error: "Gagal memproses tanda tangan MOU" });
     }
   });
 

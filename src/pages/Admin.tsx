@@ -46,6 +46,7 @@ import AdminMitraManager from '../components/AdminMitraManager';
 import AdminMitraJamaahManager from '../components/admin/AdminMitraJamaahManager';
 import AdminMitraSertifikatKenangan from '../components/admin/AdminMitraSertifikatKenangan';
 import AdminMitraPencairanKomisi from '../components/admin/AdminMitraPencairanKomisi';
+import { AdminMOUManager } from '../components/admin/AdminMOUManager';
 
 export const matchDocumentCategory = (docTypeStr: string | null | undefined, catId: string, paxIdx: number = 0): boolean => {
   if (!docTypeStr || !catId) return false;
@@ -1309,6 +1310,7 @@ export default function Admin() {
   const kemitraanSubItems = [
     { id: 'verifikasi_mitra', label: 'Verifikasi Mitra', icon: <UserPlus className="w-4 h-4" /> },
     { id: 'daftar_mitra', label: 'Daftar Mitra', icon: <Users className="w-4 h-4" /> },
+    { id: 'unggah_mou', label: 'Unggah MOU', icon: <FileCheck className="w-4 h-4" /> },
     { id: 'mitra_calon_jamaah', label: 'Daftar Calon Jamaah', icon: <Users className="w-4 h-4" /> },
     { id: 'mitra_sertifikat_kenangan', label: 'Manajemen Sertifikat & Kenangan', icon: <Award className="w-4 h-4" /> },
     { id: 'mitra_pencairan_komisi', label: 'Verifikasi Komisi', icon: <Wallet className="w-4 h-4" /> },
@@ -3421,6 +3423,10 @@ export default function Admin() {
 
           {activeTab === 'daftar_mitra' && (
             <AdminMitraManager initialFilter="all" />
+          )}
+
+          {activeTab === 'unggah_mou' && (
+            <AdminMOUManager />
           )}
 
           {activeTab === 'mitra_pencairan_komisi' && (
