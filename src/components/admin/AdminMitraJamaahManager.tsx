@@ -268,7 +268,21 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     return fixed.filter(j => {
       if (!j) return false;
       const name = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
-      return name !== '' && !name.startsWith('Jamaah #');
+      if (!name || name.startsWith('Jamaah #')) return false;
+
+      // STRICT ISOLATION: Must have valid mitra attribution
+      const hasMitraId = Boolean(j.mitraId && j.mitraId !== 'mitra-user' && j.mitraId !== 'unknown');
+      const hasMitraEmail = Boolean(j.mitraEmail);
+      const hasMitraName = Boolean(j.mitraName && j.mitraName !== 'Mitra Travel' && j.mitraName !== 'Mitra');
+      const matchedReal = realMitraList && realMitraList.some(rm => {
+        const rmId = (rm.id || '').toLowerCase().trim();
+        const rmEmail = (rm.email || '').toLowerCase().trim();
+        const jId = (j.mitraId || '').toLowerCase().trim();
+        const jEmail = (j.mitraEmail || '').toLowerCase().trim();
+        return (jId && rmId && jId === rmId) || (jEmail && rmEmail && jEmail === rmEmail);
+      });
+
+      return hasMitraId || hasMitraEmail || hasMitraName || matchedReal;
     });
   };
 
