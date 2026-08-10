@@ -129,6 +129,13 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
       setMemories(mList);
 
       // Try fetching from API if online
+      api.get('/admin/mitra/all-jamaah').then(res => {
+        if (Array.isArray(res) && res.length > 0) {
+          setJamaahList(res);
+          safeSetLocalStorage('mitra_jamaah_database', res);
+        }
+      }).catch(() => {});
+
       api.get('/admin/memories').then(res => {
         if (Array.isArray(res)) {
           const cleanRes = res.filter((m: any) => !isDummyMemory(m));
@@ -321,17 +328,21 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
 
       // 1. Post to backend server endpoint first to store file on disk and get short URL
       let serverCertUrl = '';
+      const regIdToSend = targetJamaah?.registrationId || targetJamaah?.realRegistrationId || targetJamaah?.dbRegistrationId || selectedJamaahId;
       try {
         const certRes = await api.post('/admin/certificates', {
-          registrationId: selectedJamaahId,
+          registrationId: regIdToSend,
           recipientName: recipientName,
           certificateUrl: base64Data
         });
         if (certRes && certRes.certificateUrl) {
           serverCertUrl = certRes.certificateUrl;
         }
-      } catch (apiErr) {
-        console.warn('API post certificate notice:', apiErr);
+      } catch (apiErr: any) {
+        console.error('API post certificate error:', apiErr);
+        toast.error(apiErr?.response?.data?.error || apiErr?.message || 'Gagal menyimpan sertifikat');
+        setIsSubmittingCert(false);
+        return;
       }
 
       const finalCertUrl = serverCertUrl || base64Data;

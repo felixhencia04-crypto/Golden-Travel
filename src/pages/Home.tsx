@@ -276,7 +276,7 @@ export default function Home() {
       )}
 
       {/* Hero Section */}
-      <section id="hero-section" className="relative min-h-[90vh] sm:min-h-screen flex flex-col justify-center px-4 sm:px-8 md:px-12 lg:px-24 overflow-hidden bg-[#0C3C30] pt-20 sm:pt-28 pb-12 sm:pb-16 w-full">
+      <section id="hero-section" className="relative min-h-[90vh] sm:min-h-screen flex flex-col justify-center px-4 sm:px-8 md:px-12 lg:px-24 overflow-hidden bg-[#0C3C30] pt-24 sm:pt-32 lg:pt-36 pb-12 sm:pb-16 w-full">
         {/* Hero Background Image */}
         <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
           <img 
@@ -310,24 +310,29 @@ export default function Home() {
             
             {/* Left Column: Hero Copy & Actions */}
             <div className="lg:col-span-7 xl:col-span-8 space-y-4 sm:space-y-6">
-              <h1 className="font-serif text-2xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-[1.25] sm:leading-[1.1] drop-shadow-md text-balance" style={{ background: 'linear-gradient(to right, #D4AF37, #F3E5AB, #D4AF37)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                Wujudkan Perjalanan Suci yang Khusyuk dan Penuh Berkah.
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/40 text-[#F3E5AB] text-xs sm:text-sm font-semibold tracking-wider uppercase backdrop-blur-md shadow-sm">
+                <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+                <span>Travel Umroh &amp; Haji Resmi Kemenag RI</span>
+              </div>
+
+              <h1 className="font-serif font-bold text-2xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-[1.25] sm:leading-[1.15] text-[#F3E5AB] drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)] text-balance">
+                Wujudkan Perjalanan Suci yang <span className="text-[#D4AF37] underline decoration-[#D4AF37]/40 underline-offset-8">Aman, Nyaman, Khusyuk,</span> dan Penuh Berkah.
               </h1>
-              <p className="text-[#E6DBC6] text-xs sm:text-base md:text-xl leading-relaxed max-w-2xl font-light drop-shadow">
-                Golden Travel menghadirkan layanan ibadah Haji dan Umroh eksklusif dengan fasilitas personal, premium, dan kedalaman spiritual. Aman, nyaman, dan profesional.
+              <p className="text-[#E6DBC6] text-sm sm:text-base md:text-xl leading-relaxed max-w-2xl font-normal drop-shadow">
+                Golden Travel menghadirkan pelayanan ibadah Haji dan Umroh eksklusif dengan fasilitas personal, pembimbing bersertifikat, hotel dekat Masjidil Haram, dan kepastian jadwal.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto pt-2">
-                <a href="#pilihan-paket" className="w-full sm:w-auto bg-[#D4AF37] text-white text-center px-6 sm:px-8 py-3 rounded-full font-semibold text-sm sm:text-base transition-transform duration-300 hover:scale-105 shadow-lg" onClick={(e) => scrollToSection(e, 'pilihan-paket')}>
+                <a href="#pilihan-paket" className="w-full sm:w-auto bg-[#D4AF37] text-white text-center px-6 sm:px-8 py-3.5 rounded-full font-bold text-sm sm:text-base transition-transform duration-300 hover:scale-105 shadow-xl hover:bg-[#c5a02e]" onClick={(e) => scrollToSection(e, 'pilihan-paket')}>
                   Lihat Paket Umroh
                 </a>
-                <a href="https://wa.me/6282283201103?text=Assalamu%27alaikum%20Golden%20Travel,%20saya%20ingin%20konsultasi%20layanan%20Haji%20dan%20Umroh" className="w-full sm:w-auto border-2 border-[#d4af37] text-white text-center px-6 sm:px-8 py-3 rounded-full font-semibold text-sm sm:text-base transition-all hover:bg-[#d4af37]/20" target="_blank" rel="noreferrer">
+                <a href="https://wa.me/6282283201103?text=Assalamu%27alaikum%20Golden%20Travel,%20saya%20ingin%20konsultasi%20layanan%20Haji%20dan%20Umroh" className="w-full sm:w-auto border-2 border-[#D4AF37] text-[#F3E5AB] text-center px-6 sm:px-8 py-3.5 rounded-full font-bold text-sm sm:text-base transition-all hover:bg-[#D4AF37]/20 hover:text-white" target="_blank" rel="noreferrer">
                   Konsultasi Gratis
                 </a>
               </div>
 
-              <p className="text-[#d4af37] font-serif italic text-xs sm:text-base md:text-lg drop-shadow-md">
-                "Kenyamanan dan Kepercayaan Anda, Prioritas Kami."
+              <p className="text-[#D4AF37] font-serif italic text-xs sm:text-base md:text-lg drop-shadow-md pt-1">
+                "Kenyamanan dan Kepercayaan Anda, Prioritas Utama Kami."
               </p>
             </div>
 

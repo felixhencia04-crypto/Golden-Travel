@@ -140,8 +140,9 @@ async function getCertificatesQuery(options: any) {
     workspaceId: schema.certificates.workspaceId,
     registrationId: schema.certificates.registrationId,
     recipientName: schema.certificates.recipientName,
+    certificateUrl: schema.certificates.certificateUrl,
     createdAt: schema.certificates.createdAt,
-    isPdf: sql<boolean>`${schema.certificates.certificateUrl} LIKE 'data:application/pdf%'`.as('is_pdf'),
+    isPdf: sql<boolean>`${schema.certificates.certificateUrl} LIKE 'data:application/pdf%' OR ${schema.certificates.certificateUrl} LIKE '%.pdf%'`.as('is_pdf'),
     hasCert: sql<boolean>`${schema.certificates.certificateUrl} IS NOT NULL AND ${schema.certificates.certificateUrl} != ''`.as('has_cert')
   }).from(schema.certificates).where(options.where);
   
@@ -154,10 +155,18 @@ async function getCertificatesQuery(options: any) {
   }
 
   const certs: any[] = await withRetry(async () => await query);
-  return certs.map((c: any) => ({
-    ...c,
-    certificateUrl: c.hasCert ? `/api/certificates/${c.id}/file${c.isPdf ? '.pdf' : '.png'}` : null
-  }));
+  return certs.map((c: any) => {
+    let url = c.certificateUrl;
+    if (!url && c.hasCert) {
+      url = `/api/certificates/${c.id}/file${c.isPdf ? '.pdf' : '.png'}`;
+    } else if (url && url.startsWith('data:')) {
+      url = `/api/certificates/${c.id}/file${c.isPdf ? '.pdf' : '.png'}`;
+    }
+    return {
+      ...c,
+      certificateUrl: url
+    };
+  });
 }
 interface AuthRequest extends Request {
   user?: typeof schema.users.$inferSelect;
@@ -582,6 +591,122 @@ async function startServer() {
     return trimmed;
   }
 
+  // Helper function to delete files from uploads folder on disk
+  function deleteFileFromUploads(fileUrl: string | null | undefined): void {
+    if (!fileUrl || typeof fileUrl !== 'string') return;
+    const clean = fileUrl.trim().replace(/^\/?(public\/)?/, '');
+    if (clean.startsWith('uploads/')) {
+      const filename = path.basename(clean);
+      const filePath = path.join(uploadDir, filename);
+      const publicFilePath = path.join(publicUploadDir, filename);
+      try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch (e) {}
+      try { if (fs.existsSync(publicFilePath)) fs.unlinkSync(publicFilePath); } catch (e) {}
+      console.log(`[Storage] Deleted file physically from disk due to failure: ${filename}`);
+    }
+  }
+
+  // Helper function to resolve ANY registration identifier (UUID, user-<id>, REG-..., pax ID, email, etc.) to the real Registration database record (UUID)
+  async function findRegistrationByAnyIdentifier(
+    identifier: string | null | undefined, 
+    workspaceId?: string
+  ): Promise<{ registration: typeof schema.registrations.$inferSelect | null; ambiguous?: boolean }> {
+    if (!identifier || typeof identifier !== 'string') return { registration: null };
+    const cleanId = identifier.trim();
+    if (!cleanId) return { registration: null };
+
+    // 1. Direct UUID lookup on registrations.id and registrations.userId with workspace scope
+    if (isValidUuid(cleanId)) {
+      try {
+        const idConds: any[] = [eq(schema.registrations.id, cleanId)];
+        if (workspaceId) idConds.push(eq(schema.registrations.workspaceId, workspaceId));
+
+        const regById = await withRetry(() => db.query.registrations.findFirst({
+          where: and(...idConds)
+        })).catch(() => null);
+        if (regById) return { registration: regById };
+
+        const userConds: any[] = [eq(schema.registrations.userId, cleanId)];
+        if (workspaceId) userConds.push(eq(schema.registrations.workspaceId, workspaceId));
+
+        const regByUserId = await withRetry(() => db.query.registrations.findFirst({
+          where: and(...userConds)
+        })).catch(() => null);
+        if (regByUserId) return { registration: regByUserId };
+      } catch (e) {}
+    }
+
+    // 2. Handle 'user-<uuid>' prefix with workspace scope
+    if (cleanId.startsWith('user-')) {
+      const rawUserId = cleanId.replace(/^user-/, '').trim();
+      if (isValidUuid(rawUserId)) {
+        try {
+          const userConds: any[] = [eq(schema.registrations.userId, rawUserId)];
+          if (workspaceId) userConds.push(eq(schema.registrations.workspaceId, workspaceId));
+
+          const regByUserId = await withRetry(() => db.query.registrations.findFirst({
+            where: and(...userConds)
+          })).catch(() => null);
+          if (regByUserId) return { registration: regByUserId };
+        } catch (e) {}
+      }
+    }
+
+    // 3. Search registrations by public code, ordererEmail, ordererNotes, or paxData JSON items strictly in workspace
+    try {
+      const allRegs = await withRetry(() => db.query.registrations.findMany({
+        where: workspaceId ? eq(schema.registrations.workspaceId, workspaceId) : undefined
+      })).catch(() => []);
+
+      const targetLower = cleanId.toLowerCase();
+      const matches: typeof schema.registrations.$inferSelect[] = [];
+
+      for (const reg of allRegs) {
+        let isMatch = false;
+
+        if (reg.id === cleanId || reg.userId === cleanId) {
+          isMatch = true;
+        } else if (reg.ordererEmail && reg.ordererEmail.toLowerCase() === targetLower) {
+          isMatch = true;
+        } else if (reg.ordererNotes && reg.ordererNotes.includes(cleanId)) {
+          isMatch = true;
+        } else if (Array.isArray(reg.paxData)) {
+          isMatch = reg.paxData.some((p: any) => {
+            if (!p) return false;
+            const pId = String(p.id || '').trim();
+            const pRegId = String(p.registrationId || '').trim();
+            const pDocId = String(p.docId || '').trim();
+            const pEmail = String(p.email || '').toLowerCase().trim();
+            const pName = String(p.fullName || p.userName || p.namaLengkap || p.name || '').toLowerCase().trim();
+
+            if (pId && pId === cleanId) return true;
+            if (pRegId && pRegId === cleanId) return true;
+            if (pDocId && pDocId === cleanId) return true;
+            if (pEmail && pEmail === targetLower) return true;
+            if (targetLower.length >= 3 && pName && pName === targetLower) return true;
+
+            return false;
+          });
+        }
+
+        if (isMatch) {
+          if (!matches.some(m => m.id === reg.id)) {
+            matches.push(reg);
+          }
+        }
+      }
+
+      if (matches.length === 1) {
+        return { registration: matches[0] };
+      } else if (matches.length > 1) {
+        return { registration: null, ambiguous: true };
+      }
+    } catch (err) {
+      console.warn("[findRegistrationByAnyIdentifier] Query failed:", err);
+    }
+
+    return { registration: null };
+  }
+
   // POST /api/upload -> Universal persistent file upload
   app.post("/api/upload", authenticate, (req: AuthRequest, res, next) => {
     if (req.body && req.body.base64) {
@@ -918,6 +1043,7 @@ async function startServer() {
     await runSql(`ALTER TABLE "sertifikat_kenangan" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
     await runSql(`ALTER TABLE "sertifikat_kenangan" ADD COLUMN IF NOT EXISTS "registration_id" uuid;`);
     await runSql(`ALTER TABLE "sertifikat_kenangan" ADD COLUMN IF NOT EXISTS "recipient_name" text;`);
+    await runSql(`ALTER TABLE "sertifikat_kenangan" ALTER COLUMN "registration_id" SET NOT NULL;`);
 
     // 15. Equipment Status
     await runSql(`
@@ -2716,40 +2842,127 @@ async function startServer() {
 
   // --- Sertifikat & Galeri Endpoints ---
 
-  // POST /api/registrasi/:id/sertifikat -> Admin: upload sertifikat
-  app.post("/api/registrasi/:id/sertifikat", authenticate, async (req: AuthRequest, res) => {
-    if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    const { recipientName, certificateUrl } = req.body;
-    try {
-      const reg = await withRetry(() => db.query.registrations.findFirst({
-        where: eq(schema.registrations.id, req.params.id),
-        with: { user: true }
-      }));
-      if (!reg) return res.status(404).json({ error: "Registrasi tidak ditemukan" });
+  async function handleCertificateUpload(req: AuthRequest, res: Response) {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'super_admin') {
+      return res.status(403).json({ error: "Forbidden: Akses khusus admin." });
+    }
 
-      const [newCert] = await withRetry(() => db.insert(schema.certificates).values({
-        workspaceId: reg.workspaceId,
-        registrationId: req.params.id,
-        recipientName: recipientName || reg.user.name || 'Jamaah',
-        certificateUrl: certificateUrl || ''
-      }).returning());
+    const authenticatedWorkspaceId = req.user?.workspaceId;
+    if (!authenticatedWorkspaceId || !isValidUuid(authenticatedWorkspaceId)) {
+      return res.status(403).json({ error: "Authenticated workspace ID is missing or invalid." });
+    }
+
+    const { recipientName, certificateUrl, registrationId, registration_id } = req.body || {};
+    const targetIdentifier = req.params.id || registrationId || registration_id;
+
+    if (!targetIdentifier || typeof targetIdentifier !== 'string' || !targetIdentifier.trim()) {
+      return res.status(400).json({ error: "ID registrasi (registrationId) wajib diisi." });
+    }
+
+    if (!certificateUrl || typeof certificateUrl !== 'string' || !certificateUrl.trim()) {
+      return res.status(400).json({ error: "File atau URL sertifikat (certificateUrl) wajib diisi." });
+    }
+
+    try {
+      const { registration: reg, ambiguous } = await findRegistrationByAnyIdentifier(targetIdentifier.trim(), authenticatedWorkspaceId);
+      if (ambiguous) {
+        return res.status(400).json({ error: "Ditemukan lebih dari satu registrasi yang cocok. Harap gunakan ID registrasi (UUID) yang spesifik." });
+      }
+      if (!reg) {
+        return res.status(404).json({ error: "Registrasi jamaah tidak ditemukan atau tidak berada di workspace ini." });
+      }
+
+      if (reg.workspaceId !== authenticatedWorkspaceId) {
+        return res.status(403).json({ error: "Forbidden: Registrasi tidak milik workspace pengguna." });
+      }
+
+      let finalCertUrl = certificateUrl.trim();
+      let createdFilePath: string | null = null;
+      if (finalCertUrl.startsWith('data:') || finalCertUrl.includes('base64,')) {
+        finalCertUrl = saveFileToUploads(finalCertUrl, 'certificate');
+        if (finalCertUrl.startsWith('/uploads/')) createdFilePath = finalCertUrl;
+      }
+
+      const finalRecipientName = (recipientName && typeof recipientName === 'string' && recipientName.trim()) 
+        ? recipientName.trim() 
+        : (reg.ordererName || 'Jamaah');
+
+      let newCert: any;
+      try {
+        [newCert] = await withRetry(() => db.insert(schema.certificates).values({
+          workspaceId: authenticatedWorkspaceId,
+          registrationId: reg.id,
+          recipientName: finalRecipientName,
+          certificateUrl: finalCertUrl
+        }).returning());
+      } catch (insertErr: any) {
+        if (createdFilePath) deleteFileFromUploads(createdFilePath);
+        console.error("[Certificates POST] Insert failed:", insertErr);
+        return res.status(500).json({ error: "Gagal menyimpan sertifikat ke database. Silakan coba lagi." });
+      }
 
       // Notify user
-      await withRetry(() => db.insert(schema.notifications).values({
-        workspaceId: reg.workspaceId,
-        userId: reg.userId,
-        title: "Sertifikat Digital Tersedia",
-        message: "Sertifikat kenangan Anda telah diterbitkan. Silakan unduh di dashboard.",
-        type: 'success',
-        isRead: 'false'
-      }));
+      if (reg.userId) {
+        await withRetry(() => db.insert(schema.notifications).values({
+          workspaceId: authenticatedWorkspaceId,
+          userId: reg.userId,
+          title: "Sertifikat Digital Tersedia",
+          message: "Sertifikat kenangan Anda telah diterbitkan. Silakan unduh di dashboard.",
+          type: 'success',
+          isRead: 'false'
+        })).catch(() => {});
+      }
 
       notifyUpdate();
-      res.status(201).json(newCert);
-    } catch (error) {
-      res.status(500).json({ error: "Gagal mengunggah sertifikat" });
+      return res.status(201).json(newCert);
+    } catch (error: any) {
+      console.error("[POST Certificate Error]:", error);
+      return res.status(500).json({ error: "Gagal mengunggah sertifikat." });
     }
-  });
+  }
+
+  async function handleCertificateDelete(req: AuthRequest, res: Response) {
+    if (req.user?.role !== 'admin' && req.user?.role !== 'super_admin') {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const certId = req.params.id;
+    if (!certId) return res.status(400).json({ error: "ID sertifikat wajib diisi." });
+
+    try {
+      let targetCert: any = null;
+      if (isValidUuid(certId)) {
+        targetCert = await db.query.certificates.findFirst({
+          where: and(eq(schema.certificates.id, certId), eq(schema.certificates.workspaceId, req.user!.workspaceId!))
+        });
+      }
+
+      if (!targetCert) {
+        const certs = await db.query.certificates.findMany({
+          where: eq(schema.certificates.workspaceId, req.user!.workspaceId!)
+        });
+        targetCert = certs.find((c: any) => c.recipientName === certId || c.registrationId === certId);
+      }
+
+      if (targetCert) {
+        if (targetCert.certificateUrl && targetCert.certificateUrl.startsWith('/uploads/')) {
+          deleteFileFromUploads(targetCert.certificateUrl);
+        }
+        await db.delete(schema.certificates).where(eq(schema.certificates.id, targetCert.id));
+      }
+
+      res.json({ success: true });
+      notifyUpdate();
+    } catch (err) {
+      console.error("[Delete Certificate Error]:", err);
+      res.status(500).json({ error: "Gagal menghapus sertifikat." });
+    }
+  }
+
+  app.post("/api/registrasi/:id/sertifikat", authenticate, handleCertificateUpload);
+  app.post("/api/admin/certificates", authenticate, handleCertificateUpload);
+  app.post("/api/certificates", authenticate, handleCertificateUpload);
+  app.delete("/api/admin/certificates/:id", authenticate, handleCertificateDelete);
+  app.delete("/api/certificates/:id", authenticate, handleCertificateDelete);
 
   // --- CRM & Admin Registration Management ---
 
@@ -4298,42 +4511,69 @@ async function startServer() {
 
   app.get(["/api/certificates/:id/file", "/api/certificates/:id/file.:ext"], async (req: express.Request, res: express.Response) => {
     try {
+      if (!req.params.id || !isValidUuid(req.params.id)) {
+        return res.status(400).send("Invalid certificate ID syntax");
+      }
       const cert = await db.query.certificates.findFirst({ where: eq(schema.certificates.id, req.params.id) });
       if (!cert || !cert.certificateUrl) return res.status(404).send("Certificate not found");
       
-      let fileData = cert.certificateUrl;
-      let contentType = 'application/octet-stream';
-      let base64Data = '';
+      let fileData = cert.certificateUrl.trim();
+
+      // Case 1: Relative upload path like /uploads/certificate-12345.pdf
+      if (fileData.startsWith('/uploads/') || fileData.startsWith('uploads/') || fileData.startsWith('/public/uploads/')) {
+        const cleanPath = fileData.replace(/^\/?(public\/)?/, '');
+        const fullPath = path.join(process.cwd(), cleanPath);
+        if (fs.existsSync(fullPath)) {
+          const ext = path.extname(fullPath).toLowerCase();
+          let contentType = 'application/octet-stream';
+          if (ext === '.pdf') contentType = 'application/pdf';
+          else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
+          else if (ext === '.png') contentType = 'image/png';
+          
+          res.setHeader('Content-Type', contentType);
+          if (req.query.download === 'true') {
+            res.setHeader('Content-Disposition', `attachment; filename="${cert.recipientName || 'Sertifikat'}${ext}"`);
+          }
+          return res.sendFile(fullPath);
+        }
+      }
+
+      // Case 2: Full external HTTP/HTTPS URL
+      if (fileData.startsWith('http://') || fileData.startsWith('https://')) {
+        return res.redirect(fileData);
+      }
       
+      // Case 3: Data URI or Base64 string
+      let contentType = 'application/pdf';
+      let base64Content = fileData;
+
       if (fileData.startsWith('data:')) {
         const matches = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
         if (matches && matches.length === 3) {
           contentType = matches[1];
-          base64Data = matches[2];
-        } else if (fileData.includes('base64,')) {
-          base64Data = fileData.split('base64,')[1];
-          if (base64Data.startsWith('/9j/')) contentType = 'image/jpeg';
-          else if (base64Data.startsWith('JVBERi0')) contentType = 'application/pdf';
-          else contentType = 'image/png';
+          base64Content = matches[2];
         } else {
-          base64Data = fileData.split(',')[1] || fileData;
+          const parts = fileData.split(',');
+          base64Content = parts[1] || parts[0];
         }
       } else if (fileData.includes('base64,')) {
-        base64Data = fileData.split('base64,')[1];
-        if (base64Data.startsWith('/9j/')) contentType = 'image/jpeg';
-        else if (base64Data.startsWith('JVBERi0')) contentType = 'application/pdf';
-        else contentType = 'image/png';
-      } else {
-        base64Data = fileData; 
+        base64Content = fileData.split('base64,')[1];
       }
-      
-      if (req.query.download === 'true') {
-         res.setHeader('Content-Disposition', `attachment; filename="sertifikat-${req.params.id}.${contentType === 'application/pdf' ? 'pdf' : 'png'}"`);
-      }
-      
-      const buffer = Buffer.from(base64Data, 'base64');
+
+      if (base64Content.startsWith('JVBERi0')) contentType = 'application/pdf';
+      else if (base64Content.startsWith('/9j/')) contentType = 'image/jpeg';
+      else if (base64Content.startsWith('iVBORw')) contentType = 'image/png';
+
+      const buffer = Buffer.from(base64Content, 'base64');
+      let ext = '.pdf';
+      if (contentType.includes('png')) ext = '.png';
+      else if (contentType.includes('jpeg') || contentType.includes('jpg')) ext = '.jpg';
+
       res.setHeader('Content-Type', contentType);
-      res.send(buffer);
+      if (req.query.download === 'true') {
+        res.setHeader('Content-Disposition', `attachment; filename="${cert.recipientName || 'Sertifikat'}${ext}"`);
+      }
+      return res.send(buffer);
     } catch (error) {
       console.error("Error fetching certificate file:", error);
       res.status(500).send("Internal Server Error");
@@ -8715,95 +8955,114 @@ async function startServer() {
     }
   });
 
-  app.post("/api/admin/certificates", authenticate, async (req: AuthRequest, res) => {
+  app.post(["/api/certificates", "/api/admin/certificates"], authenticate, async (req: AuthRequest, res) => {
     if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') return res.status(403).json({ error: "Forbidden" });
     try {
-      const { registrationId, certificateUrl, recipientName } = req.body;
+      const { registrationId, certificateUrl, recipientName } = req.body || {};
       
-      let finalCertUrl = certificateUrl || '';
-      if (certificateUrl && typeof certificateUrl === 'string' && certificateUrl.startsWith('data:')) {
-        finalCertUrl = saveFileToUploads(certificateUrl, 'certificate');
+      // 1. Strict input validation
+      if (!registrationId || typeof registrationId !== 'string' || !registrationId.trim()) {
+        return res.status(400).json({ error: "ID registrasi (registrationId) wajib diisi." });
+      }
+      if (!certificateUrl || typeof certificateUrl !== 'string' || !certificateUrl.trim()) {
+        return res.status(400).json({ error: "File atau URL sertifikat (certificateUrl) wajib diisi." });
       }
 
-      let validRegistrationId: string | null = null;
-      if (isValidUuid(registrationId)) {
-        try {
-          const regExists = await db.query.registrations.findFirst({
-            where: eq(schema.registrations.id, registrationId)
-          });
-          if (regExists) {
-            validRegistrationId = registrationId;
-          }
-        } catch (e) {
-          validRegistrationId = null;
+      // 2. Resolve registration ID to real UUID in DB BEFORE creating file or inserting
+      const { registration: targetReg, ambiguous } = await findRegistrationByAnyIdentifier(registrationId, req.user!.workspaceId);
+
+      if (ambiguous) {
+        return res.status(400).json({
+          error: `Ditemukan lebih dari satu data pendaftaran yang cocok dengan '${registrationId}'. Harap gunakan ID registrasi (UUID) yang spesifik.`
+        });
+      }
+
+      if (!targetReg) {
+        return res.status(404).json({ 
+          error: "Registrasi jamaah tidak ditemukan atau tidak berada di workspace ini. ID registrasi harus merujuk ke data pendaftaran yang valid." 
+        });
+      }
+
+      const validRegistrationId = targetReg.id; // GUARANTEED to be a valid UUID string
+
+      // 3. Save base64 / data URL to physical disk file
+      let finalCertUrl = certificateUrl.trim();
+      let createdFilePath: string | null = null;
+
+      if (finalCertUrl.startsWith('data:') || finalCertUrl.includes('base64,')) {
+        finalCertUrl = saveFileToUploads(finalCertUrl, 'certificate');
+        if (finalCertUrl.startsWith('/uploads/')) {
+          createdFilePath = finalCertUrl;
         }
       }
 
-      let certificate;
+      const finalRecipientName = (recipientName && typeof recipientName === 'string' && recipientName.trim()) 
+        ? recipientName.trim() 
+        : (targetReg.ordererName || 'Jamaah');
+
+      // 4. Insert certificate with strict NOT NULL registrationId UUID
+      let certificate: any;
       try {
         [certificate] = await withRetry(() => db.insert(schema.certificates).values({
-          workspaceId: req.user!.workspaceId!,
+          workspaceId: req.user!.workspaceId || targetReg.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef',
           registrationId: validRegistrationId,
-          recipientName: recipientName || null,
+          recipientName: finalRecipientName,
           certificateUrl: finalCertUrl
         }).returning());
-      } catch (insertErr) {
-        // Fallback without registrationId if FK constraint failed
-        console.warn("[Certificates POST] Primary insert failed, retrying with null registrationId:", insertErr);
-        [certificate] = await withRetry(() => db.insert(schema.certificates).values({
-          workspaceId: req.user!.workspaceId!,
-          registrationId: null,
-          recipientName: recipientName || null,
-          certificateUrl: finalCertUrl
-        }).returning());
+      } catch (insertErr: any) {
+        console.error("[Certificates POST] Insert failed:", insertErr);
+        if (createdFilePath) {
+          deleteFileFromUploads(createdFilePath);
+        }
+        return res.status(500).json({ error: "Gagal menyimpan sertifikat ke database: " + (insertErr?.message || 'Database error') });
       }
 
-      // Sync certificate info to matching registrations paxData
+      // 5. Sync certificate info to matching registrations paxData
       try {
-        const allRegs = await db.query.registrations.findMany();
-        for (const reg of allRegs) {
-          let updated = false;
-          const paxArr = Array.isArray(reg.paxData) ? reg.paxData : [];
-          const targetName = (recipientName || '').trim().toLowerCase();
-          
-          const newPax = paxArr.map((p: any) => {
-            const pName = (p.userName || p.namaLengkap || p.fullName || p.name || '').trim().toLowerCase();
-            if (p.id === registrationId || reg.id === registrationId || (targetName && pName === targetName)) {
-              updated = true;
-              return {
-                ...p,
-                isCertIssued: true,
-                certificateUrl: finalCertUrl,
-                docFiles: {
-                  ...(p.docFiles || {}),
-                  sertifikat: {
-                    name: `Sertifikat_${(recipientName || 'Jemaah').replace(/\s+/g, '_')}.pdf`,
-                    url: finalCertUrl,
-                    data: finalCertUrl,
-                    uploadedAt: new Date().toLocaleDateString('id-ID'),
-                    recipientName: recipientName || p.fullName || p.userName
-                  }
-                }
-              };
-            }
-            return p;
-          });
+        const paxArr = Array.isArray(targetReg.paxData) ? targetReg.paxData : [];
+        const targetName = finalRecipientName.toLowerCase();
+        let paxUpdated = false;
+        
+        const newPax = paxArr.map((p: any) => {
+          const pName = (p.userName || p.namaLengkap || p.fullName || p.name || '').trim().toLowerCase();
+          const pId = String(p.id || '').trim();
+          const pRegId = String(p.registrationId || '').trim();
 
-          if (updated) {
-            await db.update(schema.registrations)
-              .set({ paxData: newPax })
-              .where(eq(schema.registrations.id, reg.id));
+          if (pId === registrationId || pRegId === registrationId || targetReg.id === registrationId || (targetName && pName === targetName)) {
+            paxUpdated = true;
+            return {
+              ...p,
+              isCertIssued: true,
+              certificateUrl: finalCertUrl,
+              docFiles: {
+                ...(p.docFiles || {}),
+                sertifikat: {
+                  name: `Sertifikat_${finalRecipientName.replace(/\s+/g, '_')}.pdf`,
+                  url: finalCertUrl,
+                  data: finalCertUrl,
+                  uploadedAt: new Date().toLocaleDateString('id-ID'),
+                  recipientName: finalRecipientName
+                }
+              }
+            };
           }
+          return p;
+        });
+
+        if (paxUpdated) {
+          await withRetry(() => db.update(schema.registrations)
+            .set({ paxData: newPax, updatedAt: new Date() })
+            .where(eq(schema.registrations.id, targetReg.id)));
         }
       } catch (paxErr) {
         console.warn("[Certificates POST] Syncing paxData error:", paxErr);
       }
 
-      res.json(certificate);
       notifyUpdate();
+      return res.status(201).json(certificate);
     } catch (error: any) {
       console.error("[Certificates POST Error]", error);
-      res.status(500).json({ error: "Terjadi kesalahan pada server saat menyimpan sertifikat" });
+      return res.status(500).json({ error: "Terjadi kesalahan pada server saat menyimpan sertifikat: " + (error?.message || '') });
     }
   });
 

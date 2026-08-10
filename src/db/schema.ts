@@ -308,7 +308,7 @@ export const helpdesk_tickets = pgTable('helpdesk_tiket', {
 export const certificates = pgTable('sertifikat_kenangan', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').references(() => workspaces.id),
-  registrationId: uuid('registration_id').references(() => registrations.id),
+  registrationId: uuid('registration_id').notNull().references(() => registrations.id),
   recipientName: text('recipient_name'),
   certificateUrl: text('certificate_url').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),

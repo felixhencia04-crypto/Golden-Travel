@@ -2022,8 +2022,10 @@ export default function Admin() {
         return;
       }
 
+      const regIdToSend = selectedReg?.registrationId || (selectedReg?.id && !selectedReg.id.startsWith('user-') ? selectedReg.id : certForm.registrationId);
+
       await api.post('/admin/certificates', {
-        registrationId: certForm.registrationId,
+        registrationId: regIdToSend,
         recipientName: finalRecipientName,
         certificateUrl: finalUrl
       });
