@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { api } from '../../lib/api';
+import { mitraRealtimeService } from '../../services/mitraRealtimeService';
 import { safeSetLocalStorage } from '../../utils/mitraStorage';
 import { generateRegistrationFormPdf } from '../../utils/generateRegistrationFormPdf';
 import { generateManifestPdf } from '../../utils/generateManifestPdf';
@@ -438,10 +439,19 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     window.addEventListener('mitra_jamaah_updated', handleSync);
     window.addEventListener('mitra_deleted', handleSync);
     window.addEventListener('storage', handleSync);
+
+    // General Real-time Event Listener for SSE Events
+    const unsubscribeSSE = mitraRealtimeService.subscribeToRealtimeEvents((event) => {
+      if (['data_updated', 'JAMAAH_UPDATED', 'VERIFICATION_APPROVED'].includes(event)) {
+        handleSync();
+      }
+    });
+
     return () => {
       window.removeEventListener('mitra_jamaah_updated', handleSync);
       window.removeEventListener('mitra_deleted', handleSync);
       window.removeEventListener('storage', handleSync);
+      unsubscribeSSE();
     };
   }, []);
 

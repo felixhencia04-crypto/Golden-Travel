@@ -46,7 +46,7 @@ export const mitraRealtimeService = {
   ): () => void {
     let eventSource: EventSource | null = null;
     try {
-      const token = localStorage.getItem('mitra_token') || localStorage.getItem('token');
+      const token = localStorage.getItem('mitra_token') || localStorage.getItem('token') || localStorage.getItem('admin_token');
       if (token) {
         eventSource = new EventSource(`/api/mitra/live-stream?token=${encodeURIComponent(token)}`);
 

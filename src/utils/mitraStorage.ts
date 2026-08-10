@@ -140,11 +140,36 @@ export function mergeJamaahObjects(target: any, source: any): any {
   if (!target) return source;
   if (!source) return target;
 
-  const merged = { ...target, ...source };
+  // Let DB (target) take precedence over local storage (source) for root attributes
+  const merged = { ...source, ...target };
+
+  // Explicitly merge the documents sub-object and respect verification/terminal statuses
+  const targetDocs = target.documents || {};
+  const sourceDocs = source.documents || {};
+  const mergedDocs = { ...sourceDocs, ...targetDocs };
+
+  Object.keys(mergedDocs).forEach(dk => {
+    const tDoc = targetDocs[dk];
+    const sDoc = sourceDocs[dk];
+    if (tDoc && sDoc) {
+      const tStatus = (tDoc.status || '').toLowerCase();
+      const sStatus = (sDoc.status || '').toLowerCase();
+      const isTerminal = (st: string) => ['verified', 'approved', 'rejected'].includes(st);
+      
+      if (isTerminal(tStatus) && !isTerminal(sStatus)) {
+        mergedDocs[dk] = {
+          ...sDoc,
+          ...tDoc,
+          status: tDoc.status
+        };
+      }
+    }
+  });
+  merged.documents = mergedDocs;
 
   const mergedDocFiles = {
-    ...(target.docFiles || {}),
-    ...(source.docFiles || {})
+    ...(source.docFiles || {}),
+    ...(target.docFiles || {})
   };
 
   // If source or target explicitly states isCertIssued === false (e.g. deleted), respect the deletion!

@@ -5994,6 +5994,7 @@ async function startServer() {
       const jamaahList = req.body.jamaahList || req.body.paxList || [];
       const deletedPaxId = req.body.deletedPaxId;
       const result = await syncJamaahListToDatabase(jamaahList, req.user, deletedPaxId);
+      notifyUpdate();
       res.json({ success: true, count: result.count, message: "Data jamaah tersimpan ke PostgreSQL" });
     } catch (error: any) {
       console.error("Sync mitra jamaah error:", error);
@@ -6043,6 +6044,7 @@ async function startServer() {
       const jamaahList = req.body.jamaahList || req.body.paxList || [];
       const deletedPaxId = req.body.deletedPaxId;
       const result = await syncJamaahListToDatabase(jamaahList, req.user, deletedPaxId);
+      notifyUpdate();
       res.json({ success: true, count: result.count });
     } catch (error) {
       console.error("Admin sync jamaah error:", error);
