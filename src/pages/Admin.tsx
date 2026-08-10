@@ -798,24 +798,16 @@ export default function Admin() {
       const folder = zip.folder(folderName) || zip;
 
       const allDocs = Array.isArray(reviewingJamaah.documents) ? reviewingJamaah.documents : [];
-      const currentPaxData = Array.isArray(reviewingJamaah.paxData) ? reviewingJamaah.paxData[activePaxIdx] : null;
-      const isMarried = currentPaxData?.maritalStatus === 'Menikah';
-      const categories = [
-        { id: 'KTP Asli', label: 'KTP_Asli' },
-        { id: 'Paspor Asli', label: 'Paspor_Asli' },
-        { id: 'Kartu Keluarga (KK)', label: 'Kartu_Keluarga' },
-        { id: 'Pas Foto 4x6', label: 'Pas_Foto_4x6' },
-        { id: 'Sertifikat Vaksin', label: 'Sertifikat_Vaksin' },
-        ...(isMarried ? [{ id: 'Buku Nikah', label: 'Buku_Nikah' }] : [])
-      ];
+      const currentPaxDocs = allDocs.filter((d: any) => {
+        const matchIdx = d.docType?.match(/_(\d+)$/);
+        const docPaxIdx = matchIdx ? parseInt(matchIdx[1], 10) : 0;
+        return docPaxIdx === activePaxIdx;
+      });
 
       let filesAdded = 0;
       const token = localStorage.getItem('token');
 
-      for (const cat of categories) {
-        const doc = allDocs.find((d: any) => matchDocumentCategory(d?.docType, cat.id, activePaxIdx));
-        if (!doc) continue;
-
+      for (const doc of currentPaxDocs) {
         let docUrl = doc.fileUrl;
         if (!docUrl && doc.id) {
           const isPdf = doc.isPdf || (doc.docType && doc.docType.toLowerCase().includes('pdf'));
@@ -825,6 +817,7 @@ export default function Admin() {
 
         let fileData: ArrayBuffer | null = null;
         let extension = 'png';
+        const cleanDocType = doc.docType?.replace(/_\d+$/, '') || 'Dokumen';
 
         if (docUrl.startsWith('data:')) {
           const parts = docUrl.split(',');
@@ -860,7 +853,7 @@ export default function Admin() {
 
         if (!fileData) {
           try {
-            const fallbackDataUrl = getDocPreviewDataUrl(cat.id, jamaahName, reviewingJamaah.packageName, activePaxIdx);
+            const fallbackDataUrl = getDocPreviewDataUrl(cleanDocType, jamaahName, reviewingJamaah.packageName, activePaxIdx);
             const rawSvg = decodeURIComponent(fallbackDataUrl.split(',')[1] || '');
             const encoder = new TextEncoder();
             fileData = encoder.encode(rawSvg).buffer;
@@ -871,7 +864,7 @@ export default function Admin() {
         }
 
         if (fileData) {
-          folder.file(`${cat.label}_Pax${activePaxIdx + 1}.${extension}`, fileData);
+          folder.file(`${cleanDocType.replace(/\s+/g, '_')}_Pax${activePaxIdx + 1}.${extension}`, fileData);
           filesAdded++;
         }
       }
@@ -5869,16 +5862,38 @@ export default function Admin() {
                     ];
 
                     const allDocs = Array.isArray(reviewingJamaah?.documents) ? reviewingJamaah.documents : [];
+                    const matchedDocIds = new Set<string>();
 
-                    return expectedCategories.map((cat) => {
-                      // Find matching document for this category and pax index
+                    const categoriesToRender: { cat: { id: string, label: string }, doc: any }[] = expectedCategories.map((cat) => {
                       const doc = allDocs
                         .filter((d: any) => matchDocumentCategory(d?.docType, cat.id, activePaxIdx))
                         .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0];
+                      
+                      if (doc) matchedDocIds.add(doc.id);
+                      return { cat, doc };
+                    });
 
+                    // Add documents that didn't match any expected category but belong to this pax
+                    allDocs.forEach((d: any) => {
+                      if (!matchedDocIds.has(d.id)) {
+                        const matchIdx = d.docType?.match(/_(\d+)$/);
+                        const docPaxIdx = matchIdx ? parseInt(matchIdx[1], 10) : 0;
+                        
+                        if (docPaxIdx === activePaxIdx) {
+                          const cleanLabel = d.docType?.replace(/_\d+$/, '') || 'Dokumen Lainnya';
+                          categoriesToRender.push({
+                            cat: { id: d.docType, label: cleanLabel },
+                            doc: d
+                          });
+                          matchedDocIds.add(d.id);
+                        }
+                      }
+                    });
+
+                    return categoriesToRender.map(({ cat, doc }) => {
                       const isUploaded = !!doc && !!doc.fileUrl;
                       const status = doc?.status || 'missing';
-                      const isSelected = reviewingDocId === cat.id || matchDocumentCategory(reviewingDocId, cat.id, activePaxIdx);
+                      const isSelected = reviewingDocId === cat.id || (doc && reviewingDocId === doc.docType);
 
                       return (
                         <div key={cat.id} className="relative group/doc">
@@ -5941,7 +5956,11 @@ export default function Admin() {
                 {reviewingDocId ? (
                   (() => {
                     const allDocs = Array.isArray(reviewingJamaah?.documents) ? reviewingJamaah.documents : [];
-                    const activeDoc = allDocs.find((d: any) => matchDocumentCategory(d?.docType, reviewingDocId, activePaxIdx));
+                    const activeDoc = allDocs.find((d: any) => 
+                      matchDocumentCategory(d?.docType, reviewingDocId, activePaxIdx) || 
+                      d.docType === reviewingDocId || 
+                      d.id === reviewingDocId
+                    );
 
                     const token = localStorage.getItem('token');
                     let activeDocUrl: string | undefined = undefined;

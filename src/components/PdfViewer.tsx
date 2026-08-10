@@ -127,19 +127,18 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title = 'Dokumen', cl
       } catch (err: any) {
         console.warn('PdfViewer PDF load error:', err);
         if (isMounted) {
-          if (isPdfUrl(url)) {
-            setError('Gagal memuat pratinjau PDF. File dapat dibuka di tab baru atau diunduh.');
-            setLoading(false);
-          } else {
-            try {
-              const blobUrl = getBlobUrlFromDataUrl(url);
-              setImgSrc(blobUrl || url);
-            } catch (e) {
-              setImgSrc(url);
-            }
+          // If PDF loading fails, try to load it as an image FIRST before showing error
+          // This handles cases where an image was uploaded but named/flagged as a PDF
+          try {
+            const blobUrl = getBlobUrlFromDataUrl(url);
+            setImgSrc(blobUrl || url);
             setImgLoading(true);
             setImgError(false);
             setForceImageMode(true);
+            setLoading(false);
+          } catch (e) {
+            console.error('Image fallback failed after PDF error:', e);
+            setError('Gagal memuat pratinjau. File mungkin rusak atau format tidak didukung.');
             setLoading(false);
           }
         }
