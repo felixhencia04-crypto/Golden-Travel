@@ -5750,15 +5750,73 @@ async function startServer() {
 
         // Resolve package ID
         let targetPkgId = sample.packageId;
-        if (!targetPkgId || typeof targetPkgId !== 'string' || targetPkgId.length < 10) {
+        if (!targetPkgId || !isValidUuid(targetPkgId)) {
           const firstPkg = await tx.query.packages.findFirst().catch(() => null);
           if (firstPkg) targetPkgId = firstPkg.id;
         }
 
-        // Find registration by regId or mEmail
-        let existingReg = await tx.query.registrations.findFirst({
-          where: eq(schema.registrations.id, regId)
-        }).catch(() => null);
+        // Resolve a valid userId in the 'users' table to avoid foreign key violations
+        let targetUserId = reqUser?.id;
+        if (targetUserId) {
+          const userById = await tx.query.users.findFirst({
+            where: eq(schema.users.id, targetUserId)
+          }).catch(() => null);
+
+          if (!userById) {
+            const userEmail = (reqUser.email || mEmail || '').toLowerCase().trim();
+            if (userEmail) {
+              const userByEmail = await tx.query.users.findFirst({
+                where: eq(schema.users.email, userEmail)
+              }).catch(() => null);
+
+              if (userByEmail) {
+                targetUserId = userByEmail.id;
+              } else {
+                if (!isValidUuid(targetUserId)) {
+                  targetUserId = crypto.randomUUID();
+                }
+
+                try {
+                  await tx.insert(schema.users).values({
+                    id: targetUserId,
+                    email: userEmail,
+                    name: reqUser.name || mName || 'Mitra',
+                    role: reqUser.role || 'mitra',
+                    workspaceId: defaultWorkspaceId,
+                    status: 'active',
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                  });
+                  console.log(`[Sync] Auto-created user in 'users' table for ${userEmail} with ID ${targetUserId}`);
+                } catch (insertErr: any) {
+                  console.error("[Sync] Failed to auto-create user in 'users' table:", insertErr.message);
+                  const anyUser = await tx.query.users.findFirst().catch(() => null);
+                  if (anyUser) {
+                    targetUserId = anyUser.id;
+                  }
+                }
+              }
+            } else {
+              const anyUser = await tx.query.users.findFirst().catch(() => null);
+              if (anyUser) {
+                targetUserId = anyUser.id;
+              }
+            }
+          }
+        } else {
+          const anyUser = await tx.query.users.findFirst().catch(() => null);
+          if (anyUser) {
+            targetUserId = anyUser.id;
+          }
+        }
+
+        // Find registration by regId (if valid) or mEmail
+        let existingReg = null;
+        if (regId && isValidUuid(regId)) {
+          existingReg = await tx.query.registrations.findFirst({
+            where: eq(schema.registrations.id, regId)
+          }).catch(() => null);
+        }
 
         if (!existingReg && mEmail) {
           existingReg = await tx.query.registrations.findFirst({
@@ -5767,61 +5825,81 @@ async function startServer() {
         }
 
         if (existingReg) {
-          const existingPax: any[] = Array.isArray(existingReg.paxData) ? existingReg.paxData : [];
-          const mergedMap = new Map<string, any>();
-
-          existingPax.forEach(p => {
-            const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
-            const pKey = p.id || pName;
-            if (pKey) mergedMap.set(pKey, p);
+          const existingPaxRaw: any[] = Array.isArray(existingReg.paxData) ? existingReg.paxData : [];
+          
+          // Deduplicate existing pax by name to clean up any past duplications
+          const existingPax: any[] = [];
+          existingPaxRaw.forEach(raw => {
+             const rawName = (raw.userName || raw.namaLengkap || raw.nama || raw.fullName || raw.name || raw.pasporNama || '').trim();
+             const duplicateIdx = existingPax.findIndex(ex => {
+               const exName = (ex.userName || ex.namaLengkap || ex.nama || ex.fullName || ex.name || ex.pasporNama || '').trim();
+               return exName && rawName && exName.toLowerCase() === rawName.toLowerCase();
+             });
+             
+             if (duplicateIdx >= 0) {
+                const ex = existingPax[duplicateIdx];
+                existingPax[duplicateIdx] = { ...ex, ...raw, documents: { ...(ex.documents || {}), ...(raw.documents || {}) } };
+             } else {
+                existingPax.push(raw);
+             }
           });
-
+          
+          const updatedPaxList = [...existingPax];
+          
           items.forEach(p => {
             const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
-            const pKey = p.id || pName;
-            if (pKey) {
-              const ex = mergedMap.get(pKey);
-              const exDocs = ex?.documents || {};
-              const pDocs = p.documents || {};
-              const mergedDocs: any = { ...exDocs, ...pDocs };
-
-              Object.keys(mergedDocs).forEach(dk => {
-                const exDoc = exDocs[dk];
-                const pDoc = pDocs[dk];
-                if (exDoc && pDoc) {
-                  const exStatus = (exDoc.status || '').toLowerCase();
-                  const pStatus = (pDoc.status || '').toLowerCase();
-                  const isTerminal = (s: string) => ['verified', 'approved', 'rejected', 'VERIFIED', 'REJECTED'].includes(s);
-                  
-                  // If existing is terminal and new is pending, keep terminal
-                  if (isTerminal(exStatus) && !isTerminal(pStatus)) {
-                    mergedDocs[dk] = {
-                      ...pDoc,
-                      ...exDoc,
-                      status: exStatus === 'approved' || exStatus === 'verified' || exStatus === 'VERIFIED' ? 'verified' : 'rejected'
-                    };
-                  }
+            
+            const exIdx = updatedPaxList.findIndex(ex => {
+              const exName = (ex.userName || ex.namaLengkap || ex.nama || ex.fullName || ex.name || ex.pasporNama || '').trim();
+              if (p.id && ex.id && p.id === ex.id) return true;
+              if (pName && exName && pName.toLowerCase() === exName.toLowerCase()) return true;
+              return false;
+            });
+            
+            const ex = exIdx >= 0 ? updatedPaxList[exIdx] : null;
+            const exDocs = ex?.documents || {};
+            const pDocs = p.documents || {};
+            const mergedDocs: any = { ...exDocs, ...pDocs };
+            
+            Object.keys(mergedDocs).forEach(dk => {
+              const exDoc = exDocs[dk];
+              const pDoc = pDocs[dk];
+              if (exDoc && pDoc) {
+                const exStatus = (exDoc.status || '').toLowerCase();
+                const pStatus = (pDoc.status || '').toLowerCase();
+                const isTerminal = (s: string) => ['verified', 'approved', 'rejected', 'VERIFIED', 'REJECTED'].includes(s);
+                
+                if (isTerminal(exStatus) && !isTerminal(pStatus)) {
+                  mergedDocs[dk] = {
+                    ...pDoc,
+                    ...exDoc,
+                    status: exStatus === 'approved' || exStatus === 'verified' || exStatus === 'VERIFIED' ? 'verified' : 'rejected'
+                  };
                 }
-              });
-
-              mergedMap.set(pKey, {
-                ...(ex || {}),
-                ...p,
-                userName: pName || ex?.userName || 'Jemaah',
-                mitraId: mId,
-                mitraName: mName,
-                mitraEmail: mEmail,
-                documents: mergedDocs
-              });
+              }
+            });
+            
+            const mergedItem = {
+              ...(ex || {}),
+              ...p,
+              userName: pName || ex?.userName || 'Jemaah',
+              mitraId: mId,
+              mitraName: mName,
+              mitraEmail: mEmail,
+              documents: mergedDocs
+            };
+            
+            if (exIdx >= 0) {
+              updatedPaxList[exIdx] = mergedItem;
+            } else {
+              updatedPaxList.push(mergedItem);
             }
           });
 
-          const updatedPax = Array.from(mergedMap.values());
-
           await tx.update(schema.registrations)
             .set({
-              paxData: updatedPax,
-              adultCount: updatedPax.length.toString(),
+              paxData: updatedPaxList,
+              adultCount: updatedPaxList.length.toString(),
               ordererName: mName,
               ordererEmail: mEmail,
               ordererNotes: `MitraID: ${mId}`,
@@ -5831,10 +5909,10 @@ async function startServer() {
 
           totalSaved += items.length;
         } else {
-          if (targetPkgId) {
+          if (targetPkgId && targetUserId) {
             try {
               await tx.insert(schema.registrations).values({
-                userId: reqUser.id,
+                userId: targetUserId,
                 packageId: targetPkgId,
                 workspaceId: defaultWorkspaceId,
                 ordererName: mName,
@@ -5848,8 +5926,11 @@ async function startServer() {
                 status: 'ISI_BIODATA'
               });
               totalSaved += items.length;
-            } catch (e) {
+            } catch (e: any) {
               console.error("Error inserting registration in syncJamaahListToDatabase:", e);
+              if (e.detail) {
+                console.error("Detail error:", e.detail);
+              }
             }
           }
         }
