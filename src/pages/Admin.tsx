@@ -5409,7 +5409,11 @@ export default function Admin() {
 
                       return categories.map((docName, i) => {
                         const docSuffix = `_${activePaxIdx}`;
-                        const docItem = Array.isArray(selectedJamaah.documents) ? selectedJamaah.documents.find((d: any) => d.docType.includes(docName) && d.docType.endsWith(docSuffix)) : null;
+                        const docItem = Array.isArray(selectedJamaah.documents) 
+                          ? selectedJamaah.documents
+                              .filter((d: any) => matchDocumentCategory(d?.docType, docName, activePaxIdx))
+                              .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())[0]
+                          : null;
                         const isUploaded = !!docItem;
                         const status = docItem?.status || 'pending';
                         const isPdf = !!docItem?.isPdf;
