@@ -62,13 +62,24 @@ export const AdminMOUManager: React.FC = () => {
   const [fileSize, setFileSize] = useState<string>('');
   const [isUploading, setIsUploading] = useState<boolean>(false);
 
+  const getAdminToken = () => {
+    return (
+      localStorage.getItem('admin_token') ||
+      sessionStorage.getItem('admin_token') ||
+      localStorage.getItem('token') ||
+      sessionStorage.getItem('token') ||
+      ''
+    );
+  };
+
   // Fetch data
   const fetchData = async () => {
     setLoading(true);
     try {
+      const token = getAdminToken();
       // 1. Fetch MOUs
       const mouRes = await fetch('/api/admin/mou', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (mouRes.ok) {
         const data = await mouRes.json();
@@ -97,7 +108,7 @@ export const AdminMOUManager: React.FC = () => {
 
       // 2. Fetch Mitra List for dropdown selection
       const mitraRes = await fetch('/api/admin/mitra/list', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (mitraRes.ok) {
         const mData = await mitraRes.json();
@@ -276,7 +287,7 @@ export const AdminMOUManager: React.FC = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          Authorization: `Bearer ${getAdminToken()}`
         },
         body: JSON.stringify(payload)
       });
@@ -318,7 +329,7 @@ export const AdminMOUManager: React.FC = () => {
     try {
       const res = await fetch(`/api/admin/mou/${id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${getAdminToken()}` }
       });
       if (res.ok) {
         toast.success('Dokumen MOU berhasil dihapus');
@@ -341,7 +352,7 @@ export const AdminMOUManager: React.FC = () => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          Authorization: `Bearer ${getAdminToken()}`
         },
         body: JSON.stringify({
           status: selectedMouForEdit.status,
@@ -685,28 +696,30 @@ export const AdminMOUManager: React.FC = () => {
 
       {/* MODAL 1: Upload MOU Baru */}
       {isUploadModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 md:p-8 space-y-6 shadow-2xl relative my-8 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl relative my-auto animate-in zoom-in-95 duration-200 overflow-hidden">
+            {/* Header - Fixed at Top */}
+            <div className="p-5 sm:p-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold shrink-0">
                   <Upload className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-900">Unggah Dokumen MOU Kemitraan</h3>
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-900">Unggah Dokumen MOU Kemitraan</h3>
                   <p className="text-xs text-slate-500 font-medium">Bagikan dokumen Perjanjian Kerjasama resmi ke akun Mitra Agent</p>
                 </div>
               </div>
 
               <button
                 onClick={() => setIsUploadModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition-all"
+                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmitUpload} className="space-y-5">
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleSubmitUpload} className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-5">
               {/* Target Mitra Selection */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
@@ -809,7 +822,7 @@ export const AdminMOUManager: React.FC = () => {
               {/* Notes */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Catatan / Instuksi untuk Mitra
+                  Catatan / Instruksi untuk Mitra
                 </label>
                 <textarea
                   rows={2}
@@ -826,7 +839,7 @@ export const AdminMOUManager: React.FC = () => {
                   Berkas MOU (PDF, DOC, Gambar) <span className="text-rose-500">*</span>
                 </label>
 
-                <div className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/40 rounded-2xl p-6 text-center transition-all space-y-3">
+                <div className="border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/40 rounded-2xl p-5 text-center transition-all space-y-3">
                   <Upload className="w-8 h-8 text-emerald-600 mx-auto" />
                   <div>
                     <p className="text-xs font-bold text-slate-800">
@@ -835,7 +848,7 @@ export const AdminMOUManager: React.FC = () => {
                     <p className="text-[11px] text-slate-500 font-medium mt-0.5">Format: PDF, DOCX, PNG, JPG (Maks 15MB)</p>
                   </div>
 
-                  <div className="flex items-center justify-center gap-3">
+                  <div className="flex flex-wrap items-center justify-center gap-3">
                     <label className="px-4 py-2 rounded-xl bg-emerald-800 text-white font-bold text-xs hover:bg-emerald-700 transition-all cursor-pointer inline-flex items-center gap-1.5">
                       <Paperclip className="w-4 h-4" /> Pilih File
                       <input
@@ -857,8 +870,8 @@ export const AdminMOUManager: React.FC = () => {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              {/* Action Buttons - Sticky at Bottom */}
+              <div className="sticky bottom-0 bg-white pt-4 pb-1 border-t border-slate-100 flex items-center justify-end gap-3 z-10 mt-6">
                 <button
                   type="button"
                   onClick={() => setIsUploadModalOpen(false)}

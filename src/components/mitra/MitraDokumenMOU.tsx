@@ -42,11 +42,22 @@ export const MitraDokumenMOU: React.FC = () => {
   const [signNotes, setSignNotes] = useState<string>('');
   const [isSubmittingSign, setIsSubmittingSign] = useState<boolean>(false);
 
+  const getMitraToken = () => {
+    return (
+      localStorage.getItem('mitra_token') ||
+      sessionStorage.getItem('mitra_token') ||
+      localStorage.getItem('token') ||
+      sessionStorage.getItem('token') ||
+      ''
+    );
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
+      const token = getMitraToken();
       const res = await fetch('/api/mitra/mou', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
@@ -101,11 +112,12 @@ export const MitraDokumenMOU: React.FC = () => {
 
     setIsSubmittingSign(true);
     try {
+      const token = getMitraToken();
       const res = await fetch(`/api/mitra/mou/${selectedMouForSign.id}/sign`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
           signedByName: signatoryName.trim(),
