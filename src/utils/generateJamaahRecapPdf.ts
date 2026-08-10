@@ -322,9 +322,22 @@ export const generateDepartureManifestPdf = (
 
     pList.forEach((pax: any, idx: number) => {
       const isLead = idx === 0;
+      let fullNameStr = (pax.fullName || pax.userName || pax.namaLengkap || pax.name || '').trim();
+      
+      if (!fullNameStr || (group.isMitra && fullNameStr.toLowerCase() === (group.name || '').toLowerCase())) {
+        fullNameStr = group.isMitra ? 'Jamaah Mitra' : (group.name || `Jamaah #${paxCounter}`);
+      }
+
+      let paxDisplay = fullNameStr;
+      if (group.isMitra) {
+        paxDisplay = `${fullNameStr} (Mitra: ${group.mitraName || group.name})`;
+      } else if (isLead && fullNameStr === group.name) {
+        paxDisplay = `${fullNameStr} (Pemesan)`;
+      }
+
       flatPaxList.push({
         no: paxCounter++,
-        fullName: (pax.fullName || group.name || `Jamaah ${paxCounter}`) + (isLead ? ' (Pemesan)' : ''),
+        fullName: paxDisplay,
         nik: pax.nik || group.paxData?.[0]?.nik || '-',
         gender: pax.gender === 'L' ? 'Laki-Laki' : pax.gender === 'P' ? 'Perempuan' : pax.gender || '-',
         pobDob: (pax.pob || pax.dob) ? `${pax.pob || ''}${pax.dob ? ', ' + pax.dob : ''}` : '-',
@@ -332,7 +345,7 @@ export const generateDepartureManifestPdf = (
         passportExpiry: pax.passportExpiryDate || pax.passportExpiry || '-',
         pkgName: pkg,
         statusPay: payStr,
-        accountOwner: group.name || '-',
+        accountOwner: group.isMitra ? `Mitra: ${group.mitraName || group.name}` : (group.name || '-'),
         phone: pax.phone || group.phone || '-',
         regDate: group.createdAt ? new Date(group.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : (group.date || '-')
       });
