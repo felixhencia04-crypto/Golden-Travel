@@ -302,7 +302,7 @@ export const generateDepartureManifestPdf = (
 
   let paxCounter = 1;
 
-  jamaahList.forEach((group) => {
+  jamaahList.forEach((group: any) => {
     const pkg = group.packageName || group.packageId || 'Belum Pilih Paket';
     let payStr = 'Belum DP';
     if (group.paymentStep === 'lunas') payStr = 'LUNAS';

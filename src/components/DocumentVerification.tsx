@@ -5,6 +5,7 @@ import {
   ChevronRight, Calendar, User, FileText, ExternalLink
 } from 'lucide-react';
 import { api } from '../utils/api';
+import { isPdfUrl } from '../utils/file';
 import { motion, AnimatePresence } from 'motion/react';
 import PdfViewer from './PdfViewer';
 
@@ -211,7 +212,7 @@ export default function DocumentVerification() {
                     </a>
                   </div>
                   <div className="rounded-2xl border border-gray-100 overflow-hidden bg-slate-900 min-h-[350px] relative group flex items-center justify-center">
-                    {(selectedDoc.fileUrl?.startsWith('data:application/pdf') || selectedDoc.fileUrl?.endsWith('.pdf')) ? (
+                    {(selectedDoc.isPdf || isPdfUrl(selectedDoc.fileUrl) || (selectedDoc.docType && selectedDoc.docType.toLowerCase().includes('pdf'))) ? (
                       <PdfViewer url={selectedDoc.fileUrl} title={selectedDoc.docType || 'Pratinjau Dokumen'} className="h-[380px] w-full" />
                     ) : (
                       <img 

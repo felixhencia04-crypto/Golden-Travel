@@ -5950,7 +5950,10 @@ export default function Admin() {
                       if (activeDoc.fileUrl && activeDoc.fileUrl.startsWith('data:')) {
                         activeDocUrl = activeDoc.fileUrl;
                       } else if (activeDoc.id) {
-                        const isPdf = activeDoc.isPdf || (activeDoc.docType && activeDoc.docType.toLowerCase().includes('pdf')) || (activeDoc.fileUrl && activeDoc.fileUrl.toLowerCase().endsWith('.pdf'));
+                        const isPdf = Boolean(activeDoc.isPdf) || 
+                          isPdfUrl(activeDoc.fileUrl) || 
+                          (activeDoc.docType && activeDoc.docType.toLowerCase().includes('pdf')) || 
+                          (activeDoc.fileUrl && activeDoc.fileUrl.toLowerCase().includes('.pdf'));
                         const ext = isPdf ? '.pdf' : '.png';
                         activeDocUrl = `/api/documents/${activeDoc.id}/file?token=${token}&ext=${ext}`;
                       } else if (activeDoc.fileUrl) {

@@ -15,18 +15,22 @@ export const isPdfUrl = (url: string | undefined | null): boolean => {
   if (clean.startsWith('data:application/octet-stream') && clean.includes('JVBERi0')) return true;
   if (clean.startsWith('JVBERi0')) return true;
   const lower = clean.toLowerCase();
-  if (lower.includes('.pdf') || lower.endsWith('.pdf') || lower.includes('ext=.pdf')) return true;
+  if (lower.includes('.pdf') || lower.includes('ext=.pdf') || lower.includes('ext=pdf') || lower.includes('/file.pdf') || lower.includes('format=pdf')) return true;
   return false;
 };
 
 export const isImageUrl = (url: string | undefined | null): boolean => {
   const clean = sanitizeFileUrl(url);
   if (!clean) return false;
+  // If it's a PDF, it is NEVER an image
+  if (isPdfUrl(clean)) return false;
+
   if (clean.startsWith('data:image/')) return true;
   if (clean.startsWith('iVBORw0KG') || clean.startsWith('/9j/')) return true;
   const lower = clean.toLowerCase();
   if (lower.includes('.png') || lower.includes('.jpg') || lower.includes('.jpeg') || lower.includes('.webp') || lower.includes('.gif') || lower.includes('ext=.png') || lower.includes('ext=.jpg') || lower.includes('ext=.jpeg')) return true;
-  // If it's not explicitly a PDF, assume image format for previews
+  
+  // Fallback for relative data/http/api paths that are NOT PDFs
   if (!isPdfUrl(clean) && (clean.startsWith('data:') || clean.startsWith('http') || clean.startsWith('/'))) {
     return true;
   }

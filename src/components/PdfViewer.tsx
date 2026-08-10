@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw, RotateCcw, Download, ExternalLink, FileText, AlertCircle, Loader2, Image as ImageIcon } from 'lucide-react';
-import { downloadFile, openDataUrlInNewTab, isImageUrl, getBlobUrlFromDataUrl } from '../utils/file';
+import { downloadFile, openDataUrlInNewTab, isImageUrl, isPdfUrl, getBlobUrlFromDataUrl } from '../utils/file';
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
@@ -67,6 +67,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title = 'Dokumen', cl
     setPageNum(1);
 
     const getPdfData = async (dataOrUrl: string): Promise<Uint8Array | string> => {
+      if (!dataOrUrl) return dataOrUrl;
+
       if (dataOrUrl.startsWith('data:')) {
         const base64 = dataOrUrl.split(',')[1] || '';
         const binaryString = atob(base64);
@@ -76,6 +78,33 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title = 'Dokumen', cl
         }
         return bytes;
       }
+
+      if (dataOrUrl.startsWith('JVBERi0')) {
+        const binaryString = atob(dataOrUrl);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes;
+      }
+
+      // Fetch arrayBuffer for relative or HTTP URLs to attach auth token
+      if (dataOrUrl.startsWith('/') || dataOrUrl.startsWith('http')) {
+        try {
+          const token = localStorage.getItem('token');
+          const headers: Record<string, string> = {};
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+          
+          const response = await fetch(dataOrUrl, { headers });
+          if (response.ok) {
+            const buffer = await response.arrayBuffer();
+            return new Uint8Array(buffer);
+          }
+        } catch (e) {
+          console.warn('getPdfData fetch fallback error:', e);
+        }
+      }
+
       return dataOrUrl;
     };
 
@@ -96,18 +125,23 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title = 'Dokumen', cl
           setLoading(false);
         }
       } catch (err: any) {
-        console.warn('PdfViewer PDF load error, automatically falling back to image view:', err);
+        console.warn('PdfViewer PDF load error:', err);
         if (isMounted) {
-          try {
-            const blobUrl = getBlobUrlFromDataUrl(url);
-            setImgSrc(blobUrl || url);
-          } catch (e) {
-            setImgSrc(url);
+          if (isPdfUrl(url)) {
+            setError('Gagal memuat pratinjau PDF. File dapat dibuka di tab baru atau diunduh.');
+            setLoading(false);
+          } else {
+            try {
+              const blobUrl = getBlobUrlFromDataUrl(url);
+              setImgSrc(blobUrl || url);
+            } catch (e) {
+              setImgSrc(url);
+            }
+            setImgLoading(true);
+            setImgError(false);
+            setForceImageMode(true);
+            setLoading(false);
           }
-          setImgLoading(true);
-          setImgError(false);
-          setForceImageMode(true);
-          setLoading(false);
         }
       }
     };

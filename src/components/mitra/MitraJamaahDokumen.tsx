@@ -4,6 +4,7 @@ import {
   Trash2, Eye, Users, FileCheck, ShieldAlert, Sparkles, ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { api } from '../../lib/api';
 import { getScopedKey, filterJamaahForCurrentMitra } from '../../utils/mitraStorage';
 
 interface MitraJamaahDokumenProps {

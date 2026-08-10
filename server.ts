@@ -297,7 +297,7 @@ async function getDocumentsQuery(options: any) {
     fileUrl: schema.documents.fileUrl,
     createdAt: schema.documents.createdAt,
     updatedAt: schema.documents.updatedAt,
-    isPdf: sql<boolean>`${schema.documents.fileUrl} LIKE 'data:application/pdf%' OR ${schema.documents.fileUrl} LIKE '%.pdf%' OR ${schema.documents.fileUrl} LIKE '%JVBERi0%'`.as('is_pdf'),
+    isPdf: sql<boolean>`LOWER(${schema.documents.fileUrl}) LIKE 'data:application/pdf%' OR LOWER(${schema.documents.fileUrl}) LIKE '%.pdf%' OR ${schema.documents.fileUrl} LIKE '%JVBERi0%' OR LOWER(${schema.documents.docType}) LIKE '%pdf%'`.as('is_pdf'),
     hasFile: sql<boolean>`${schema.documents.fileUrl} IS NOT NULL AND ${schema.documents.fileUrl} != ''`.as('has_file')
   }).from(schema.documents).where(options.where);
   
@@ -310,10 +310,18 @@ async function getDocumentsQuery(options: any) {
   }
 
   const docs: any[] = await withRetry(async () => await query);
-  return docs.map((d: any) => ({
-    ...d,
-    fileUrl: d.fileUrl && d.fileUrl.trim() !== '' ? d.fileUrl : (d.hasFile ? `/api/documents/${d.id}/file${d.isPdf ? '.pdf' : '.png'}` : null)
-  }));
+  return docs.map((d: any) => {
+    const isPdfBool = Boolean(d.isPdf) ||
+      d.isPdf === 1 ||
+      String(d.isPdf).toLowerCase() === 'true' ||
+      (d.fileUrl && (d.fileUrl.toLowerCase().includes('.pdf') || d.fileUrl.includes('data:application/pdf') || d.fileUrl.includes('JVBERi0'))) ||
+      (d.docType && d.docType.toLowerCase().includes('pdf'));
+    return {
+      ...d,
+      isPdf: isPdfBool,
+      fileUrl: d.fileUrl && d.fileUrl.trim() !== '' && !d.fileUrl.startsWith('/api/documents/') ? d.fileUrl : (d.hasFile ? `/api/documents/${d.id}/file${isPdfBool ? '.pdf' : '.png'}` : null)
+    };
+  });
 }
 
 async function getCertificatesQuery(options: any) {
@@ -5113,12 +5121,16 @@ async function startServer() {
           fileUrl: schema.documents.fileUrl,
           createdAt: schema.documents.createdAt,
           updatedAt: schema.documents.updatedAt,
-          isPdf: sql<boolean>`${schema.documents.fileUrl} LIKE 'data:application/pdf%' OR ${schema.documents.fileUrl} LIKE '%.pdf%' OR ${schema.documents.fileUrl} LIKE '%JVBERi0%'`.as('is_pdf'),
+          isPdf: sql<boolean>`LOWER(${schema.documents.fileUrl}) LIKE 'data:application/pdf%' OR LOWER(${schema.documents.fileUrl}) LIKE '%.pdf%' OR ${schema.documents.fileUrl} LIKE '%JVBERi0%' OR LOWER(${schema.documents.docType}) LIKE '%pdf%'`.as('is_pdf'),
           hasFile: sql<boolean>`${schema.documents.fileUrl} IS NOT NULL AND ${schema.documents.fileUrl} != ''`.as('has_file')
-        }).from(schema.documents).where(eq(schema.documents.registrationId, registration.id))).then(res => res.map(d => ({
-          ...d,
-          fileUrl: d.fileUrl && d.fileUrl.trim() !== '' ? d.fileUrl : (d.hasFile ? `/api/documents/${d.id}/file${d.isPdf ? '.pdf' : '.png'}` : null)
-        })));
+        }).from(schema.documents).where(eq(schema.documents.registrationId, registration.id))).then(res => res.map(d => {
+          const isPdfBool = Boolean(d.isPdf) || d.isPdf === 1 || String(d.isPdf).toLowerCase() === 'true' || (d.fileUrl && (d.fileUrl.toLowerCase().includes('.pdf') || d.fileUrl.includes('data:application/pdf') || d.fileUrl.includes('JVBERi0'))) || (d.docType && d.docType.toLowerCase().includes('pdf'));
+          return {
+            ...d,
+            isPdf: isPdfBool,
+            fileUrl: d.fileUrl && d.fileUrl.trim() !== '' && !d.fileUrl.startsWith('/api/documents/') ? d.fileUrl : (d.hasFile ? `/api/documents/${d.id}/file${isPdfBool ? '.pdf' : '.png'}` : null)
+          };
+        }));
 
         const certsPromise = withRetry(() => db.select({
           id: schema.certificates.id,
@@ -7485,7 +7497,13 @@ async function startServer() {
       }
 
       // Physical file missing on disk — check if PDF is requested or expected
-      const isPdf = req.params.ext === 'pdf' || req.query.ext === '.pdf' || req.path.toLowerCase().endsWith('.pdf') || (doc && doc.fileUrl && doc.fileUrl.toLowerCase().endsWith('.pdf')) || (docType && docType.toLowerCase().includes('pdf'));
+      const reqQueryExt = req.query.ext ? String(req.query.ext).toLowerCase() : '';
+      const isPdf = req.params.ext === 'pdf' || 
+        reqQueryExt.includes('pdf') || 
+        req.path.toLowerCase().includes('.pdf') || 
+        (doc && doc.fileUrl && (doc.fileUrl.toLowerCase().includes('.pdf') || doc.fileUrl.includes('data:application/pdf') || doc.fileUrl.includes('JVBERi0'))) || 
+        (doc && doc.docType && doc.docType.toLowerCase().includes('pdf')) ||
+        (docType && docType.toLowerCase().includes('pdf'));
 
       if (isPdf) {
         const pdfBuffer = generateDocPdf(docType, jamaahName, docType, registrationId);
@@ -8749,14 +8767,18 @@ async function startServer() {
           status: schema.documents.status,
           createdAt: schema.documents.createdAt,
           updatedAt: schema.documents.updatedAt,
-          isPdf: sql<boolean>`${schema.documents.fileUrl} LIKE 'data:application/pdf%' OR ${schema.documents.fileUrl} LIKE '%.pdf%' OR ${schema.documents.fileUrl} LIKE '%JVBERi0%'`.as('is_pdf'),
+          isPdf: sql<boolean>`LOWER(${schema.documents.fileUrl}) LIKE 'data:application/pdf%' OR LOWER(${schema.documents.fileUrl}) LIKE '%.pdf%' OR ${schema.documents.fileUrl} LIKE '%JVBERi0%' OR LOWER(${schema.documents.docType}) LIKE '%pdf%'`.as('is_pdf'),
           hasFile: sql<boolean>`${schema.documents.fileUrl} IS NOT NULL AND ${schema.documents.fileUrl} != ''`.as('has_file')
         }).from(schema.documents).where(inArray(schema.documents.registrationId, regIds as string[])));
 
-        docs = rawDocs.map((d: any) => ({
-          ...d,
-          fileUrl: d.hasFile ? `/api/documents/${d.id}/file${d.isPdf ? '.pdf' : '.png'}` : null
-        }));
+        docs = rawDocs.map((d: any) => {
+          const isPdfBool = Boolean(d.isPdf) || d.isPdf === 1 || String(d.isPdf).toLowerCase() === 'true' || (d.docType && d.docType.toLowerCase().includes('pdf'));
+          return {
+            ...d,
+            isPdf: isPdfBool,
+            fileUrl: d.hasFile ? `/api/documents/${d.id}/file${isPdfBool ? '.pdf' : '.png'}` : null
+          };
+        });
       }
 
       // Add computed paxCount and lightweight documents array

@@ -585,6 +585,7 @@ export default function MitraJamaahBiodata({ jamaahList, onRefresh }: MitraJamaa
   const handleRemovePax = (index: number, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
 
+    const targetPax = paxList[index];
     let updated: any[];
     if (paxList.length <= 1) {
       const blank = createBlankPax(1);
@@ -595,7 +596,6 @@ export default function MitraJamaahBiodata({ jamaahList, onRefresh }: MitraJamaa
       setIsEditing(true);
       toast.info('Data jemaah berhasil dihapus dari Mitra & Portal Admin. Formulir dikembalikan ke kondisi kosong.');
     } else {
-      const targetPax = paxList[index];
       const targetRegId = targetPax?.registrationId;
       
       const filtered = paxList.filter((_, idx) => idx !== index);
