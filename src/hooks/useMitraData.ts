@@ -89,6 +89,32 @@ export function useMitraData() {
 
       const combinedJamaah = Array.from(combinedMap.values());
 
+      // Persist the combined data back to localStorage to keep local storage completely in sync with the database
+      try {
+        const scopedKey = getScopedKey('mitra_saved_pax_list');
+        localStorage.setItem(scopedKey, JSON.stringify(combinedJamaah));
+
+        let updatedCentral: any[] = [];
+        try {
+          const centralDb = JSON.parse(localStorage.getItem('mitra_jamaah_database') || '[]');
+          const otherMitrasJamaah = centralDb.filter((j: any) => {
+            if (!j) return false;
+            // Filter out current mitra's items so we don't duplicate them
+            const isCurrent = combinedJamaah.some(p => p.id === j.id || (p.userName && j.userName && p.userName.trim().toLowerCase() === j.userName.trim().toLowerCase()));
+            return !isCurrent;
+          });
+          updatedCentral = [...otherMitrasJamaah, ...combinedJamaah];
+        } catch (e) {
+          updatedCentral = combinedJamaah;
+        }
+        localStorage.setItem('mitra_jamaah_database', JSON.stringify(updatedCentral));
+        
+        // Dispatch local storage & sync event to instantly update components, skipping backend refetch loop
+        window.dispatchEvent(new CustomEvent('mitra_jamaah_updated', { detail: { skipBackendRefetch: true } }));
+      } catch (e) {
+        console.error("[useMitraData] Error saving synced data to local storage:", e);
+      }
+
       setJamaahList(combinedJamaah);
       setStats(s);
       
@@ -198,7 +224,11 @@ export function useMitraData() {
       }
     };
     
-    const handleMitraSync = () => {
+    const handleMitraSync = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.skipBackendRefetch) {
+        return;
+      }
       refreshData(true);
     };
 

@@ -5906,23 +5906,31 @@ async function startServer() {
             const ex = exIdx >= 0 ? existingPax[exIdx] : null;
             const exDocs = ex?.documents || {};
             const pDocs = p.documents || {};
-            const mergedDocs: any = { ...exDocs, ...pDocs };
             
-            Object.keys(mergedDocs).forEach(dk => {
-              const exDoc = exDocs[dk];
+            // Build mergedDocs by keeping only documents present in the incoming payload (to allow deletions)
+            const mergedDocs: any = {};
+            
+            Object.keys(pDocs).forEach(dk => {
               const pDoc = pDocs[dk];
-              if (exDoc && pDoc) {
+              if (!pDoc) return;
+              
+              const exDoc = exDocs[dk];
+              if (exDoc) {
                 const exStatus = (exDoc.status || '').toLowerCase();
-                const pStatus = (pDoc.status || '').toLowerCase();
                 const isTerminal = (s: string) => ['verified', 'approved', 'rejected', 'VERIFIED', 'REJECTED'].includes(s);
                 
-                if (isTerminal(exStatus) && !isTerminal(pStatus)) {
+                // If URL didn't change and DB status is terminal, preserve the verification state
+                if (exDoc.url === pDoc.url && isTerminal(exStatus)) {
                   mergedDocs[dk] = {
                     ...pDoc,
                     ...exDoc,
                     status: exStatus === 'approved' || exStatus === 'verified' || exStatus === 'VERIFIED' ? 'verified' : 'rejected'
                   };
+                } else {
+                  mergedDocs[dk] = pDoc;
                 }
+              } else {
+                mergedDocs[dk] = pDoc;
               }
             });
             
