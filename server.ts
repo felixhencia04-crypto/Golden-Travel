@@ -5656,8 +5656,7 @@ async function startServer() {
 
         paxArr.forEach((p, idx) => {
           if (!p) return;
-          const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
-          if (!pName || pName.startsWith('Jamaah #')) return;
+          const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim() || `Jamaah #${idx + 1}`;
 
           const pKey = p.id || `${pName}_${p.nik || p.pasporNo || reg.id}_${idx}`;
           if (seenKeys.has(pKey)) return;
@@ -5771,16 +5770,16 @@ async function startServer() {
     const defaultWorkspaceId = reqUser?.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef';
     const groupMap = new Map<string, any[]>();
 
-    jamaahItems.forEach((j: any) => {
+    jamaahItems.forEach((j: any, idx: number) => {
       if (!j) return;
-      const jName = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
-      if (!jName || jName.startsWith('Jamaah #')) return;
+      const jRawName = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
+      const jName = jRawName || `Jamaah #${idx + 1}`;
 
       const regKey = j.registrationId || `REG-MITRA-${j.mitraId || reqUser.id}`;
       if (!groupMap.has(regKey)) {
         groupMap.set(regKey, []);
       }
-      groupMap.get(regKey)!.push(j);
+      groupMap.get(regKey)!.push({ ...j, userName: jName });
     });
 
     const syncedRegIds = new Set(Array.from(groupMap.keys()));

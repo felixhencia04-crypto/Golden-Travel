@@ -62,43 +62,103 @@ export const RekapKeberangkatan: React.FC = () => {
       list.flatMap(r => Array.isArray(r.paxData) ? r.paxData.map(p => (p.fullName || p.userName || p.namaLengkap || '').toLowerCase().trim()) : [])
     );
 
-    if (Array.isArray(allMitraJamaah)) {
-      allMitraJamaah.forEach(j => {
-        const jName = (j.userName || j.namaLengkap || j.fullName || j.name || '').trim();
-        if (!jName || jName.startsWith('Jamaah #')) return;
-        
-        const isAlreadyInReg = (j.registrationId && existingRegIds.has(j.registrationId)) || existingPaxNames.has(jName.toLowerCase());
-        
-        if (!isAlreadyInReg) {
-          list.push({
-            id: j.registrationId || `MJAM-${j.id}`,
-            userId: j.mitraId || 'mitra-user',
-            packageId: j.packageId || '',
-            status: (j.statusBiodata === 'verified' ? 'SIAP_BERANGKAT' : 'ISI_BIODATA') as any,
-            totalAmount: 0,
-            ordererName: j.mitraName || j.mitraEmail || 'Mitra',
-            ordererPhone: j.mitraPhone || j.phone || '-',
-            ordererEmail: j.mitraEmail || '',
-            mitraEmail: j.mitraEmail || '',
-            paxData: [{
-              id: j.id,
-              fullName: jName,
-              userName: jName,
-              nik: j.nik || '-',
-              phone: j.phone || '-',
-              gender: j.gender || j.jenisKelamin || '-',
-              address: j.alamat || j.address || '-',
-              pasporNama: j.pasporNama || jName
-            }],
-            package: j.packageName ? { id: j.packageId || 'custom', name: j.packageName, price: 0, description: [], duration: '', features: [] } : undefined,
-            createdAt: j.createdAt || new Date().toISOString(),
-            updatedAt: j.updatedAt || new Date().toISOString(),
-            paymentProgress: j.statusBiodata === 'verified' ? 100 : 50,
-            hasRequiredDocs: Boolean(j.docFiles?.ktp || j.docFiles?.paspor)
-          } as any);
+    // 1. Gather baseline Mitra Jamaah from PostgreSQL
+    const mergedMitraJamaah: any[] = Array.isArray(allMitraJamaah) ? [...allMitraJamaah] : [];
+
+    // 2. Scan and merge from browser localStorage across all Mitra accounts
+    try {
+      const localMitraJamaahList: any[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('mitra_saved_pax_list')) {
+          const rawScopedId = key.replace('mitra_saved_pax_list_', '').trim();
+          const val = localStorage.getItem(key);
+          if (val) {
+            const parsedList = JSON.parse(val);
+            if (Array.isArray(parsedList)) {
+              parsedList.forEach((pax: any) => {
+                if (pax) {
+                  localMitraJamaahList.push({
+                    ...pax,
+                    mitraId: pax.mitraId || (rawScopedId !== 'mitra_saved_pax_list' ? rawScopedId : 'mitra-user')
+                  });
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // Merge from centralized offline/cache 'mitra_jamaah_database' as well
+      const stored = localStorage.getItem('mitra_jamaah_database');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((pax: any) => {
+            if (pax) {
+              localMitraJamaahList.push(pax);
+            }
+          });
+        }
+      }
+
+      // De-duplicate and combine
+      localMitraJamaahList.forEach(lp => {
+        const lpName = (lp.userName || lp.namaLengkap || lp.fullName || lp.name || '').trim();
+        const lpId = lp.id;
+        const exists = mergedMitraJamaah.some(m => {
+          const mName = (m.userName || m.namaLengkap || m.fullName || m.name || '').trim();
+          return m.id === lpId || (lpName && mName && mName.toLowerCase() === lpName.toLowerCase());
+        });
+        if (!exists) {
+          mergedMitraJamaah.push(lp);
         }
       });
+    } catch (e) {
+      console.warn("Failed to scan local storage for Mitra jamaah:", e);
     }
+
+    // 3. Populate combined registrations
+    mergedMitraJamaah.forEach(j => {
+      const jRawName = (j.userName || j.namaLengkap || j.fullName || j.name || '').trim();
+      const isPlaceholder = !jRawName || jRawName.startsWith('Jamaah #');
+      const finalName = isPlaceholder ? 'Jemaah Mitra (Belum Isi Biodata)' : jRawName;
+
+      const isAlreadyInReg = (j.registrationId && existingRegIds.has(j.registrationId)) || (!isPlaceholder && existingPaxNames.has(jRawName.toLowerCase()));
+
+      if (!isAlreadyInReg) {
+        const hasKtp = j.docFiles?.ktp || j.documents?.ktp?.url || j.documents?.ktp?.fileUrl || (j.documents && j.documents.ktp && j.documents.ktp.url);
+        const hasPaspor = j.docFiles?.paspor || j.documents?.paspor?.url || j.documents?.paspor?.fileUrl || (j.documents && j.documents.paspor && j.documents.paspor.url);
+
+        list.push({
+          id: j.registrationId || `MJAM-${j.id}`,
+          userId: j.mitraId || 'mitra-user',
+          packageId: j.packageId || '',
+          status: (j.statusBiodata === 'verified' || j.isComplete ? 'SIAP_BERANGKAT' : 'ISI_BIODATA') as any,
+          totalAmount: j.packagePrice || 0,
+          ordererName: j.mitraName || j.mitraEmail || 'Mitra',
+          ordererPhone: j.mitraPhone || j.phone || '-',
+          ordererEmail: j.mitraEmail || '',
+          mitraEmail: j.mitraEmail || '',
+          paxData: [{
+            id: j.id,
+            fullName: finalName,
+            userName: finalName,
+            nik: j.nik || '-',
+            phone: j.phone || '-',
+            gender: j.gender || j.jenisKelamin || '-',
+            address: j.alamat || j.alamatLengkap || j.address || '-',
+            pasporNama: j.pasporNama || finalName
+          }],
+          package: j.packageName ? { id: j.packageId || 'custom', name: j.packageName, price: j.packagePrice || 0, description: [], duration: '', features: [] } : undefined,
+          schedule: j.departureDate && j.departureDate !== '-' ? { id: 'custom-schedule', departureDate: j.departureDate, packageName: j.packageName || '' } : undefined,
+          createdAt: j.createdAt || j.registeredAt || new Date().toISOString(),
+          updatedAt: j.updatedAt || new Date().toISOString(),
+          paymentProgress: j.statusBiodata === 'verified' || j.paymentStep === 'lunas' || j.statusPayment === 'verified' ? 100 : (j.totalPaid || j.paymentStep === 'dp2' ? 50 : 30),
+          hasRequiredDocs: Boolean(hasKtp || hasPaspor)
+        } as any);
+      }
+    });
 
     return list;
   }, [registrations, allMitraJamaah]);

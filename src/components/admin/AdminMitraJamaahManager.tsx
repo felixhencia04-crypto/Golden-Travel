@@ -108,9 +108,13 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
           if (val) {
             const list = JSON.parse(val);
             if (Array.isArray(list)) {
-              list.forEach((pax: any) => {
-                const paxName = (pax?.userName || pax?.namaLengkap || pax?.nama || pax?.fullName || pax?.name || pax?.pasporNama || '').trim();
-                if (pax && paxName !== '' && !paxName.startsWith('Jamaah #')) {
+              list.forEach((pax: any, pIdx: number) => {
+                let paxName = (pax?.userName || pax?.namaLengkap || pax?.nama || pax?.fullName || pax?.name || pax?.pasporNama || '').trim();
+                const isPlaceholder = !paxName || paxName.startsWith('Jamaah #') || paxName === 'Jemaah Mitra (Belum Isi Biodata)';
+                if (isPlaceholder) {
+                  paxName = `Jemaah Mitra (Belum Isi Biodata)`;
+                }
+                if (pax) {
                   const paxWithMitra = {
                     ...pax,
                     mitraId: pax.mitraId || (rawScopedId !== 'mitra_saved_pax_list' ? rawScopedId : ''),
@@ -119,7 +123,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                   const existingIdx = merged.findIndex(m => {
                     const mName = (m?.userName || m?.namaLengkap || m?.nama || m?.fullName || m?.name || m?.pasporNama || '').trim().toLowerCase().replace(/\s+/g, ' ');
                     const pNameNorm = paxName.toLowerCase().replace(/\s+/g, ' ');
-                    return m.id === pax.id || (mName !== '' && mName === pNameNorm);
+                    return m.id === pax.id || (m.id && pax.id && m.id === pax.id) || (mName !== '' && mName === pNameNorm && !isPlaceholder);
                   });
                   if (existingIdx >= 0) {
                     // Combine payments
@@ -272,8 +276,12 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
     
     fixed.forEach(j => {
       if (!j) return;
-      const name = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
-      if (!name || name.startsWith('Jamaah #')) return;
+      let name = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
+      const isPlaceholder = !name || name.startsWith('Jamaah #') || name === 'Jemaah Mitra (Belum Isi Biodata)';
+      if (isPlaceholder) {
+        name = 'Jemaah Mitra (Belum Isi Biodata)';
+        j.userName = name;
+      }
       
       const normName = name.toLowerCase().replace(/\s+/g, ' ');
       
@@ -293,25 +301,32 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       });
 
       if (hasMitraId || hasMitraEmail || hasMitraName || matchedReal) {
-        if (!seenNames.has(normName)) {
-          seenNames.add(normName);
-          finalUnique.push(j);
+        if (isPlaceholder) {
+          const isIdSeen = finalUnique.some(x => x.id === j.id);
+          if (!isIdSeen) {
+            finalUnique.push(j);
+          }
         } else {
-          // Merge if already seen to keep documents, status or payments
-          const existingIdx = finalUnique.findIndex(x => {
-            const xName = (x.userName || x.namaLengkap || x.nama || x.fullName || x.name || x.pasporNama || '').trim().toLowerCase().replace(/\s+/g, ' ');
-            return xName === normName;
-          });
-          if (existingIdx >= 0) {
-            const prev = finalUnique[existingIdx];
-            finalUnique[existingIdx] = {
-              ...j,
-              ...prev,
-              documents: { ...(j.documents || {}), ...(prev.documents || {}) },
-              payments: [...(j.payments || []), ...(prev.payments || [])].filter((p, i, self) => 
-                self.findIndex(x => x.id === p.id || (x.date === p.date && x.amount === p.amount && x.step === p.step)) === i
-              )
-            };
+          if (!seenNames.has(normName)) {
+            seenNames.add(normName);
+            finalUnique.push(j);
+          } else {
+            // Merge if already seen to keep documents, status or payments
+            const existingIdx = finalUnique.findIndex(x => {
+              const xName = (x.userName || x.namaLengkap || x.nama || x.fullName || x.name || x.pasporNama || '').trim().toLowerCase().replace(/\s+/g, ' ');
+              return xName === normName;
+            });
+            if (existingIdx >= 0) {
+              const prev = finalUnique[existingIdx];
+              finalUnique[existingIdx] = {
+                ...j,
+                ...prev,
+                documents: { ...(j.documents || {}), ...(prev.documents || {}) },
+                payments: [...(j.payments || []), ...(prev.payments || [])].filter((p, i, self) => 
+                  self.findIndex(x => x.id === p.id || (x.date === p.date && x.amount === p.amount && x.step === p.step)) === i
+                )
+              };
+            }
           }
         }
       }
@@ -517,7 +532,6 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
   const filteredJamaahList = jamaahList.filter((j) => {
     if (!j) return false;
     const jName = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
-    if (!jName || jName.startsWith('Jamaah #')) return false;
 
     let matchesMitra = false;
     const jMitraId = (j.mitraId || '').toLowerCase().trim();
@@ -625,11 +639,10 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       }
     });
 
-    // Count valid jamaah entries
+    // Count valid jamaah entries (include placeholder prospective pilgrims)
     const validJamaah = jamaahList.filter(j => {
       if (!j) return false;
-      const name = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
-      return name !== '' && !name.startsWith('Jamaah #');
+      return true;
     });
 
     validJamaah.forEach(j => {
