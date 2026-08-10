@@ -578,9 +578,9 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
         return false;
       });
 
-      // Fallback: If no direct match found but mitras exist, attribute to the first active mitra (or single active mitra)
-      if (!matchingMitra && mitras.length > 0) {
-        matchingMitra = mitras[0];
+      // STRICT ISOLATION: If no matching mitra found, skip this jamaah completely (do not fallback to any mitra)
+      if (!matchingMitra) {
+        return;
       }
 
       const key = matchingMitra ? matchingMitra.id : (j.mitraId || j.mitraEmail || jRawName || 'unknown');
