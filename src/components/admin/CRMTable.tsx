@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { CRMDetailDrawer } from './CRMDetailDrawer';
 import { toast } from 'sonner';
+import { useSocket } from '@/src/hooks/useSocket';
 
 export const CRMTable: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) => {
   const [page, setPage] = useState(1);
@@ -39,6 +40,16 @@ export const CRMTable: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) =>
   const [selectedReg, setSelectedReg] = useState<CRMRegistration | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  // Listen for real-time update signals (e.g. Jamaah login/register/update)
+  const handleRealtimeUpdate = React.useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['crm_registrations'] });
+    queryClient.invalidateQueries({ queryKey: ['packages'] });
+    queryClient.invalidateQueries({ queryKey: ['schedules'] });
+    if (onRefresh) onRefresh();
+  }, [queryClient, onRefresh]);
+
+  useSocket(handleRealtimeUpdate);
 
   const deleteMutation = useMutation({
     mutationFn: (userId: string) => api.delete(`/admin/users/${userId}`),
@@ -60,7 +71,7 @@ export const CRMTable: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) =>
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Fetch Data
+  // Fetch Data with 5s auto-refetch for instant fallback
   const { data: crmData, isLoading } = useQuery({
     queryKey: ['crm_registrations', page, limit, debouncedSearch, statusFilter, packageFilter, scheduleFilter],
     queryFn: () => {
@@ -77,6 +88,7 @@ export const CRMTable: React.FC<{ onRefresh?: () => void }> = ({ onRefresh }) =>
       
       return api.get(`/admin/registrasis?${params.toString()}`);
     },
+    refetchInterval: 5000,
   });
 
   // Fetch Packages & Schedules for filters

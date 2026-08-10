@@ -20,6 +20,7 @@ import BroadcastManager from '../components/admin/BroadcastManager';
 import { useAdminData } from '../hooks/useAdminData';
 import CMSManager from '../components/admin/CMSManager';
 import { useSocket } from '../hooks/useSocket';
+import { useQueryClient } from '@tanstack/react-query';
 import { api, getAdminToken } from '../lib/api';
 import { auth } from '../lib/firebase';
 import { openDataUrlInNewTab, downloadFile, isPdfUrl, isImageUrl, getBlobUrlFromDataUrl } from '../utils/file';
@@ -88,11 +89,15 @@ export const matchDocumentCategory = (docTypeStr: string | null | undefined, cat
 
 export default function Admin() {
   const logoImg = useLogo();
+  const queryClient = useQueryClient();
   const { users, registrations, setRegistrations, packages, setPackages, schedules, dashboardStats, actionCenter, equipment: inventory, broadcast: announcements, manifest, loading, currentUser, setCurrentUser, refreshData } = useAdminData();
   const onDataUpdated = React.useCallback(() => {
     console.log("Admin: Received real-time update signal.");
     refreshData(true);
-  }, [refreshData]);
+    queryClient.invalidateQueries({ queryKey: ['crm_registrations'] });
+    queryClient.invalidateQueries({ queryKey: ['packages'] });
+    queryClient.invalidateQueries({ queryKey: ['schedules'] });
+  }, [refreshData, queryClient]);
 
   useSocket(onDataUpdated);
   const navigate = useNavigate();
@@ -1240,6 +1245,17 @@ export default function Admin() {
     return dashboardStats?.totalJamaah || 0;
   }, [consultations, users, dashboardStats]);
 
+  // Count active mitra users
+  const activeMitraCount = React.useMemo(() => {
+    if (dashboardStats?.totalMitraAktif !== undefined) {
+      return dashboardStats.totalMitraAktif;
+    }
+    if (users && users.length > 0) {
+      return users.filter((u: any) => u.role === 'mitra' && !u.deletedAt && u.status !== 'suspended').length;
+    }
+    return 0;
+  }, [users, dashboardStats]);
+
   const stats = [
     { 
       title: 'Jamaah Aktif', 
@@ -1251,7 +1267,7 @@ export default function Admin() {
     },
     { 
       title: 'Mitra Jemaah Aktif', 
-      value: (dashboardStats?.totalMitraAktif || 0).toLocaleString('id-ID'), 
+      value: activeMitraCount.toLocaleString('id-ID'), 
       icon: <UserCheck className="text-amber-600 w-6 h-6 group-hover:scale-110 transition-transform" />, 
       bg: 'bg-amber-50', 
       trend: 'Mitra Terverifikasi',

@@ -1997,6 +1997,7 @@ async function startServer() {
           workspaceId: existingUser.workspaceId || existingUser.workspace_id
         }, JWT_SECRET, { expiresIn: '7d' });
 
+        notifyUpdate();
         return res.json({
           success: true,
           user: existingUser,
@@ -2984,11 +2985,14 @@ async function startServer() {
       const limitNum = Number(limit);
       const offset = (pageNum - 1) * limitNum;
       
+      const userWsId = req.user!.workspaceId;
       const filters = [
-        eq(schema.users.workspaceId, req.user!.workspaceId!),
+        userWsId 
+          ? or(eq(schema.users.workspaceId, userWsId), isNull(schema.users.workspaceId))
+          : undefined,
         eq(schema.users.role, 'jamaah'),
         isNull(schema.users.deletedAt)
-      ];
+      ].filter(Boolean);
       
       if (status) {
         const statusArray = Array.isArray(status) ? (status as string[]) : [status as string];
@@ -7806,12 +7810,8 @@ async function startServer() {
       const totalJamaah = Number(allJamaahUsersResult[0]?.count || 0);
  
       // 1b. Mitra Aktif
-      const activeMitraResult = await withRetry(() => db.select({
-        count: sql<number>`count(*)`
-      })
-      .from(schema.mitraUsers)
-      .where(eq(schema.mitraUsers.statusAkun, 'active')));
-      const totalMitraAktif = Number(activeMitraResult[0]?.count || 0);
+      const comprehensiveMitraList = await getComprehensiveMitraList('active').catch(() => []);
+      const totalMitraAktif = comprehensiveMitraList.length;
 
       // 2. Arus Kas (Bulan Ini)
       const cashFlow = await withRetry(() => db.select({
