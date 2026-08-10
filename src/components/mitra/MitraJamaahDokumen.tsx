@@ -100,7 +100,8 @@ export default function MitraJamaahDokumen({ jamaahList, onRefresh }: MitraJamaa
     // Persist to PostgreSQL database first
     try {
       if (updatedCentral.length > 0) {
-        await api.post('/admin/mitra/jamaah/sync', { jamaahList: updatedCentral });
+        const currentMitraJamaah = filterJamaahForCurrentMitra(updatedCentral);
+        await api.post('/mitra/jamaah/sync', { jamaahList: currentMitraJamaah });
       }
     } catch (err) {
       console.warn('Failed to sync mitra jamaah documents to backend:', err);

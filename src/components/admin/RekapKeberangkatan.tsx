@@ -11,6 +11,19 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { generateDepartureManifestPdf } from '../../utils/generateJamaahRecapPdf';
 
+const isPlaceholderName = (name: string): boolean => {
+  const clean = (name || '').trim().toLowerCase();
+  return !clean ||
+         clean.startsWith('jamaah #') ||
+         clean.startsWith('jemaah #') ||
+         clean === 'jemaah mitra (belum isi biodata)' ||
+         clean.includes('belum isi biodata') ||
+         clean.includes('belum_isi') ||
+         clean.includes('belum bisa') ||
+         clean.startsWith('jemaah mitra') ||
+         clean.startsWith('jamaah mitra');
+};
+
 export const RekapKeberangkatan: React.FC = () => {
   const [search, setSearch] = useState('');
   const [packageFilter, setPackageFilter] = useState('all');
@@ -121,10 +134,14 @@ export const RekapKeberangkatan: React.FC = () => {
     // 3. Populate combined registrations
     mergedMitraJamaah.forEach(j => {
       const jRawName = (j.userName || j.namaLengkap || j.fullName || j.name || '').trim();
-      const isPlaceholder = !jRawName || jRawName.startsWith('Jamaah #');
-      const finalName = isPlaceholder ? 'Jemaah Mitra (Belum Isi Biodata)' : jRawName;
+      const isPlaceholder = isPlaceholderName(jRawName);
 
-      const isAlreadyInReg = (j.registrationId && existingRegIds.has(j.registrationId)) || (!isPlaceholder && existingPaxNames.has(jRawName.toLowerCase()));
+      // Skip placeholder/unfilled prospective pilgrim slots entirely for Rekap Keberangkatan
+      if (isPlaceholder) {
+        return;
+      }
+
+      const isAlreadyInReg = (j.registrationId && existingRegIds.has(j.registrationId)) || existingPaxNames.has(jRawName.toLowerCase());
 
       if (!isAlreadyInReg) {
         const hasKtp = j.docFiles?.ktp || j.documents?.ktp?.url || j.documents?.ktp?.fileUrl || (j.documents && j.documents.ktp && j.documents.ktp.url);
@@ -142,13 +159,13 @@ export const RekapKeberangkatan: React.FC = () => {
           mitraEmail: j.mitraEmail || '',
           paxData: [{
             id: j.id,
-            fullName: finalName,
-            userName: finalName,
+            fullName: jRawName,
+            userName: jRawName,
             nik: j.nik || '-',
             phone: j.phone || '-',
             gender: j.gender || j.jenisKelamin || '-',
             address: j.alamat || j.alamatLengkap || j.address || '-',
-            pasporNama: j.pasporNama || finalName
+            pasporNama: j.pasporNama || jRawName
           }],
           package: j.packageName ? { id: j.packageId || 'custom', name: j.packageName, price: j.packagePrice || 0, description: [], duration: '', features: [] } : undefined,
           schedule: j.departureDate && j.departureDate !== '-' ? { id: 'custom-schedule', departureDate: j.departureDate, packageName: j.packageName || '' } : undefined,
@@ -173,7 +190,7 @@ export const RekapKeberangkatan: React.FC = () => {
     // Extract all valid pax full names
     const validPaxNames = paxData
       .map(p => (p.fullName || p.userName || p.namaLengkap || p.name || '').trim())
-      .filter(name => name && !name.startsWith('Jamaah #'));
+      .filter(name => name && !isPlaceholderName(name));
 
     // Separate names that match orderer/mitra name vs actual jamaah names
     const actualJamaahNames = validPaxNames.filter(n => n.toLowerCase() !== ordererName.toLowerCase());
@@ -233,6 +250,10 @@ export const RekapKeberangkatan: React.FC = () => {
     }
 
     const info = getRegistrationDisplayInfo(reg);
+
+    // Skip entire registration if the display name is a placeholder
+    if (isPlaceholderName(info.displayTitle)) return false;
+
     const q = search.toLowerCase().trim();
 
     const matchesSearch = !q || 
@@ -276,7 +297,13 @@ export const RekapKeberangkatan: React.FC = () => {
   });
 
   // Calculate stats for current filter
-  const totalPax = filteredRegs.reduce((sum, reg) => sum + (Array.isArray(reg.paxData) ? reg.paxData.length : 1), 0);
+  const totalPax = filteredRegs.reduce((sum, reg) => {
+    if (Array.isArray(reg.paxData)) {
+      const validPaxCount = reg.paxData.filter(p => p && !isPlaceholderName(p.fullName || p.userName || p.namaLengkap || p.name)).length;
+      return sum + validPaxCount;
+    }
+    return sum + (isPlaceholderName(reg.ordererName) ? 0 : 1);
+  }, 0);
   const monthlyPax = monthFilter === 'all' ? 0 : totalPax;
 
   // Month options
@@ -297,7 +324,8 @@ export const RekapKeberangkatan: React.FC = () => {
 
   // Convert to Consultation format for PDF util
   const consultations: Consultation[] = filteredRegs.map(reg => {
-    const paxData = Array.isArray(reg.paxData) ? reg.paxData : [];
+    const paxData = (Array.isArray(reg.paxData) ? reg.paxData : [])
+      .filter(p => p && !isPlaceholderName(p.fullName || p.userName || p.namaLengkap || p.name));
     const info = getRegistrationDisplayInfo(reg);
     return {
       id: reg.id,
@@ -500,11 +528,19 @@ export const RekapKeberangkatan: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {months.map((m) => {
           const count = combinedRegs.filter(reg => {
+            const info = getRegistrationDisplayInfo(reg);
+            if (isPlaceholderName(info.displayTitle)) return false;
             if (!reg.schedule?.departureDate) return false;
             const d = new Date(reg.schedule.departureDate);
             const matchesYear = yearFilter === 'all' || d.getFullYear().toString() === yearFilter;
             return d.getMonth() === parseInt(m.value) && matchesYear;
-          }).reduce((sum, reg) => sum + (Array.isArray(reg.paxData) ? reg.paxData.length : 1), 0);
+          }).reduce((sum, reg) => {
+            if (Array.isArray(reg.paxData)) {
+              const validPaxCount = reg.paxData.filter(p => p && !isPlaceholderName(p.fullName || p.userName || p.namaLengkap || p.name)).length;
+              return sum + validPaxCount;
+            }
+            return sum + 1;
+          }, 0);
 
           if (count === 0) return null;
 
@@ -849,11 +885,10 @@ export const RekapKeberangkatan: React.FC = () => {
               ) : (
                 filteredRegs.flatMap(reg => {
                   const info = getRegistrationDisplayInfo(reg);
-                  const pList = Array.isArray(reg.paxData) && reg.paxData.length > 0 ? reg.paxData : [{
-                    fullName: info.displayTitle,
-                    nik: '-',
-                    phone: reg.ordererPhone || reg.user?.phone || '-'
-                  }];
+                  const pList = (Array.isArray(reg.paxData) ? reg.paxData : [])
+                    .filter(pax => pax && !isPlaceholderName(pax.fullName || pax.userName || pax.namaLengkap || pax.name));
+
+                  if (pList.length === 0) return [];
 
                   return pList.map((pax, pIdx) => {
                     const paxName = pax.fullName || pax.userName || pax.namaLengkap || pax.name || info.displayTitle;
