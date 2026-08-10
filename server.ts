@@ -10201,111 +10201,11 @@ async function seedAllPortals() {
       pkgReguler = existingPackages[0];
     }
 
-    // 4. Mitra Seeding
-    const existingMitra = await db.select().from(schema.mitraUsers).where(eq(schema.mitraUsers.email, 'mitra@goldentravel.id')).catch(() => []);
-    let sampleMitraUser: any = null;
-    if (!existingMitra || existingMitra.length === 0) {
-      console.log("Seeding Akun Mitra Sampel...");
-      const [m] = await db.insert(schema.mitraUsers).values({
-        name: 'Ustadz Ahmad Mitra',
-        email: 'mitra@goldentravel.id',
-        noWa: '081234567890',
-        passwordHash: hashPassword('mitra123'),
-        statusAkun: 'active'
-      }).returning();
-      sampleMitraUser = m;
+    // 4. Mitra Seeding (DISABLED AUTO-SEED OF MOCK DATA ON REBOOT)
+    // Sample mock mitra (Ustadz Ahmad Mitra) is no longer auto-recreated on restart/redeploy.
 
-      if (sampleMitraUser) {
-        await db.insert(schema.mitraProfiles).values({
-          userId: sampleMitraUser.id,
-          namaLengkap: 'Ustadz Ahmad Mitra',
-          nik: '3171010101900001',
-          tempatLahir: 'Jakarta',
-          tanggalLahir: '1990-05-15',
-          alamatLengkap: 'Jl. Raya Kebayoran No. 12, Jakarta Selatan',
-          namaBank: 'Bank Syariah Indonesia (BSI)',
-          noRekening: '7112233445',
-          namaPemilikRekening: 'Ahmad Mitra',
-          whatsapp: '081234567890',
-          kota: 'Jakarta Selatan',
-          provinsi: 'DKI Jakarta'
-        });
-
-        await db.insert(schema.mitraCommissionPayouts).values({
-          workspaceId: ws.id,
-          mitraUserId: sampleMitraUser.id,
-          mitraName: 'Ustadz Ahmad Mitra',
-          mitraPhone: '081234567890',
-          jamaahName: 'Budi Santoso',
-          packageName: pkgReguler?.name || 'Paket Umrah Reguler Bintang 4',
-          amount: '1500000.00',
-          bankName: 'BSI',
-          accountNumber: '7112233445',
-          accountHolder: 'Ahmad Mitra',
-          status: 'APPROVED',
-          adminNotes: 'Komisi pendaftaran jamaah Budi Santoso telah dicairkan.',
-          transferDate: new Date()
-        });
-      }
-    }
-
-    // 5. Jamaah & Booking Seeding
-    const existingJamaah = await db.select().from(schema.users).where(eq(schema.users.email, 'jamaah@goldentravel.id')).catch(() => []);
-    if (!existingJamaah || existingJamaah.length === 0) {
-      console.log("Seeding Akun Jamaah & Booking Sampel...");
-      const [jamaahUser] = await db.insert(schema.users).values({
-        workspaceId: ws.id,
-        uid: crypto.randomUUID(),
-        name: 'Budi Santoso',
-        email: 'jamaah@goldentravel.id',
-        phone: '081388990011',
-        password: hashPassword('jamaah123'),
-        role: 'jamaah',
-        status: 'active'
-      }).returning();
-
-      if (jamaahUser && pkgReguler) {
-        const [reg] = await db.insert(schema.registrations).values({
-          workspaceId: ws.id,
-          userId: jamaahUser.id,
-          packageId: pkgReguler.id,
-          status: 'LUNAS',
-          ordererName: 'Budi Santoso',
-          ordererPhone: '081388990011',
-          ordererEmail: 'jamaah@goldentravel.id',
-          adultCount: '1',
-          totalAmount: pkgReguler.price,
-          paxData: [{
-            fullName: 'Budi Santoso',
-            gender: 'Laki-laki',
-            passportNumber: 'A12345678',
-            phone: '081388990011'
-          }]
-        }).returning();
-
-        if (reg) {
-          const [pay] = await db.insert(schema.payments).values({
-            workspaceId: ws.id,
-            registrationId: reg.id,
-            paymentType: 'PELUNASAN',
-            amount: pkgReguler.price,
-            proofUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=800&q=80',
-            status: 'VERIFIED',
-            adminNotes: 'Pembayaran Lunas diverifikasi.'
-          }).returning();
-
-          if (pay) {
-            await db.insert(schema.financial_ledger).values({
-              workspaceId: ws.id,
-              paymentId: pay.id,
-              amount: pkgReguler.price,
-              transactionType: 'in',
-              description: `Pembayaran Pelunasan Umrah - Jemaah Budi Santoso (${pkgReguler.name})`
-            });
-          }
-        }
-      }
-    }
+    // 5. Jamaah & Booking Seeding (DISABLED AUTO-SEED OF MOCK DATA ON REBOOT)
+    // Sample mock jamaah (Budi Santoso) is no longer auto-recreated on restart/redeploy.
 
     // 6. Gallery Photos Seeding
     const galleryCount = await db.select({ count: sql`count(*)` }).from(schema.gallery_photos);
