@@ -117,8 +117,9 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                     userName: paxName
                   };
                   const existingIdx = merged.findIndex(m => {
-                    const mName = (m?.userName || m?.namaLengkap || m?.nama || m?.fullName || m?.name || m?.pasporNama || '').trim();
-                    return m.id === pax.id || (mName === paxName && (m.mitraEmail === pax.mitraEmail || m.mitraId === pax.mitraId || m.mitraId === paxWithMitra.mitraId));
+                    const mName = (m?.userName || m?.namaLengkap || m?.nama || m?.fullName || m?.name || m?.pasporNama || '').trim().toLowerCase().replace(/\s+/g, ' ');
+                    const pNameNorm = paxName.toLowerCase().replace(/\s+/g, ' ');
+                    return m.id === pax.id || (mName !== '' && mName === pNameNorm);
                   });
                   if (existingIdx >= 0) {
                     // Combine payments
@@ -266,12 +267,16 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       return newJ;
     });
 
-    return fixed.filter(j => {
-      if (!j) return false;
+    const finalUnique: any[] = [];
+    const seenNames = new Set<string>();
+    
+    fixed.forEach(j => {
+      if (!j) return;
       const name = (j.userName || j.namaLengkap || j.nama || j.fullName || j.name || j.pasporNama || '').trim();
-      if (!name || name.startsWith('Jamaah #')) return false;
-
-      // STRICT ISOLATION: Must have valid mitra attribution
+      if (!name || name.startsWith('Jamaah #')) return;
+      
+      const normName = name.toLowerCase().replace(/\s+/g, ' ');
+      
       const hasMitraId = Boolean(j.mitraId && j.mitraId !== 'mitra-user' && j.mitraId !== 'unknown');
       const hasMitraEmail = Boolean(j.mitraEmail);
       const hasMitraName = Boolean(j.mitraName && j.mitraName !== 'Mitra Travel' && j.mitraName !== 'Mitra');
@@ -287,8 +292,32 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                (jEmail && rmEmail && jEmail === rmEmail);
       });
 
-      return hasMitraId || hasMitraEmail || hasMitraName || matchedReal;
+      if (hasMitraId || hasMitraEmail || hasMitraName || matchedReal) {
+        if (!seenNames.has(normName)) {
+          seenNames.add(normName);
+          finalUnique.push(j);
+        } else {
+          // Merge if already seen to keep documents, status or payments
+          const existingIdx = finalUnique.findIndex(x => {
+            const xName = (x.userName || x.namaLengkap || x.nama || x.fullName || x.name || x.pasporNama || '').trim().toLowerCase().replace(/\s+/g, ' ');
+            return xName === normName;
+          });
+          if (existingIdx >= 0) {
+            const prev = finalUnique[existingIdx];
+            finalUnique[existingIdx] = {
+              ...j,
+              ...prev,
+              documents: { ...(j.documents || {}), ...(prev.documents || {}) },
+              payments: [...(j.payments || []), ...(prev.payments || [])].filter((p, i, self) => 
+                self.findIndex(x => x.id === p.id || (x.date === p.date && x.amount === p.amount && x.step === p.step)) === i
+              )
+            };
+          }
+        }
+      }
     });
+
+    return finalUnique;
   };
 
   // Load initial database from localStorage or fallback

@@ -4086,6 +4086,30 @@ async function startServer() {
     }
   });
 
+  function deduplicatePaxData(paxData: any[]) {
+    if (!Array.isArray(paxData)) return paxData;
+    const uniquePax: any[] = [];
+    paxData.forEach((p: any) => {
+      if (!p) return;
+      const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
+      if (!pName) return;
+      const duplicateIdx = uniquePax.findIndex(ex => {
+        const exName = (ex.userName || ex.namaLengkap || ex.nama || ex.fullName || ex.name || ex.pasporNama || '').trim();
+        return exName.toLowerCase().replace(/\s+/g, ' ') === pName.toLowerCase().replace(/\s+/g, ' ');
+      });
+      if (duplicateIdx >= 0) {
+        uniquePax[duplicateIdx] = { 
+          ...uniquePax[duplicateIdx], 
+          ...p, 
+          documents: { ...(uniquePax[duplicateIdx].documents || {}), ...(p.documents || {}) } 
+        };
+      } else {
+        uniquePax.push(p);
+      }
+    });
+    return uniquePax;
+  }
+
   // PUT /api/registrasi/:id/biodata -> Jamaah: simpan biodata
   app.put("/api/registrasi/:id/biodata", authenticate, requireStatus('PILIH_PAKET', 'ISI_BIODATA'), async (req: AuthRequest, res) => {
     const { paxData } = req.body;
@@ -4100,7 +4124,7 @@ async function startServer() {
 
       await withRetry(() => db.update(schema.registrations)
         .set({ 
-          paxData, 
+          paxData: deduplicatePaxData(paxData), 
           status: 'ISI_BIODATA',
           updatedAt: new Date() 
         })
@@ -5324,7 +5348,7 @@ async function startServer() {
       }
 
       if (paymentStep !== undefined) updateData.paymentStep = paymentStep;
-      if (paxData) updateData.paxData = paxData;
+      if (paxData) updateData.paxData = deduplicatePaxData(paxData);
       if (name !== undefined) updateData.ordererName = name;
       if (phone !== undefined) updateData.ordererPhone = phone;
       if (email !== undefined) updateData.ordererEmail = email;
@@ -5833,7 +5857,7 @@ async function startServer() {
              const rawName = (raw.userName || raw.namaLengkap || raw.nama || raw.fullName || raw.name || raw.pasporNama || '').trim();
              const duplicateIdx = existingPax.findIndex(ex => {
                const exName = (ex.userName || ex.namaLengkap || ex.nama || ex.fullName || ex.name || ex.pasporNama || '').trim();
-               return exName && rawName && exName.toLowerCase() === rawName.toLowerCase();
+               return exName && rawName && exName.toLowerCase().replace(/\s+/g, ' ') === rawName.toLowerCase().replace(/\s+/g, ' ');
              });
              
              if (duplicateIdx >= 0) {
@@ -5852,7 +5876,7 @@ async function startServer() {
             const exIdx = updatedPaxList.findIndex(ex => {
               const exName = (ex.userName || ex.namaLengkap || ex.nama || ex.fullName || ex.name || ex.pasporNama || '').trim();
               if (p.id && ex.id && p.id === ex.id) return true;
-              if (pName && exName && pName.toLowerCase() === exName.toLowerCase()) return true;
+              if (pName && exName && pName.toLowerCase().replace(/\s+/g, ' ') === exName.toLowerCase().replace(/\s+/g, ' ')) return true;
               return false;
             });
             
@@ -8918,7 +8942,7 @@ async function startServer() {
       if (ordererEmail !== undefined) updateData.ordererEmail = ordererEmail;
       if (ordererNotes !== undefined) updateData.ordererNotes = ordererNotes;
       if (status !== undefined) updateData.status = status;
-      if (paxData !== undefined) updateData.paxData = paxData;
+      if (paxData !== undefined) updateData.paxData = deduplicatePaxData(paxData);
       if (scheduleId !== undefined) updateData.scheduleId = scheduleId;
 
       await withRetry(() => db.update(schema.registrations)
