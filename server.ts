@@ -4287,8 +4287,8 @@ async function startServer() {
     
     // Guard for client-side/localStorage only records (e.g. non-UUID registrationId)
     if (registrationId && !isValidUUID(registrationId)) {
-      const newStatus = status === 'approved' || status === 'VERIFIED' ? 'VERIFIED' : 
-                        status === 'rejected' || status === 'REJECTED' ? 'REJECTED' : 'PENDING';
+      const newStatus = (status === 'approved' || status === 'VERIFIED' || status === 'verified') ? 'VERIFIED' : 
+                        (status === 'rejected' || status === 'REJECTED' || status === 'rejected') ? 'REJECTED' : 'PENDING';
       return res.json({
         id: "client-side-dummy-id",
         registrationId,
@@ -4303,58 +4303,61 @@ async function startServer() {
     }
     
     try {
-      let targetDoc = null;
-
-      if (docId && isValidUUID(docId)) {
-        targetDoc = await db.query.documents.findFirst({
-          where: eq(schema.documents.id, docId)
-        });
-      }
-
-      if (!targetDoc && registrationId && docType) {
-        targetDoc = await db.query.documents.findFirst({
-          where: and(
-            eq(schema.documents.registrationId, registrationId),
-            eq(schema.documents.docType, docType as any)
-          )
-        });
-      }
-
-      const newStatus = status === 'approved' || status === 'VERIFIED' ? 'VERIFIED' : 
-                        status === 'rejected' || status === 'REJECTED' ? 'REJECTED' : 'PENDING';
-
       let resultDoc = null;
-      if (targetDoc) {
-        const [updated] = await withRetry(() => db.update(schema.documents)
-          .set({
+      const newStatus = (status === 'approved' || status === 'VERIFIED' || status === 'verified') ? 'VERIFIED' : 
+                        (status === 'rejected' || status === 'REJECTED' || status === 'rejected') ? 'REJECTED' : 'PENDING';
+
+      // USE TRANSACTION TO PREVENT RACE CONDITIONS
+      await db.transaction(async (tx) => {
+        let targetDoc = null;
+
+        if (docId && isValidUUID(docId)) {
+          targetDoc = await tx.query.documents.findFirst({
+            where: eq(schema.documents.id, docId)
+          });
+        }
+
+        if (!targetDoc && registrationId && docType) {
+          targetDoc = await tx.query.documents.findFirst({
+            where: and(
+              eq(schema.documents.registrationId, registrationId),
+              eq(schema.documents.docType, docType as any)
+            )
+          });
+        }
+
+        if (targetDoc) {
+          const [updated] = await tx.update(schema.documents)
+            .set({
+              status: newStatus as any,
+              adminNotes: rejectionReason || null,
+              updatedAt: new Date()
+            })
+            .where(eq(schema.documents.id, targetDoc.id))
+            .returning();
+          resultDoc = updated;
+        } else if (registrationId && docType) {
+          const reg = await tx.query.registrations.findFirst({ where: eq(schema.registrations.id, registrationId) });
+          const [inserted] = await tx.insert(schema.documents).values({
+            registrationId,
+            docType: docType as any,
+            fileUrl: '',
             status: newStatus as any,
             adminNotes: rejectionReason || null,
-            updatedAt: new Date()
-          })
-          .where(eq(schema.documents.id, targetDoc.id))
-          .returning());
-        resultDoc = updated;
-      } else if (registrationId && docType) {
-        const reg = await db.query.registrations.findFirst({ where: eq(schema.registrations.id, registrationId) });
-        const [inserted] = await withRetry(() => db.insert(schema.documents).values({
-          registrationId,
-          docType: docType as any,
-          fileUrl: '',
-          status: newStatus as any,
-          adminNotes: rejectionReason || null,
-          workspaceId: reg?.workspaceId || 'default'
-        }).returning());
-        resultDoc = inserted;
-      }
+            workspaceId: reg?.workspaceId || 'default'
+          }).returning();
+          resultDoc = inserted;
+        }
 
-      // Also update paxData in registrations table so pax.documents stays in sync for this specific document
-      const targetRegId = targetDoc?.registrationId || registrationId;
-      if (targetRegId && isValidUUID(targetRegId)) {
-        try {
-          const reg = await db.query.registrations.findFirst({ where: eq(schema.registrations.id, targetRegId) });
+        // --- ATOMIC SYNC TO paxData ---
+        const targetRegId = targetDoc?.registrationId || registrationId;
+        if (targetRegId && isValidUUID(targetRegId)) {
+          const reg = await tx.query.registrations.findFirst({ where: eq(schema.registrations.id, targetRegId) });
           if (reg && Array.isArray(reg.paxData)) {
+            // Standardize paxData status to lowercase 'verified'/'rejected'/'pending' for frontend compatibility
             const normStatus = newStatus === 'VERIFIED' ? 'verified' : newStatus === 'REJECTED' ? 'rejected' : 'pending';
             const targetType = docType || targetDoc?.docType;
+            
             if (targetType) {
               const updatedPax = reg.paxData.map((p: any, pIdx: number) => {
                 const generatedPaxId = `JAM-${targetRegId.substring(0, 8)}-${pIdx + 1}`;
@@ -4378,15 +4381,17 @@ async function startServer() {
                 };
                 return { ...p, documents: pDocs };
               });
-              await withRetry(() => db.update(schema.registrations)
-                .set({ paxData: updatedPax })
-                .where(eq(schema.registrations.id, targetRegId)));
+
+              await tx.update(schema.registrations)
+                .set({ 
+                  paxData: updatedPax,
+                  updatedAt: new Date()
+                })
+                .where(eq(schema.registrations.id, targetRegId));
             }
           }
-        } catch (syncErr) {
-          console.warn("Failed to update paxData in registration after doc verify:", syncErr);
         }
-      }
+      });
 
       if (resultDoc) {
         notifyUpdate();
@@ -5711,114 +5716,118 @@ async function startServer() {
     for (const [regId, items] of groupMap.entries()) {
       if (items.length === 0) continue;
 
-      const sample = items[0];
-      const mId = sample.mitraId || reqUser.id;
-      const mName = sample.mitraName || sample.ordererName || reqUser.name || 'Mitra';
-      const mEmail = (sample.mitraEmail || sample.ordererEmail || reqUser.email || '').toLowerCase().trim();
+      await db.transaction(async (tx) => {
+        const sample = items[0];
+        const mId = sample.mitraId || reqUser.id;
+        const mName = sample.mitraName || sample.ordererName || reqUser.name || 'Mitra';
+        const mEmail = (sample.mitraEmail || sample.ordererEmail || reqUser.email || '').toLowerCase().trim();
 
-      // Resolve package ID
-      let targetPkgId = sample.packageId;
-      if (!targetPkgId || typeof targetPkgId !== 'string' || targetPkgId.length < 10) {
-        const firstPkg = await withRetry(() => db.query.packages.findFirst()).catch(() => null);
-        if (firstPkg) targetPkgId = firstPkg.id;
-      }
+        // Resolve package ID
+        let targetPkgId = sample.packageId;
+        if (!targetPkgId || typeof targetPkgId !== 'string' || targetPkgId.length < 10) {
+          const firstPkg = await tx.query.packages.findFirst().catch(() => null);
+          if (firstPkg) targetPkgId = firstPkg.id;
+        }
 
-      // Find registration by regId or mEmail
-      let existingReg = await withRetry(() => db.query.registrations.findFirst({
-        where: eq(schema.registrations.id, regId)
-      })).catch(() => null);
+        // Find registration by regId or mEmail
+        let existingReg = await tx.query.registrations.findFirst({
+          where: eq(schema.registrations.id, regId)
+        }).catch(() => null);
 
-      if (!existingReg && mEmail) {
-        existingReg = await withRetry(() => db.query.registrations.findFirst({
-          where: eq(schema.registrations.ordererEmail, mEmail)
-        })).catch(() => null);
-      }
+        if (!existingReg && mEmail) {
+          existingReg = await tx.query.registrations.findFirst({
+            where: eq(schema.registrations.ordererEmail, mEmail)
+          }).catch(() => null);
+        }
 
-      if (existingReg) {
-        const existingPax: any[] = Array.isArray(existingReg.paxData) ? existingReg.paxData : [];
-        const mergedMap = new Map<string, any>();
+        if (existingReg) {
+          const existingPax: any[] = Array.isArray(existingReg.paxData) ? existingReg.paxData : [];
+          const mergedMap = new Map<string, any>();
 
-        existingPax.forEach(p => {
-          const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
-          const pKey = p.id || pName;
-          if (pKey) mergedMap.set(pKey, p);
-        });
+          existingPax.forEach(p => {
+            const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
+            const pKey = p.id || pName;
+            if (pKey) mergedMap.set(pKey, p);
+          });
 
-        items.forEach(p => {
-          const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
-          const pKey = p.id || pName;
-          if (pKey) {
-            const ex = mergedMap.get(pKey);
-            const exDocs = ex?.documents || {};
-            const pDocs = p.documents || {};
-            const mergedDocs: any = { ...exDocs, ...pDocs };
+          items.forEach(p => {
+            const pName = (p.userName || p.namaLengkap || p.nama || p.fullName || p.name || p.pasporNama || '').trim();
+            const pKey = p.id || pName;
+            if (pKey) {
+              const ex = mergedMap.get(pKey);
+              const exDocs = ex?.documents || {};
+              const pDocs = p.documents || {};
+              const mergedDocs: any = { ...exDocs, ...pDocs };
 
-            Object.keys(mergedDocs).forEach(dk => {
-              const exDoc = exDocs[dk];
-              const pDoc = pDocs[dk];
-              if (exDoc && pDoc) {
-                const exStatus = (exDoc.status || '').toLowerCase();
-                const pStatus = (pDoc.status || '').toLowerCase();
-                const isTerminal = (s: string) => ['verified', 'approved', 'rejected'].includes(s);
-                if (isTerminal(exStatus) && !isTerminal(pStatus)) {
-                  mergedDocs[dk] = {
-                    ...pDoc,
-                    ...exDoc,
-                    status: exStatus === 'approved' ? 'verified' : exStatus
-                  };
+              Object.keys(mergedDocs).forEach(dk => {
+                const exDoc = exDocs[dk];
+                const pDoc = pDocs[dk];
+                if (exDoc && pDoc) {
+                  const exStatus = (exDoc.status || '').toLowerCase();
+                  const pStatus = (pDoc.status || '').toLowerCase();
+                  const isTerminal = (s: string) => ['verified', 'approved', 'rejected', 'VERIFIED', 'REJECTED'].includes(s);
+                  
+                  // If existing is terminal and new is pending, keep terminal
+                  if (isTerminal(exStatus) && !isTerminal(pStatus)) {
+                    mergedDocs[dk] = {
+                      ...pDoc,
+                      ...exDoc,
+                      status: exStatus === 'approved' || exStatus === 'verified' || exStatus === 'VERIFIED' ? 'verified' : 'rejected'
+                    };
+                  }
                 }
-              }
-            });
+              });
 
-            mergedMap.set(pKey, {
-              ...(ex || {}),
-              ...p,
-              userName: pName || ex?.userName || 'Jemaah',
-              mitraId: mId,
-              mitraName: mName,
-              mitraEmail: mEmail,
-              documents: mergedDocs
-            });
-          }
-        });
+              mergedMap.set(pKey, {
+                ...(ex || {}),
+                ...p,
+                userName: pName || ex?.userName || 'Jemaah',
+                mitraId: mId,
+                mitraName: mName,
+                mitraEmail: mEmail,
+                documents: mergedDocs
+              });
+            }
+          });
 
-        const updatedPax = Array.from(mergedMap.values());
+          const updatedPax = Array.from(mergedMap.values());
 
-        await withRetry(() => db.update(schema.registrations)
-          .set({
-            paxData: updatedPax,
-            adultCount: updatedPax.length.toString(),
-            ordererName: mName,
-            ordererEmail: mEmail,
-            ordererNotes: `MitraID: ${mId}`,
-            updatedAt: new Date()
-          })
-          .where(eq(schema.registrations.id, existingReg.id)));
-
-        totalSaved += items.length;
-      } else {
-        if (targetPkgId) {
-          try {
-            await withRetry(() => db.insert(schema.registrations).values({
-              userId: reqUser.id,
-              packageId: targetPkgId,
-              workspaceId: defaultWorkspaceId,
+          await tx.update(schema.registrations)
+            .set({
+              paxData: updatedPax,
+              adultCount: updatedPax.length.toString(),
               ordererName: mName,
               ordererEmail: mEmail,
               ordererNotes: `MitraID: ${mId}`,
-              adultCount: items.length.toString(),
-              childCount: '0',
-              infantCount: '0',
-              totalAmount: (items.length * 32500000).toString(),
-              paxData: items,
-              status: 'ISI_BIODATA'
-            }));
-            totalSaved += items.length;
-          } catch (e) {
-            console.error("Error inserting registration in syncJamaahListToDatabase:", e);
+              updatedAt: new Date()
+            })
+            .where(eq(schema.registrations.id, existingReg.id));
+
+          totalSaved += items.length;
+        } else {
+          if (targetPkgId) {
+            try {
+              await tx.insert(schema.registrations).values({
+                userId: reqUser.id,
+                packageId: targetPkgId,
+                workspaceId: defaultWorkspaceId,
+                ordererName: mName,
+                ordererEmail: mEmail,
+                ordererNotes: `MitraID: ${mId}`,
+                adultCount: items.length.toString(),
+                childCount: '0',
+                infantCount: '0',
+                totalAmount: (items.length * 32500000).toString(),
+                paxData: items,
+                status: 'ISI_BIODATA'
+              });
+              totalSaved += items.length;
+            } catch (e) {
+              console.error("Error inserting registration in syncJamaahListToDatabase:", e);
+            }
           }
         }
-      }
+      });
     }
 
     return { count: totalSaved };
@@ -7479,17 +7488,20 @@ async function startServer() {
             }
 
             if (base64Data) {
-              if (contentType === 'application/octet-stream' || !contentType) {
+              if (contentType === 'application/octet-stream' || !contentType || contentType === 'image/png') {
                 if (base64Data.startsWith('JVBERi0')) contentType = 'application/pdf';
                 else if (base64Data.startsWith('/9j/')) contentType = 'image/jpeg';
                 else if (base64Data.startsWith('iVBORw')) contentType = 'image/png';
-                else contentType = 'image/png';
+                else if (req.params.ext === 'pdf' || req.url.toLowerCase().includes('.pdf')) contentType = 'application/pdf';
               }
 
               const buffer = Buffer.from(base64Data, 'base64');
               res.setHeader('Content-Type', contentType);
               res.setHeader('Content-Length', buffer.length);
               res.setHeader('Cache-Control', 'public, max-age=31536000');
+              if (contentType === 'application/pdf') {
+                res.setHeader('Content-Disposition', 'inline; filename="document.pdf"');
+              }
               return res.send(buffer);
             }
           }
@@ -7547,76 +7559,70 @@ async function startServer() {
     const { id } = req.params;
     const { status, reason } = req.body;
 
-    // VALIDASI MUTLAK: Tolak ID jika rusak (seperti '.', kosong, atau undefined)
-    if (!id || id === '.' || id === 'undefined' || id.trim() === '') {
-      console.error("DITOLAK: Parameter ID rusak diterima:", id);
-      return res.status(400).json({ error: "ID dokumen tidak valid" });
-    }
-
-    // Validate ID as UUID
-    console.log("RECEIVED ID:", id, typeof id);
-    if (!isValidUUID(id)) {
+    if (!id || id === '.' || id === 'undefined' || id.trim() === '' || !isValidUUID(id)) {
       return res.status(400).json({ error: "ID dokumen tidak valid" });
     }
 
     try {
-      // Map frontend status to DB enum
-      const dbStatus = status === 'approved' ? 'VERIFIED' : status === 'rejected' ? 'REJECTED' : status;
+      const newStatus = (status === 'approved' || status === 'VERIFIED' || status === 'verified') ? 'VERIFIED' : 
+                        (status === 'rejected' || status === 'REJECTED' || status === 'rejected') ? 'REJECTED' : 'PENDING';
 
-      // Update the document
-      const updatedDocs = await withRetry(() => db.update(schema.documents)
-        .set({ 
-          status: dbStatus as any, 
-          adminNotes: reason || null,
-          updatedAt: new Date()
-        })
-        .where(eq(schema.documents.id, id))
-        .returning());
+      let resultDoc = null;
 
-      if (!updatedDocs || updatedDocs.length === 0) {
+      await db.transaction(async (tx) => {
+        const [updated] = await tx.update(schema.documents)
+          .set({ 
+            status: newStatus as any, 
+            adminNotes: reason || null,
+            updatedAt: new Date()
+          })
+          .where(eq(schema.documents.id, id))
+          .returning();
+
+        if (updated) {
+          resultDoc = updated;
+          
+          // ATOMIC SYNC TO paxData
+          const regId = updated.registrationId;
+          if (regId && isValidUUID(regId)) {
+            const reg = await tx.query.registrations.findFirst({ where: eq(schema.registrations.id, regId) });
+            if (reg && Array.isArray(reg.paxData)) {
+              const normStatus = newStatus === 'VERIFIED' ? 'verified' : newStatus === 'REJECTED' ? 'rejected' : 'pending';
+              const updatedPax = reg.paxData.map((p: any) => {
+                // If it's a single-person registration, or if we can match by docType (unique per person per reg)
+                // Actually, the documents table has a unique index on (registration_id, doc_type).
+                // This means there's only ONE such document per registration.
+                // In a multi-pax registration, the 'documents' table might be ambiguous if it doesn't have a jamaah_id.
+                // Let's check schema.ts for jamaah_id in documents table.
+                const pDocs = { ...(p.documents || {}) };
+                if (pDocs[updated.docType]) {
+                  pDocs[updated.docType] = {
+                    ...pDocs[updated.docType],
+                    status: normStatus,
+                    adminNotes: reason || null,
+                    updatedAt: new Date().toISOString()
+                  };
+                }
+                return { ...p, documents: pDocs };
+              });
+
+              await tx.update(schema.registrations)
+                .set({ paxData: updatedPax, updatedAt: new Date() })
+                .where(eq(schema.registrations.id, regId));
+            }
+          }
+        }
+      });
+
+      if (!resultDoc) {
         return res.status(404).json({ error: "Dokumen tidak ditemukan" });
       }
 
-      const updatedDoc = updatedDocs[0];
-      res.json(updatedDoc);
-
-      // Async background tasks for registration status advancement
-      setImmediate(async () => {
-        try {
-          if (updatedDoc.status === 'VERIFIED') {
-            const regId = updatedDoc.registrationId;
-            if (!regId) return;
-
-            const reg = await withRetry(() => db.query.registrations.findFirst({
-              where: eq(schema.registrations.id, regId)
-            }));
-
-            if (reg && reg.status === 'UPLOAD_DOKUMEN') {
-              const docs = await getDocumentsQuery({
-                where: eq(schema.documents.registrationId, regId)
-              });
-              
-              const verifiedCount = docs.filter(d => d.status === 'VERIFIED').length;
-              if (verifiedCount >= 3) {
-                await withRetry(() => db.update(schema.registrations)
-                  .set({ status: 'VERIFIKASI_DOKUMEN', updatedAt: new Date() })
-                  .where(eq(schema.registrations.id, regId)));
-                console.log(`[Admin] Registration ${regId} moved to VERIFIKASI_DOKUMEN`);
-              }
-            }
-
-            if (reg && reg.userId) {
-              invalidateUserCache(reg.userId);
-            }
-          }
-          if (typeof notifyUpdate === 'function') notifyUpdate();
-        } catch (bgErr) {
-          console.warn(`[Admin] Post-verification background tasks failed for doc ${id}:`, bgErr);
-        }
-      });
+      res.json(resultDoc);
+      notifyUpdate();
     } catch (error: any) {
       console.error(`[Admin] Document verification failed for ${id}:`, error);
-      res.status(500).json({ error: "Terjadi kesalahan pada server: " + (error.message || "") });
+      res.status(500).json({ error: "Terjadi kesalahan pada server" });
     }
   });
 
@@ -7864,58 +7870,58 @@ async function startServer() {
     
     const { docType, fileUrl, items } = req.body;
     try {
-      const reg = await withRetry(() => db.query.registrations.findFirst({
-              where: eq(schema.registrations.id, registrationId)
-            }));
-
       const docItems: Array<{ docType: string; fileUrl: string }> = (items && Array.isArray(items) && items.length > 0)
         ? items
         : [{ docType, fileUrl }];
 
-      for (const item of docItems) {
-        if (!item.docType) continue;
-        let existing = await withRetry(() => db.query.documents.findFirst({
-                  where: and(eq(schema.documents.registrationId, registrationId), eq(schema.documents.docType, item.docType as any))
-                }));
+      await db.transaction(async (tx) => {
+        const reg = await tx.query.registrations.findFirst({
+          where: eq(schema.registrations.id, registrationId)
+        });
 
-        if (!item.fileUrl) {
-          if (existing) {
-            await withRetry(() => db.delete(schema.documents).where(eq(schema.documents.id, existing.id)));
+        for (const item of docItems) {
+          if (!item.docType) continue;
+          let existing = await tx.query.documents.findFirst({
+            where: and(eq(schema.documents.registrationId, registrationId), eq(schema.documents.docType, item.docType as any))
+          });
+
+          if (!item.fileUrl) {
+            if (existing) {
+              await tx.delete(schema.documents).where(eq(schema.documents.id, existing.id));
+            }
+          } else if (existing) {
+            await tx.update(schema.documents).set({ fileUrl: item.fileUrl, status: 'VERIFIED', updatedAt: new Date() }).where(eq(schema.documents.id, existing.id));
+          } else {
+            await tx.insert(schema.documents).values({
+              workspaceId: req.user?.workspaceId || reg?.workspaceId || 'default',
+              registrationId,
+              docType: item.docType as any,
+              fileUrl: item.fileUrl,
+              status: 'VERIFIED'
+            });
           }
-        } else if (existing) {
-          await withRetry(() => db.update(schema.documents).set({ fileUrl: item.fileUrl, status: 'VERIFIED', updatedAt: new Date() }).where(eq(schema.documents.id, existing.id)));
-        } else {
-          await withRetry(() => db.insert(schema.documents).values({
-                      workspaceId: req.user?.workspaceId || reg?.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef',
-                      registrationId,
-                      docType: item.docType as any,
-                      fileUrl: item.fileUrl,
-                      status: 'VERIFIED'
-                    }));
+
+          // Send notification to jamaah
+          if (reg && reg.userId && item.fileUrl) {
+            const baseDocType = item.docType.split('_pax_')[0];
+            const docNameMap: Record<string, string> = {
+              eticket: 'E-Ticket Keberangkatan',
+              visa: 'Visa',
+              asuransi: 'Asuransi Perjalanan'
+            };
+            const docLabel = docNameMap[baseDocType] || baseDocType;
+            await tx.insert(schema.notifications).values({
+              workspaceId: req.user!.workspaceId!,
+              userId: reg.userId,
+              title: `Dokumen Ready: ${docLabel}`,
+              message: `Dokumen ${docLabel} Anda telah diterbitkan oleh pihak Travel dan siap diunduh di Portal Jamaah.`,
+              type: 'info'
+            }).catch((err) => console.error("Notif insert error:", err));
+          }
         }
 
-        // Send notification to jamaah if registration exists and fileUrl provided
-        if (reg && reg.userId && item.fileUrl) {
-          const baseDocType = item.docType.split('_pax_')[0];
-          const docNameMap: Record<string, string> = {
-            eticket: 'E-Ticket Keberangkatan',
-            visa: 'Visa',
-            asuransi: 'Asuransi Perjalanan'
-          };
-          const docLabel = docNameMap[baseDocType] || baseDocType;
-          await withRetry(() => db.insert(schema.notifications).values({
-                      workspaceId: req.user!.workspaceId!,
-                      userId: reg.userId,
-                      title: `Dokumen Ready: ${docLabel}`,
-                      message: `Dokumen ${docLabel} Anda telah diterbitkan oleh pihak Travel dan siap diunduh di Portal Jamaah.`,
-                      type: 'info'
-                    }).catch((err) => console.error("Notif insert error:", err)));
-        }
-      }
-
-      // Keep paxData in registrations table in sync
-      if (reg && Array.isArray(reg.paxData)) {
-        try {
+        // Keep paxData in registrations table in sync
+        if (reg && Array.isArray(reg.paxData)) {
           const updatedPax = reg.paxData.map((p: any, pIdx: number) => {
             const pDocs = { ...(p.documents || {}) };
             const pFiles = { ...(p.docFiles || {}) };
@@ -7953,13 +7959,11 @@ async function startServer() {
             };
           });
 
-          await withRetry(() => db.update(schema.registrations)
-            .set({ paxData: updatedPax })
-            .where(eq(schema.registrations.id, registrationId)));
-        } catch (e) {
-          console.warn("Failed to sync paxData in final-documents POST:", e);
+          await tx.update(schema.registrations)
+            .set({ paxData: updatedPax, updatedAt: new Date() })
+            .where(eq(schema.registrations.id, registrationId));
         }
-      }
+      });
 
       res.json({ success: true });
       notifyUpdate();

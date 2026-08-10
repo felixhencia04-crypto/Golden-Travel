@@ -91,7 +91,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title = 'Dokumen', cl
       // Fetch arrayBuffer for relative or HTTP URLs to attach auth token
       if (dataOrUrl.startsWith('/') || dataOrUrl.startsWith('http')) {
         try {
-          const token = localStorage.getItem('token');
+          const token = localStorage.getItem('admin_token') || localStorage.getItem('token') || sessionStorage.getItem('admin_token');
           const headers: Record<string, string> = {};
           if (token) headers['Authorization'] = `Bearer ${token}`;
           

@@ -388,7 +388,7 @@ export const downloadFile = async (dataUrl: string | undefined | null, defaultFi
       }
     } else if (cleanUrl.startsWith('/') || cleanUrl.startsWith('http')) {
       try {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('admin_token') || localStorage.getItem('token') || sessionStorage.getItem('admin_token');
         const headers: Record<string, string> = {};
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
