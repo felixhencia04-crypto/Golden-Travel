@@ -8448,11 +8448,11 @@ async function startServer() {
 
   app.get("/api/admin/users", authenticate, async (req: AuthRequest, res) => {
     if (req.user!.role !== 'admin') return res.status(403).json({ error: "Forbidden" });
-    const workspaceId = req.user!.workspaceId!;
+    const workspaceId = req.user?.workspaceId || '206247ec-7f3b-4e74-8dc6-b109372dbbef';
     try {
       // Optimized with Eager Loading
       const enrichedUsers = await withRetry(() => db.query.users.findMany({
-        where: eq(schema.users.workspaceId, workspaceId),
+        where: or(eq(schema.users.workspaceId, workspaceId), isNull(schema.users.workspaceId)),
         with: {
           registrations: {
             with: {
@@ -8476,7 +8476,7 @@ async function startServer() {
     try {
       // Use Eager Loading (Relational Query) for maximum efficiency
       const allRegs = await withRetry(() => db.query.registrations.findMany({
-        where: eq(schema.registrations.workspaceId, workspaceId!),
+        where: or(eq(schema.registrations.workspaceId, workspaceId), isNull(schema.registrations.workspaceId)),
         with: {
           user: true,
           package: true,

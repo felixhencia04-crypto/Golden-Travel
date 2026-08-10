@@ -109,6 +109,18 @@ export default function Admin() {
   }, [navigate]);
   
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [docSearch, setDocSearch] = useState('');
+  const [docFilter, setDocFilter] = useState<'all' | 'pending' | 'verified' | 'empty'>('all');
+
+  useEffect(() => {
+    if (activeTab === 'verifikasi_dokumen') {
+      refreshData(true, true);
+      const timer = setInterval(() => {
+        refreshData(true, true);
+      }, 10000);
+      return () => clearInterval(timer);
+    }
+  }, [activeTab, refreshData]);
   const [finalDocModal, setFinalDocModal] = useState<{
     isOpen: boolean;
     registrationId: string;
@@ -140,49 +152,65 @@ export default function Admin() {
   };
 
   const getConsultations = (uList: any[], rList: any[]) => {
-    if (!Array.isArray(uList) || !Array.isArray(rList)) return [];
-    return uList
-      .filter(u => u && u.role === 'jamaah')
-      .flatMap(u => {
-        const uEmail = u.email?.toLowerCase();
-        const userRegs = rList.filter(r => 
-          r.userId === u.id || 
-          (uEmail && r.ordererEmail?.toLowerCase() === uEmail) ||
-          (uEmail && Array.isArray(r.paxData) && r.paxData.some((p: any) => p.email?.toLowerCase() === uEmail))
-        );
-        if (userRegs.length === 0) {
-          return [{
-            id: `user-${u.id}`,
-            userId: u.id,
-            user: u,
-            name: u.name,
-            email: u.email,
-            accountEmail: u.email,
-            phone: u.phone,
-            status: u.status || 'DRAFT',
-            packageName: 'Belum Memilih Paket',
-            paymentStep: 'none',
-            paxData: [],
-            createdAt: u.createdAt
-          }];
-        }
-        return userRegs.map(r => {
-          const paxCount = (parseInt(r.adultCount) || 0) + (parseInt(r.childCount) || 0) + (parseInt(r.infantCount) || 0);
-          const paxData = Array.isArray(r.paxData) ? r.paxData : [];
-          return {
-            ...r,
-            name: r.ordererName || paxData[0]?.fullName || paxData[0]?.name || u.name,
-            email: r.ordererEmail || paxData[0]?.email || u.email,
-            accountEmail: u.email,
-            phone: r.ordererPhone || paxData[0]?.phone || u.phone,
-            notes: r.ordererNotes,
-            status: u.status,
-            paxCount: paxCount || 1,
-            packageName: r.package?.name || 'Paket Terhapus',
-            paymentStep: r.status === 'fully_paid' ? 'lunas' : r.status
-          };
-        });
-      });
+    const validUsers = Array.isArray(uList) ? uList : [];
+    const validRegs = Array.isArray(rList) ? rList : [];
+
+    const userMap = new Map();
+    validUsers.forEach(u => {
+      if (u && u.id) userMap.set(u.id, u);
+      if (u && u.email) userMap.set(u.email.toLowerCase(), u);
+    });
+
+    const registeredUserIds = new Set();
+    const registeredEmails = new Set();
+
+    // 1. Process all actual registrations from rList first
+    const processedRegs = validRegs.map(r => {
+      if (r.userId) registeredUserIds.add(r.userId);
+      if (r.ordererEmail) registeredEmails.add(r.ordererEmail.toLowerCase());
+
+      const matchedUserByUserId = r.userId ? userMap.get(r.userId) : null;
+      const matchedUserByEmail = r.ordererEmail ? userMap.get(r.ordererEmail.toLowerCase()) : null;
+      const u = matchedUserByUserId || matchedUserByEmail || r.user || {};
+
+      const paxCount = (parseInt(r.adultCount) || 0) + (parseInt(r.childCount) || 0) + (parseInt(r.infantCount) || 0);
+      const paxData = Array.isArray(r.paxData) ? r.paxData : [];
+
+      return {
+        ...r,
+        name: r.ordererName || paxData[0]?.fullName || paxData[0]?.name || u.name || 'Jamaah',
+        email: r.ordererEmail || paxData[0]?.email || u.email || '',
+        accountEmail: u.email || r.ordererEmail || '',
+        phone: r.ordererPhone || paxData[0]?.phone || u.phone || '',
+        notes: r.ordererNotes,
+        status: r.status || u.status || 'DRAFT',
+        paxCount: paxCount || 1,
+        packageName: r.package?.name || r.packageName || 'Belum Pilih Paket',
+        paymentStep: r.status === 'fully_paid' ? 'lunas' : r.status,
+        documents: Array.isArray(r.documents) ? r.documents : []
+      };
+    });
+
+    // 2. Process remaining jamaah users who don't have registrations yet
+    const unmappedJamaahUsers = validUsers
+      .filter(u => u && u.role === 'jamaah' && !registeredUserIds.has(u.id) && !(u.email && registeredEmails.has(u.email.toLowerCase())))
+      .map(u => ({
+        id: `user-${u.id}`,
+        userId: u.id,
+        user: u,
+        name: u.name,
+        email: u.email,
+        accountEmail: u.email,
+        phone: u.phone,
+        status: u.status || 'DRAFT',
+        packageName: 'Belum Memilih Paket',
+        paymentStep: 'none',
+        paxData: [],
+        createdAt: u.createdAt,
+        documents: []
+      }));
+
+    return [...processedRegs, ...unmappedJamaahUsers];
   };
 
   const consultations = useMemo(() => getConsultations(users, registrations), [users, registrations]);
@@ -3328,124 +3356,331 @@ export default function Admin() {
             </div>
           )}
 
-          {activeTab === 'verifikasi_dokumen' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white shadow-md p-6 rounded-3xl ">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Verifikasi Dokumen Persyaratan</h2>
-                  <p className="text-sm text-gray-600 mt-1">Review dan verifikasi kelengkapan berkas jamaah untuk batch keberangkatan.</p>
-                </div>
-                <div className="flex items-center space-x-2 bg-white shadow-md px-4 py-2 rounded-xl border border-gray-100">
-                  <ShieldCheck className="w-4 h-4 text-gray-600" />
-                  <span className="text-xs font-bold text-gray-700">Pusat Validasi Dokumen</span>
-                </div>
-              </div>
+          {activeTab === 'verifikasi_dokumen' && (() => {
+            const filteredConsultations = consultations.filter((c) => {
+              const docs = Array.isArray(c.documents) ? c.documents : [];
+              const latestDocsMap = new Map();
+              docs.forEach((doc: any) => {
+                const existing = latestDocsMap.get(doc.docType);
+                if (!existing || new Date(doc.updatedAt || doc.createdAt) > new Date(existing.updatedAt || existing.createdAt)) {
+                  latestDocsMap.set(doc.docType, doc);
+                }
+              });
+              const uniqueDocs = Array.from(latestDocsMap.values());
+              const docCount = uniqueDocs.length;
+              const pendingCount = uniqueDocs.filter((d: any) => ['pending', 'PENDING'].includes(d.status)).length;
 
-              <div className="bg-white shadow-md rounded-3xl  overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-white/50 text-gray-600 text-xs font-bold uppercase tracking-wider">
-                      <th className="p-5 border-b border-gray-100">Jamaah</th>
-                      <th className="p-5 border-b border-gray-100">Berkas Terunggah</th>
-                      <th className="p-5 border-b border-gray-100">Status Kelengkapan</th>
-                      <th className="p-5 border-b border-gray-100 text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {[...consultations].sort((a, b) => {
-                      const aPending = (a.documents || []).some((d: any) => ['pending', 'PENDING'].includes(d.status)) ? 1 : 0;
-                      const bPending = (b.documents || []).some((d: any) => ['pending', 'PENDING'].includes(d.status)) ? 1 : 0;
-                      return bPending - aPending;
-                    }).map((c) => {
-                      const docs = Array.isArray(c.documents) ? c.documents : [];
-                      
-                      // Handle duplicates by taking the latest version of each docType
-                      const latestDocsMap = new Map();
-                      docs.forEach((doc: any) => {
-                        const existing = latestDocsMap.get(doc.docType);
-                        if (!existing || new Date(doc.updatedAt || doc.createdAt) > new Date(existing.updatedAt || existing.createdAt)) {
-                          latestDocsMap.set(doc.docType, doc);
-                        }
-                      });
-                      
-                      const uniqueDocs = Array.from(latestDocsMap.values());
-                      const docCount = uniqueDocs.length;
-                      const pendingCount = uniqueDocs.filter((d: any) => ['pending', 'PENDING'].includes(d.status)).length;
-                      
-                      return (
-                        <tr key={c.id} className="hover:bg-white/20 transition-colors group">
-                          <td className="p-5">
-                            <div className="flex items-center space-x-4">
-                              <div className="w-10 h-10 bg-gray-100 text-gray-700 rounded-xl flex items-center justify-center font-bold">
-                                {(c.name || '?').charAt(0)}
-                              </div>
-                              <div>
-                                <p className="font-bold text-gray-900">{c.name || 'Tanpa Nama'}</p>
-                                <p className="text-xs text-gray-600">{c.packageName || 'Belum Pilih Paket'}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-5">
-                            <div className="flex -space-x-2">
-                              {uniqueDocs.map((doc: any, idx: number) => (
-                                <div key={idx} className="w-8 h-8 rounded-full bg-white shadow-md border border-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-600 shadow-sm" title={doc.docType || 'Dokumen'}>
-                                  {(doc.docType || '?').charAt(0)}
-                                </div>
-                              ))}
-                              {docCount === 0 && <span className="text-xs text-gray-400 italic">Belum ada dokumen</span>}
-                            </div>
-                          </td>
-                          <td className="p-5">
-                            {pendingCount > 0 ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-yellow-50 text-yellow-700 uppercase">
-                                <Clock className="w-3 h-3 mr-1" /> {pendingCount} Menunggu Review
-                              </span>
-                            ) : docCount > 0 ? (
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 uppercase">
-                                <CheckCircle className="w-3 h-3 mr-1" /> Selesai Review
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Kosong</span>
-                            )}
-                          </td>
-                          <td className="p-5 text-right">
-                            <div className="flex items-center justify-end space-x-2">
-                              <button 
-                                onClick={() => {
-                                  setReviewingJamaah(c);
-                                  setActivePaxIdx(0);
-                                  setReviewingDocId('KTP Asli');
-                                  setIsReviewModalOpen(true);
-                                }}
-                                className="px-4 py-2 rounded-xl text-xs font-bold transition-all bg-matcha-600 text-white hover:bg-matcha-700 shadow-sm cursor-pointer"
-                              >
-                                Periksa Berkas
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setDeleteAllDocsId(c.id);
-                                  setDeleteAllDocsName(c.name);
-                                }}
-                                className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 transition-all cursor-pointer flex items-center justify-center w-8 h-8"
-                                title="Hapus Jamaah"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {consultations.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="p-10 text-center text-gray-400 italic">Belum ada pendaftaran yang masuk.</td>
-                      </tr>
+              if (docFilter === 'pending' && pendingCount === 0) return false;
+              if (docFilter === 'verified' && (docCount === 0 || pendingCount > 0)) return false;
+              if (docFilter === 'empty' && docCount > 0) return false;
+
+              if (docSearch.trim() !== '') {
+                const q = docSearch.toLowerCase().trim();
+                const matchName = (c.name || '').toLowerCase().includes(q);
+                const matchEmail = (c.email || c.accountEmail || '').toLowerCase().includes(q);
+                const matchPkg = (c.packageName || '').toLowerCase().includes(q);
+                const matchPhone = (c.phone || '').toLowerCase().includes(q);
+                return matchName || matchEmail || matchPkg || matchPhone;
+              }
+
+              return true;
+            });
+
+            const totalJamaah = consultations.length;
+            const totalPending = consultations.filter(c => (c.documents || []).some((d: any) => ['pending', 'PENDING'].includes(d.status))).length;
+            const totalVerified = consultations.filter(c => {
+              const docs = Array.isArray(c.documents) ? c.documents : [];
+              return docs.length > 0 && !docs.some((d: any) => ['pending', 'PENDING'].includes(d.status));
+            }).length;
+            const totalEmpty = consultations.filter(c => !Array.isArray(c.documents) || c.documents.length === 0).length;
+
+            return (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {/* Header & Refresh */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white shadow-sm border border-slate-200/80 p-6 rounded-3xl">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <ShieldCheck className="w-6 h-6 text-emerald-600" />
+                      <h2 className="text-xl font-bold text-slate-900">Verifikasi Dokumen Persyaratan</h2>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Review dan verifikasi kelengkapan berkas dokumen persyaratan jamaah.</p>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => refreshData(false, true)}
+                      disabled={loading}
+                      className="inline-flex items-center px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-sm active:scale-95 disabled:opacity-50 cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                      {loading ? 'Memuat Data...' : 'Segarkan Data'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Summary Stat Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <button 
+                    onClick={() => setDocFilter('all')}
+                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                      docFilter === 'all' ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/20' : 'bg-white text-slate-800 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <p className={`text-[10px] font-bold uppercase tracking-wider ${docFilter === 'all' ? 'text-slate-300' : 'text-slate-400'}`}>Total Jamaah</p>
+                    <p className="text-2xl font-black mt-1">{totalJamaah}</p>
+                  </button>
+
+                  <button 
+                    onClick={() => setDocFilter('pending')}
+                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                      docFilter === 'pending' ? 'bg-amber-500 text-white border-amber-500 shadow-md ring-2 ring-amber-500/20' : 'bg-white text-slate-800 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <p className={`text-[10px] font-bold uppercase tracking-wider ${docFilter === 'pending' ? 'text-amber-100' : 'text-amber-600'}`}>Menunggu Review</p>
+                    <p className={`text-2xl font-black mt-1 ${docFilter === 'pending' ? 'text-white' : 'text-amber-600'}`}>{totalPending}</p>
+                  </button>
+
+                  <button 
+                    onClick={() => setDocFilter('verified')}
+                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                      docFilter === 'verified' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-600/20' : 'bg-white text-slate-800 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <p className={`text-[10px] font-bold uppercase tracking-wider ${docFilter === 'verified' ? 'text-emerald-100' : 'text-emerald-600'}`}>Selesai Review</p>
+                    <p className={`text-2xl font-black mt-1 ${docFilter === 'verified' ? 'text-white' : 'text-emerald-600'}`}>{totalVerified}</p>
+                  </button>
+
+                  <button 
+                    onClick={() => setDocFilter('empty')}
+                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
+                      docFilter === 'empty' ? 'bg-slate-700 text-white border-slate-700 shadow-md ring-2 ring-slate-700/20' : 'bg-white text-slate-800 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <p className={`text-[10px] font-bold uppercase tracking-wider ${docFilter === 'empty' ? 'text-slate-300' : 'text-slate-400'}`}>Belum Upload</p>
+                    <p className="text-2xl font-black mt-1">{totalEmpty}</p>
+                  </button>
+                </div>
+
+                {/* Filter & Search Bar */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+                  <div className="relative w-full md:w-80">
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Cari nama, email, paket..."
+                      value={docSearch}
+                      onChange={(e) => setDocSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-slate-800 placeholder-slate-400"
+                    />
+                    {docSearch && (
+                      <button onClick={() => setDocSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
                     )}
-                  </tbody>
-                </table>
+                  </div>
+
+                  <div className="flex items-center space-x-1.5 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 text-xs">
+                    <button
+                      onClick={() => setDocFilter('all')}
+                      className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all ${
+                        docFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      Semua ({totalJamaah})
+                    </button>
+                    <button
+                      onClick={() => setDocFilter('pending')}
+                      className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all ${
+                        docFilter === 'pending' ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                      }`}
+                    >
+                      Menunggu Review ({totalPending})
+                    </button>
+                    <button
+                      onClick={() => setDocFilter('verified')}
+                      className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all ${
+                        docFilter === 'verified' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                      }`}
+                    >
+                      Selesai Review ({totalVerified})
+                    </button>
+                    <button
+                      onClick={() => setDocFilter('empty')}
+                      className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all ${
+                        docFilter === 'empty' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      Belum Upload ({totalEmpty})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Table Container */}
+                <div className="bg-white shadow-sm border border-slate-200/80 rounded-3xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                          <th className="p-4 pl-6">Jamaah</th>
+                          <th className="p-4">Paket & Pax</th>
+                          <th className="p-4">Berkas Terunggah</th>
+                          <th className="p-4">Status Kelengkapan</th>
+                          <th className="p-4 pr-6 text-right">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-700 text-xs">
+                        {loading && consultations.length === 0 ? (
+                          Array.from({ length: 4 }).map((_, i) => (
+                            <tr key={i} className="animate-pulse">
+                              <td className="p-4 pl-6">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-10 h-10 bg-slate-200 rounded-xl" />
+                                  <div className="space-y-1">
+                                    <div className="w-32 h-3.5 bg-slate-200 rounded" />
+                                    <div className="w-24 h-3 bg-slate-100 rounded" />
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-4"><div className="w-28 h-4 bg-slate-200 rounded" /></td>
+                              <td className="p-4"><div className="w-20 h-4 bg-slate-200 rounded" /></td>
+                              <td className="p-4"><div className="w-24 h-5 bg-slate-200 rounded-full" /></td>
+                              <td className="p-4 pr-6 text-right"><div className="w-24 h-8 bg-slate-200 rounded-xl ml-auto" /></td>
+                            </tr>
+                          ))
+                        ) : filteredConsultations.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="p-12 text-center">
+                              <div className="max-w-sm mx-auto space-y-3">
+                                <FileText className="w-10 h-10 text-slate-300 mx-auto" />
+                                <p className="font-bold text-slate-700 text-sm">
+                                  {docSearch || docFilter !== 'all' ? 'Tidak ada data jamaah yang sesuai filter' : 'Belum ada pendaftaran jamaah'}
+                                </p>
+                                <p className="text-xs text-slate-400">
+                                  {docSearch || docFilter !== 'all' ? 'Coba ubah kata kunci pencarian atau reset filter di atas.' : 'Seluruh data jamaah yang melakukan pendaftaran akan otomatis muncul di sini.'}
+                                </p>
+                                {(docSearch || docFilter !== 'all') && (
+                                  <button
+                                    onClick={() => { setDocSearch(''); setDocFilter('all'); }}
+                                    className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 transition-all cursor-pointer"
+                                  >
+                                    Reset Filter
+                                  </button>
+                                )}
+                                {consultations.length === 0 && (
+                                  <button
+                                    onClick={() => refreshData(false, true)}
+                                    className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all cursor-pointer shadow-sm"
+                                  >
+                                    Segarkan Data
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ) : (
+                          [...filteredConsultations].sort((a, b) => {
+                            const aPending = (a.documents || []).some((d: any) => ['pending', 'PENDING'].includes(d.status)) ? 1 : 0;
+                            const bPending = (b.documents || []).some((d: any) => ['pending', 'PENDING'].includes(d.status)) ? 1 : 0;
+                            return bPending - aPending;
+                          }).map((c) => {
+                            const docs = Array.isArray(c.documents) ? c.documents : [];
+                            
+                            const latestDocsMap = new Map();
+                            docs.forEach((doc: any) => {
+                              const existing = latestDocsMap.get(doc.docType);
+                              if (!existing || new Date(doc.updatedAt || doc.createdAt) > new Date(existing.updatedAt || existing.createdAt)) {
+                                latestDocsMap.set(doc.docType, doc);
+                              }
+                            });
+                            
+                            const uniqueDocs = Array.from(latestDocsMap.values());
+                            const docCount = uniqueDocs.length;
+                            const pendingCount = uniqueDocs.filter((d: any) => ['pending', 'PENDING'].includes(d.status)).length;
+
+                            return (
+                              <tr key={c.id} className="hover:bg-slate-50/80 transition-colors group">
+                                <td className="p-4 pl-6">
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-10 h-10 bg-emerald-100 text-emerald-800 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+                                      {(c.name || '?').charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-bold text-slate-900 truncate">{c.name || 'Tanpa Nama'}</p>
+                                      <p className="text-[11px] text-slate-500 truncate">{c.email || c.accountEmail || '-'}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <p className="font-bold text-slate-800 text-xs">{c.packageName || 'Belum Pilih Paket'}</p>
+                                  <span className="inline-block mt-0.5 px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-medium">
+                                    {c.paxCount || 1} Pax
+                                  </span>
+                                </td>
+                                <td className="p-4">
+                                  <div className="flex items-center space-x-1.5">
+                                    {uniqueDocs.slice(0, 5).map((doc: any, idx: number) => (
+                                      <div key={idx} className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-[10px] font-bold text-emerald-700 shadow-2xs" title={doc.docType || 'Dokumen'}>
+                                        {(doc.docType || '?').charAt(0).toUpperCase()}
+                                      </div>
+                                    ))}
+                                    {uniqueDocs.length > 5 && (
+                                      <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-1 rounded-lg">
+                                        +{uniqueDocs.length - 5}
+                                      </span>
+                                    )}
+                                    {docCount === 0 && <span className="text-xs text-slate-400 italic">Belum ada dokumen</span>}
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  {pendingCount > 0 ? (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                      <Clock className="w-3.5 h-3.5 mr-1 text-amber-500 animate-pulse" /> {pendingCount} Menunggu Review
+                                    </span>
+                                  ) : docCount > 0 ? (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" /> Selesai ({docCount} Berkas)
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                                      Belum Upload
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-4 pr-6 text-right">
+                                  <div className="flex items-center justify-end space-x-2">
+                                    <button 
+                                      onClick={() => {
+                                        setReviewingJamaah(c);
+                                        setActivePaxIdx(0);
+                                        setReviewingDocId('KTP Asli');
+                                        setIsReviewModalOpen(true);
+                                      }}
+                                      className="px-3.5 py-2 rounded-xl text-xs font-bold transition-all bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm active:scale-95 cursor-pointer flex items-center"
+                                    >
+                                      <Eye className="w-3.5 h-3.5 mr-1.5" /> Periksa Berkas
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setDeleteAllDocsId(c.id);
+                                        setDeleteAllDocsName(c.name);
+                                      }}
+                                      className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 transition-all cursor-pointer flex items-center justify-center w-8 h-8"
+                                      title="Hapus Jamaah"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {activeTab === 'verifikasi_mitra' && (
             <AdminMitraManager initialFilter="pending_verification" />
