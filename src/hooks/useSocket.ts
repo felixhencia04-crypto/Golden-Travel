@@ -26,16 +26,22 @@ export function useSocket(onDataUpdated?: (data: any) => void) {
     const s = getSocket();
     if (!s) return;
 
-    const handleDataUpdated = (data: any) => {
+    const handleDataUpdated = (data?: any) => {
       if (callbackRef.current) {
         callbackRef.current(data);
       }
     };
 
+    const handleConnect = () => handleDataUpdated();
+
     s.on('data_updated', handleDataUpdated);
+    s.on('connect', handleConnect);
+    s.on('reconnect', handleConnect);
 
     return () => {
       s.off('data_updated', handleDataUpdated);
+      s.off('connect', handleConnect);
+      s.off('reconnect', handleConnect);
     };
   }, []);
 

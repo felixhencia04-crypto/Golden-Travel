@@ -130,7 +130,17 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title = 'Dokumen', cl
           // If PDF loading fails, try to load it as an image FIRST before showing error
           // This handles cases where an image was uploaded but named/flagged as a PDF
           try {
-            const blobUrl = getBlobUrlFromDataUrl(url);
+            let blobUrl = getBlobUrlFromDataUrl(url);
+            if (!blobUrl && (url.startsWith('/') || url.startsWith('http'))) {
+              const token = localStorage.getItem('admin_token') || localStorage.getItem('token') || sessionStorage.getItem('admin_token');
+              const headers: Record<string, string> = {};
+              if (token) headers['Authorization'] = `Bearer ${token}`;
+              const resp = await fetch(url, { headers });
+              if (resp.ok) {
+                const blob = await resp.blob();
+                blobUrl = URL.createObjectURL(blob);
+              }
+            }
             setImgSrc(blobUrl || url);
             setImgLoading(true);
             setImgError(false);

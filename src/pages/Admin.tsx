@@ -93,7 +93,7 @@ export default function Admin() {
   const { users, registrations, setRegistrations, packages, setPackages, schedules, dashboardStats, actionCenter, equipment: inventory, broadcast: announcements, manifest, loading, currentUser, setCurrentUser, refreshData } = useAdminData();
   const onDataUpdated = React.useCallback(() => {
     console.log("Admin: Received real-time update signal.");
-    refreshData(true);
+    refreshData(true, true);
     queryClient.invalidateQueries({ queryKey: ['crm_registrations'] });
     queryClient.invalidateQueries({ queryKey: ['packages'] });
     queryClient.invalidateQueries({ queryKey: ['schedules'] });
