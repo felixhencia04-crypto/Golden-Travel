@@ -5656,13 +5656,13 @@ async function startServer() {
               const normStatus = (dbSt === 'verified' || dbSt === 'approved') ? 'verified' : (dbSt === 'rejected' ? 'rejected' : 'pending');
               normalizedDocs[dt] = {
                 ...(rawDoc || {}),
-                id: docFromDb.id || rawDoc?.id,
-                url: docFromDb.fileUrl || rawDoc?.url || '',
-                fileUrl: docFromDb.fileUrl || rawDoc?.fileUrl || '',
-                fileName: docFromDb.fileName || rawDoc?.fileName || '',
-                fileType: docFromDb.fileType || rawDoc?.fileType || '',
+                id: rawDoc?.id || docFromDb.id,
+                url: rawDoc?.url || rawDoc?.fileUrl || docFromDb.fileUrl || '',
+                fileUrl: rawDoc?.fileUrl || rawDoc?.url || docFromDb.fileUrl || '',
+                fileName: rawDoc?.fileName || docFromDb.fileName || '',
+                fileType: rawDoc?.fileType || docFromDb.fileType || '',
                 status: normStatus,
-                adminNotes: docFromDb.adminNotes || rawDoc?.adminNotes || ''
+                adminNotes: rawDoc?.adminNotes || docFromDb.adminNotes || ''
               };
             } else if (rawDoc) {
               const rawSt = (rawDoc.status || '').toLowerCase();
@@ -6427,6 +6427,7 @@ async function startServer() {
 
       const item = {
         id: mitra.id,
+        authIds, // Include authIds for frontend matching
         name: mitra.name || 'Mitra',
         email: mitra.email || '',
         noWa: mitra.noWa || '-',

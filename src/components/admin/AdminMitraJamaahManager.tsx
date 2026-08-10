@@ -78,6 +78,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
         if (Array.isArray(data)) {
           const formatted = data.map((m: any) => ({
             id: m.id,
+            authIds: m.authIds || [],
             name: m.name || m.profile?.namaLengkap || 'Mitra',
             email: m.email || '',
             noWa: m.noWa || '',
@@ -279,7 +280,11 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
         const rmEmail = (rm.email || '').toLowerCase().trim();
         const jId = (j.mitraId || '').toLowerCase().trim();
         const jEmail = (j.mitraEmail || '').toLowerCase().trim();
-        return (jId && rmId && jId === rmId) || (jEmail && rmEmail && jEmail === rmEmail);
+        const rmAuthIds = (rm.authIds || []).map((id: string) => id.toLowerCase().trim());
+        
+        return (jId && rmId && jId === rmId) || 
+               (jId && rmAuthIds.includes(jId)) ||
+               (jEmail && rmEmail && jEmail === rmEmail);
       });
 
       return hasMitraId || hasMitraEmail || hasMitraName || matchedReal;
@@ -339,6 +344,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
 
       map.set(key, { 
         id: m.id || mId, 
+        authIds: m.authIds || [],
         name: rawName, 
         baseName,
         email: mEmail,
@@ -373,6 +379,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
         if (Array.isArray(mitrasData)) {
           const formatted = mitrasData.map((m: any) => ({
             id: m.id,
+            authIds: m.authIds || [],
             name: m.name || m.profile?.namaLengkap || 'Mitra',
             email: m.email || '',
             noWa: m.noWa || '',
@@ -466,6 +473,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       const selLower = selectedMitraFilter.toLowerCase().trim();
       const targetMitra = mitras.find(m => 
         (m.id && m.id.toLowerCase().trim() === selLower) || 
+        (m.authIds && m.authIds.some((aid: string) => aid.toLowerCase().trim() === selLower)) ||
         (m.baseName && m.baseName.toLowerCase().trim() === selLower) || 
         (m.email && m.email.toLowerCase().trim() === selLower) ||
         (m.name && m.name.toLowerCase().trim() === selLower)
@@ -478,12 +486,14 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
 
       if (targetMitra) {
         const tId = (targetMitra.id || '').toLowerCase().trim();
+        const tAuthIds = (targetMitra.authIds || []).map((aid: string) => aid.toLowerCase().trim());
         const tEmail = (targetMitra.email || '').toLowerCase().trim();
         const tBaseName = (targetMitra.baseName || '').toLowerCase().trim();
         const tName = (targetMitra.name || '').toLowerCase().trim();
 
         matchesMitra = 
           (jMitraId && tId && (jMitraId === tId || tId.includes(jMitraId) || jMitraId.includes(tId))) ||
+          (jMitraId && tAuthIds.includes(jMitraId)) ||
           (jMitraEmail && tEmail && (jMitraEmail === tEmail || tEmail.includes(jMitraEmail) || jMitraEmail.includes(tEmail))) ||
           (
             jBaseName && 
@@ -491,10 +501,9 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
             jBaseName !== 'mitra' && 
             jBaseName !== 'mitra travel' && 
             (tBaseName === jBaseName || tName.includes(jBaseName) || jBaseName.includes(tBaseName) || tBaseName.includes(jBaseName))
-          ) ||
-          (mitras.length === 1);
+          )
       } else {
-        matchesMitra = (jMitraId === selLower) || (jBaseName === selLower) || (jMitraEmail === selLower) || (mitras.length === 1);
+        matchesMitra = (jMitraId === selLower) || (jBaseName === selLower) || (jMitraEmail === selLower);
       }
     }
 
@@ -561,11 +570,13 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
       // Find matching mitra in `mitras` array strictly by ID, Email, Name or baseName (case-insensitive)
       let matchingMitra = mitras.find(m => {
         const mId = (m.id || '').toLowerCase().trim();
+        const mAuthIds = (m.authIds || []).map((aid: string) => aid.toLowerCase().trim());
         const mEmail = (m.email || '').toLowerCase().trim();
         const mBase = (m.baseName || '').toLowerCase().trim();
         const mName = (m.name || '').toLowerCase().trim();
 
         if (jMitraId && mId && (jMitraId === mId || mId.includes(jMitraId) || jMitraId.includes(mId))) return true;
+        if (jMitraId && mAuthIds.includes(jMitraId)) return true;
         if (jMitraEmail && mEmail && (jMitraEmail === mEmail || mEmail.includes(jMitraEmail) || jMitraEmail.includes(mEmail))) return true;
         if (jMitraId && mEmail && jMitraId === mEmail) return true;
         if (
