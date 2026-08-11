@@ -4764,12 +4764,14 @@ async function startServer() {
       
       const userEmail = req.user?.email?.toLowerCase();
       const userName = req.user?.name?.toLowerCase();
+      const userRole = (req.user?.role || '').toLowerCase();
+      const isMitraUser = userRole === 'mitra' || userRole === 'partner' || userRole === 'agen' || userRole === 'cabang';
 
       // 1. Get all registrations where user is owner or orderer directly
       let matchedRegs: any[] = [];
       try {
-        const userEmail = req.user?.email?.toLowerCase();
-        const userName = req.user?.name?.toLowerCase();
+        const uId = req.user!.id.toLowerCase();
+        const uEmail = userEmail ? userEmail.trim().toLowerCase() : '';
         
         // Fetch registrations where user is directly linked
         const directRegs = await withRetry(() => db.query.registrations.findMany({
@@ -4780,18 +4782,44 @@ async function startServer() {
         }));
         
         // Also find by paxData (slightly heavier but still better than fetching EVERYTHING)
-        // We fetch all IDs and paxData to filter in memory - still not perfect but better than fetching relations
+        // We fetch all IDs, paxData, and other fields to filter in memory
         const allPaxData = await withRetry(() => db.query.registrations.findMany({
-          columns: { id: true, paxData: true }
+          columns: { id: true, paxData: true, ordererNotes: true, userId: true, ordererEmail: true }
         }));
         
-        const paxMatchedIds = allPaxData.filter((r: any) => 
-          Array.isArray(r.paxData) && r.paxData.some((p: any) => {
+        const paxMatchedIds = allPaxData.filter((r: any) => {
+          const regUserId = (r.userId || '').toLowerCase();
+          const regOrdererEmail = (r.ordererEmail || '').toLowerCase();
+          const regOrdererNotes = (r.ordererNotes || '').toLowerCase();
+
+          // If the logged in user is a Mitra, check if the registration itself points to them
+          if (isMitraUser) {
+            if (regUserId === uId || (uEmail && regOrdererEmail === uEmail) || (regOrdererNotes && regOrdererNotes.includes(`mitraid: ${uId}`))) {
+              return true;
+            }
+          }
+
+          return Array.isArray(r.paxData) && r.paxData.some((p: any) => {
             const pEmail = (p.email || '').toLowerCase();
             const pName = (p.fullName || p.name || '').toLowerCase();
-            return (userEmail && pEmail === userEmail) || (userName && pName === userName);
-          })
-        ).map((r: any) => r.id);
+            
+            // Direct match for normal jemaah
+            if ((uEmail && pEmail === uEmail) || (userName && pName === userName)) {
+              return true;
+            }
+
+            // If user is a Mitra, also check if this Jemaah is assigned to them
+            if (isMitraUser) {
+              const pMitraId = String(p.mitraId || '').toLowerCase().trim();
+              const pMitraEmail = String(p.mitraEmail || '').toLowerCase().trim();
+              if ((pMitraId && pMitraId === uId) || (uEmail && pMitraEmail === uEmail)) {
+                return true;
+              }
+            }
+
+            return false;
+          });
+        }).map((r: any) => r.id);
         
         const uniqueIds = Array.from(new Set([...directRegs.map(r => r.id), ...paxMatchedIds]));
         

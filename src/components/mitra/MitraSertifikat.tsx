@@ -326,7 +326,7 @@ export default function MitraSertifikat({ jamaahList = [] }: MitraSertifikatProp
             {filteredList.map(jamaah => {
               const cert = jamaah.docFiles?.sertifikat;
               const isIssued = !!(cert || jamaah.isCertIssued || jamaah.certificateUrl);
-              const recipientName = cert?.recipientName || jamaah.fullName || jamaah.namaLengkap || 'Nama Jamaah';
+              const recipientName = cert?.recipientName || jamaah.userName || jamaah.fullName || jamaah.namaLengkap || jamaah.name || 'Nama Jamaah';
               const packageName = jamaah.paketName || jamaah.packageName || 'Paket Umroh Reguler';
 
               return (
