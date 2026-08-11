@@ -168,32 +168,34 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
     loadData();
   }, []);
 
-  // Compute unique Mitra accounts
+  // Compute unique Mitra accounts (only actual Mitra, Agen, Cabang, and Calon Mitra)
   const uniqueMitraList = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; email?: string; jamaahCount: number }>();
+    const map = new Map<string, { id: string; name: string; email?: string; role?: string; status?: string; jamaahCount: number }>();
 
-    // 1. Extract from Jamaah Database
-    jamaahList.forEach((j: any) => {
-      const name = (j.mitraName || j.createdByName || '').trim();
-      if (name) {
-        const key = name.toLowerCase();
-        if (!map.has(key)) {
-          map.set(key, {
-            id: j.mitraId || j.createdBy || key,
-            name: name,
-            email: j.mitraEmail || '',
-            jamaahCount: 1
-          });
-        } else {
-          map.get(key)!.jamaahCount += 1;
-        }
-      }
-    });
+    // 1. Build a lookup set of known Jemaah and Admin names/emails from the users array to explicitly blacklist them
+    const excludedNames = new Set<string>();
+    const excludedEmails = new Set<string>();
+    const excludedIds = new Set<string>();
 
-    // 2. Extract from Users props (roles mitra/agen/cabang)
     if (Array.isArray(users)) {
       users.forEach((u: any) => {
-        if (u.role === 'mitra' || u.role === 'agen' || u.role === 'cabang') {
+        const role = (u.role || '').toLowerCase();
+        if (role === 'jamaah' || role === 'admin' || role === 'superadmin' || role === 'petugas') {
+          const name = (u.fullName || u.namaLengkap || u.name || '').trim().toLowerCase();
+          if (name) excludedNames.add(name);
+          const email = (u.email || '').trim().toLowerCase();
+          if (email) excludedEmails.add(email);
+          const uid = String(u.id || '').trim().toLowerCase();
+          if (uid) excludedIds.add(uid);
+        }
+      });
+    }
+
+    // 2. Extract and pre-populate map with genuine Mitra / Agen / Cabang from Users array
+    if (Array.isArray(users)) {
+      users.forEach((u: any) => {
+        const role = (u.role || '').toLowerCase();
+        if (role === 'mitra' || role === 'agen' || role === 'cabang' || role === 'partner') {
           const name = (u.fullName || u.namaLengkap || u.name || u.email || '').trim();
           if (name) {
             const key = name.toLowerCase();
@@ -202,6 +204,8 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
                 id: u.id || key,
                 name: name,
                 email: u.email || '',
+                role: u.role || 'mitra',
+                status: u.status || 'active',
                 jamaahCount: 0
               });
             }
@@ -210,7 +214,56 @@ export default function AdminMitraSertifikatKenangan({ onRefresh, users = [], on
       });
     }
 
-    return Array.from(map.values());
+    // 3. Count matching Jemaah, or safely add a Mitra if it is genuinely a Mitra and not an excluded Jemaah/Admin
+    jamaahList.forEach((j: any) => {
+      const mName = (j.mitraName || j.createdByName || '').trim();
+      const mEmail = (j.mitraEmail || '').trim().toLowerCase();
+      const mId = String(j.mitraId || j.createdBy || '').trim().toLowerCase();
+
+      // Get the Jemaah's own name to prevent self-attribution
+      const jName = (j.userName || j.fullName || j.namaLengkap || j.name || '').trim().toLowerCase();
+      const jEmail = (j.userEmail || j.email || '').trim().toLowerCase();
+
+      if (mName) {
+        const mKey = mName.toLowerCase();
+
+        // Skip if this name/email/ID is explicitly on the Jemaah/Admin blacklist
+        if (excludedNames.has(mKey) || excludedEmails.has(mKey) || excludedIds.has(mKey)) {
+          return;
+        }
+        if (mEmail && excludedEmails.has(mEmail)) {
+          return;
+        }
+        if (mId && excludedIds.has(mId)) {
+          return;
+        }
+
+        // Skip self-attribution (Jemaah registering themselves)
+        if (mKey === jName || (mEmail && mEmail === jEmail)) {
+          return;
+        }
+
+        // Exclude system words
+        if (['mitra', 'mitra-user', 'admin', 'super admin', 'superadmin', 'sistem'].includes(mKey)) {
+          return;
+        }
+
+        if (map.has(mKey)) {
+          map.get(mKey)!.jamaahCount += 1;
+        } else {
+          // If not in our users list but satisfies our security checks, we can add them as an active Mitra/Representative
+          map.set(mKey, {
+            id: j.mitraId || j.createdBy || mKey,
+            name: mName,
+            email: j.mitraEmail || '',
+            jamaahCount: 1
+          });
+        }
+      }
+    });
+
+    // Sort alphabetically by name
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [jamaahList, users]);
 
   // Sync jamaah database helper
