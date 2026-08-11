@@ -1,6 +1,9 @@
+import { DEFAULT_LOGO_DATA } from '../assets/logoData';
+
 export const useLogo = () => {
-  return '/logo.png';
+  return DEFAULT_LOGO_DATA;
 };
+
 export const updateLogo = (newLogoBase64: string) => {
-  // no-op, logo is now statically handled via /logo.png
+  // no-op, logo is statically handled
 };
