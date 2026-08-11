@@ -66,7 +66,7 @@ export default function Legalitas() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-white border border-[#D4AF37]/30 p-5 rounded-2xl text-center shadow-sm">
               <Award className="w-7 h-7 text-[#D4AF37] mx-auto mb-2" />
-              <h5 className="font-bold text-[#0B2319] text-xs sm:text-sm">Akreditasi A</h5>
+              <h5 className="font-bold text-[#0B2319] text-xs sm:text-sm">Terakreditasi</h5>
               <p className="text-stone-500 text-[11px] mt-0.5">Kemenag RI</p>
             </div>
             <div className="bg-white border border-[#D4AF37]/30 p-5 rounded-2xl text-center shadow-sm">

@@ -12,7 +12,6 @@ import {
   Users, 
   Check, 
   Award, 
-  Stethoscope,
   ChevronRight,
   Compass
 } from 'lucide-react';
@@ -47,30 +46,30 @@ export const REASONS_DATA: ReasonItem[] = [
   {
     id: 'akomodasi-ring1',
     number: '02',
-    title: 'Hotel Bintang Dekat Pelataran Masjid (Ring 1)',
-    subtitle: 'Kenyamanan Akses Shalat Tanpa Lelah Menjelajah',
-    description: 'Akomodasi pilihan bintang 4 & 5 yang terletak di area Ring 1 berjarak sangat dekat dari pelataran Masjidil Haram Makkah & Masjid Nabawi Madinah, sangat ramah bagi lansia, anak-anak, dan keluarga.',
+    title: 'Akomodasi Hotel Bintang Dekat Pelataran Masjid',
+    subtitle: 'Kenyamanan Akses Ibadah dengan Akomodasi Strategis',
+    description: 'Kami menyediakan pilihan hotel bintang 3, 4, dan 5 yang berlokasi strategis dan sangat dekat dari pelataran Masjidil Haram Makkah serta Masjid Nabawi Madinah. Dirancang khusus untuk memberikan kenyamanan maksimal bagi lansia, anak-anak, maupun seluruh keluarga.',
     icon: <Hotel className="w-7 h-7 text-[#D4AF37]" />,
     points: [
-      'Jarak Jalan Kaki Ke Pelataran Utama',
-      'Hotel Bintang 4 & 5 Pilihan Terbaik',
-      'Makanan Menu Cita Rasa Indonesia 3x Sehari'
+      'Akses Jalan Kaki Mudah ke Pelataran Utama',
+      'Pilihan Hotel Bintang 3, 4 & 5 Berkualitas',
+      'Sajian Menu Cita Rasa Nusantara 3x Sehari'
     ],
-    badgeText: 'RING 1 HARM'
+    badgeText: 'AKOMODASI PREMIUM'
   },
   {
     id: 'direct-flight',
     number: '03',
-    title: 'Penerbangan Direct Flight Tanpa Transit',
-    subtitle: 'Hemat Energi Jemaah Agar Tetap Prima Menunaikan Rukun',
-    description: 'Menggunakan maskapai penerbangan kelas dunia (Saudia Airlines, Garuda Indonesia, Emirates) rute langsung Jakarta/Surabaya menuju Jeddah atau Madinah tanpa transit yang menguras stamina.',
+    title: 'Penerbangan Direct dan Transit',
+    subtitle: 'Kenyamanan Perjalanan Udara dengan Maskapai Internasional',
+    description: 'Bermitra dengan maskapai kelas dunia (Lion Air, Saudia Airlines, Garuda Indonesia) yang menghadirkan opsi penerbangan rute langsung maupun transit secara efisien. Menjamin pengalaman perjalanan udara premium demi menjaga stamina jemaah.',
     icon: <Plane className="w-7 h-7 text-[#D4AF37]" />,
     points: [
-      'Direct Flight Langsung Jeddah / Madinah',
-      'Maskapai Bintang 5 Berstandar Internasional',
-      'Bagasi Luas & Gratis Air Zamzam 5 Liter'
+      'Opsi Penerbangan Direct & Transit Fleksibel',
+      'Maskapai Kelas Ekonomi dan Bisnis',
+      'Bagasi Ekstra Luas & Air Zamzam 5 Liter'
     ],
-    badgeText: 'DIRECT FLIGHT'
+    badgeText: 'PREMIUM FLIGHT'
   },
   {
     id: 'transportasi-vip',
@@ -87,22 +86,8 @@ export const REASONS_DATA: ReasonItem[] = [
     badgeText: 'MOBILITAS VIP'
   },
   {
-    id: 'tim-medis-24h',
-    number: '05',
-    title: 'Layanan Pendampingan Medis & Tim Siaga 24/7',
-    subtitle: 'Perhatian Sepenuh Hati untuk Keamanan & Kesehatan Jemaah',
-    description: 'Kesehatan jemaah adalah amanah suci. Kami menyiagakan Dokter / Tim Medis pendamping, Tour Leader berpengalaman, serta Tim Handling Lokal Makkah & Madinah yang siaga melayani 24 jam nonstop.',
-    icon: <Stethoscope className="w-7 h-7 text-[#D4AF37]" />,
-    points: [
-      'Dokter & Tim Medis Pendamping Rombongan',
-      'Tim Handling Lokal Makkah & Madinah 24/7',
-      'Asuransi Perjalanan Syariah Lengkap'
-    ],
-    badgeText: 'PENDAMPINGAN 24/7'
-  },
-  {
     id: 'transparansi-biaya',
-    number: '06',
+    number: '05',
     title: 'Transparansi Biaya Tanpa Ada Biaya Tersembunyi',
     subtitle: 'Integritas Tinggi Tanpa Kejutan Biaya Tambahan di Tengah Jalan',
     description: 'Biaya yang Anda bayarkan bersifat All-Inclusive mencakup tiket pesawat PP, visa, hotel, makan 3x sehari, manasik, perlengkapan eksklusif, ziarah, dan asuransi. Tidak ada biaya siluman.',
@@ -178,35 +163,35 @@ export default function WhyChooseGoldenTravel() {
         {/* Executive Stats Bar - Glassmorphic Translucent Dark Emerald */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 bg-[#02281D]/80 p-6 sm:p-8 rounded-3xl border border-[#D4AF37]/50 shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-md">
           <div className="text-center space-y-1 border-r border-[#D4AF37]/25 last:border-r-0 pr-2">
-            <div className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-[#F3E5AB] to-[#D4AF37] bg-clip-text text-transparent">
-              15.000+
+            <div className="font-serif text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-[#F3E5AB] to-[#D4AF37] bg-clip-text text-transparent leading-tight">
+              Layanan VIP
             </div>
-            <div className="text-xs sm:text-sm font-medium text-stone-200">Jemaah Diberangkatkan</div>
-            <div className="text-[11px] text-[#D4AF37] font-light">100% Berangkat Tepat Waktu</div>
+            <div className="text-xs sm:text-sm font-medium text-stone-200">Pengalaman Ibadah Eksklusif</div>
+            <div className="text-[11px] text-[#D4AF37] font-light">Dedikasi Pelayanan Sepenuh Hati</div>
           </div>
 
           <div className="text-center space-y-1 border-r border-[#D4AF37]/25 last:border-r-0 pr-2">
-            <div className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-[#F3E5AB] to-[#D4AF37] bg-clip-text text-transparent">
-              99.8%
+            <div className="font-serif text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-[#F3E5AB] to-[#D4AF37] bg-clip-text text-transparent leading-tight">
+              Bimbingan Sunnah
             </div>
-            <div className="text-xs sm:text-sm font-medium text-stone-200">Kepuasan Jemaah</div>
-            <div className="text-[11px] text-[#D4AF37] font-light">Rekomendasi Tinggi Alumni</div>
+            <div className="text-xs sm:text-sm font-medium text-stone-200">Pendampingan Ibadah Khusyuk</div>
+            <div className="text-[11px] text-[#D4AF37] font-light">Asatidz Berpengalaman & Profesional</div>
           </div>
 
           <div className="text-center space-y-1 border-r border-[#D4AF37]/25 last:border-r-0 pr-2">
-            <div className="font-serif text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-[#F3E5AB] to-[#D4AF37] bg-clip-text text-transparent">
-              Teruji & Amanah
+            <div className="font-serif text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-[#F3E5AB] to-[#D4AF37] bg-clip-text text-transparent leading-tight">
+              Jaminan Kepastian
             </div>
-            <div className="text-xs sm:text-sm font-medium text-stone-200">Pengalaman Pelayanan Ibadah</div>
-            <div className="text-[11px] text-[#D4AF37] font-light">Dedikasi & Integritas Tinggi</div>
+            <div className="text-xs sm:text-sm font-medium text-stone-200">Perlindungan Hukum & Amanah</div>
+            <div className="text-[11px] text-[#D4AF37] font-light">Terdaftar Resmi Kemenag RI</div>
           </div>
 
           <div className="text-center space-y-1 pl-2">
-            <div className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-[#F3E5AB] to-[#D4AF37] bg-clip-text text-transparent">
-              Ring 1
+            <div className="font-serif text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-[#F3E5AB] to-[#D4AF37] bg-clip-text text-transparent leading-tight">
+              Fasilitas Terbaik
             </div>
-            <div className="text-xs sm:text-sm font-medium text-stone-200">Hotel Masjid Haram</div>
-            <div className="text-[11px] text-[#D4AF37] font-light">Akses Dekat & Ramah Lansia</div>
+            <div className="text-xs sm:text-sm font-medium text-stone-200">Kenyamanan Akomodasi Strategis</div>
+            <div className="text-[11px] text-[#D4AF37] font-light">Fokus Ibadah Tanpa Kendala</div>
           </div>
         </div>
 
@@ -290,8 +275,8 @@ export default function WhyChooseGoldenTravel() {
               <span>Niat Suci Anda, Komitmen Utama Kami</span>
             </div>
 
-            <h3 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-[#F3E5AB]">
-              Siap Menunaikan Panggilan Suci ke Tanah Suci dengan Tenang & Khusyuk?
+            <h3 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold text-[#F3E5AB] leading-snug">
+              Siap Menunaikan Panggilan Suci ke Tanah Suci dengan Tenang, Aman, Nyaman, dan Khusyuk?
             </h3>
 
             <p className="text-stone-200 text-sm sm:text-base font-light leading-relaxed">

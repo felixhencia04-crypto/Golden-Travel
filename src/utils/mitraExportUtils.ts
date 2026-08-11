@@ -197,7 +197,7 @@ export const exportMitraToPdf = (mitra: MitraUserExport) => {
     selfie_ktp: 'Selfie Memegang KTP',
     npwp: 'Kartu NPWP',
     buku_tabungan: 'Halaman Depan Buku Tabungan',
-    bukti_transfer: 'Bukti Transfer Administrasi (Rp 350.000)'
+    bukti_transfer: 'Bukti Transfer Administrasi'
   };
 
   const docRows = (mitra.documents || []).map(d => [

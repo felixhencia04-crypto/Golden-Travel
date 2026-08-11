@@ -7,6 +7,7 @@
 @theme {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Playfair Display", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-cinzel: "Cinzel", "Playfair Display", serif;
   --font-button: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
 
   --color-matcha-50: #E6F4EA;

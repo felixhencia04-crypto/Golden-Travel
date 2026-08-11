@@ -673,7 +673,7 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
                         { id: 'selfie_ktp', label: 'Selfie dengan KTP', description: 'Foto verifikasi wajah memegang KTP asli' },
                         { id: 'npwp', label: 'Kartu NPWP', description: 'Nomor Pokok Wajib Pajak' },
                         { id: 'buku_tabungan', label: 'Halaman Depan Buku Tabungan', description: 'Menampilkan nomor rekening & nama pemilik' },
-                        { id: 'bukti_transfer', label: 'Bukti Transfer Pendaftaran (Rp 350.000)', description: 'Resi transfer biaya administrasi pendaftaran kemitraan' }
+                        { id: 'bukti_transfer', label: 'Bukti Transfer Pendaftaran Administrasi', description: 'Resi transfer biaya administrasi pendaftaran kemitraan' }
                       ].map((type) => {
                         const doc = selectedMitra.documents?.find(d => d.documentType === type.id)
                           || (type.id === 'bukti_transfer' && selectedMitra.profile?.buktiTransfer ? {
@@ -854,7 +854,7 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
                           <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-amber-200/80 text-amber-950 text-[10px] font-black uppercase tracking-wider mb-1">
                             Bukti Transfer Registrasi
                           </div>
-                          <h4 className="text-base font-bold text-slate-900">Lihat Bukti Transfer Biaya Pendaftaran (Rp 350.000)</h4>
+                          <h4 className="text-base font-bold text-slate-900">Lihat Bukti Transfer Biaya Pendaftaran</h4>
                           <p className="text-xs text-slate-500 font-medium mt-0.5">
                             Verifikasi resi pembayaran pendaftaran mitra ke Bank Mandiri PT Golden Tour Haramain
                           </p>
@@ -879,8 +879,8 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
                         <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300 flex items-center gap-2">
                           <Receipt className="w-4 h-4" /> Verifikasi Pembayaran Biaya Kemitraan
                         </div>
-                        <div className="text-base font-bold text-white">Bukti Transfer Biaya Registrasi Rp 350.000</div>
-                        <p className="text-xs text-amber-100/80 font-medium">Pembayaran biaya administrasi pendaftaran & starter kit mitra perwakilan Golden Travel.</p>
+                        <div className="text-base font-bold text-white">Bukti Transfer Biaya Registrasi</div>
+                        <p className="text-xs text-amber-100/80 font-medium">Pembayaran biaya administrasi pendaftaran & perlengkapan kemitraan perwakilan Golden Travel.</p>
                       </div>
                       <div className="flex items-center gap-3">
                         {selectedMitra.documents?.find(d => d.documentType === 'bukti_transfer')?.fileUrl || selectedMitra.profile?.buktiTransfer ? (
@@ -904,7 +904,7 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
                       </div>
                       <div>
                         <h3 className="text-sm font-black text-emerald-900 uppercase tracking-[0.2em]">Dokumen Struk / Resi Bukti Transfer</h3>
-                        <p className="text-xs text-slate-400 font-medium">Pastikan nominal sebesar Rp 350.000 ditransfer ke Rekening Mandiri PT Golden Tour Haramain</p>
+                        <p className="text-xs text-slate-400 font-medium">Pastikan nominal transfer administrasi masuk ke Rekening Mandiri PT Golden Tour Haramain</p>
                       </div>
                     </div>
 
@@ -974,7 +974,7 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
                                   <div>
                                     <h5 className="text-sm font-bold text-slate-800">Bukti Transfer Belum Diunggah</h5>
                                     <p className="text-xs text-slate-400 font-medium max-w-sm mx-auto mt-1">
-                                      Mitra ini belum melampirkan foto resi bukti transfer biaya administrasi Rp 350.000.
+                                      Mitra ini belum melampirkan foto resi bukti transfer biaya administrasi pendaftaran.
                                     </p>
                                   </div>
                                 </div>
@@ -991,8 +991,8 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
                               </div>
                               <div className="space-y-3">
                                 <div>
-                                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Nominal Wajib</div>
-                                  <div className="text-2xl font-playfair font-black text-amber-300">Rp 350.000</div>
+                                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Jenis Tagihan</div>
+                                  <div className="text-2xl font-playfair font-black text-amber-300">Biaya Kemitraan</div>
                                 </div>
                                 <div>
                                   <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">Bank Tujuan Perusahaan</div>
@@ -1007,7 +1007,7 @@ const AdminMitraManager = ({ initialFilter = 'all' }: AdminMitraManagerProps) =>
                                 <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Checklist Verifikasi Tim Keuangan:
                               </h5>
                               <ul className="text-xs text-slate-600 space-y-1.5 font-medium pl-6 list-disc">
-                                <li>Pastikan nominal transfer sesuai Rp 350.000</li>
+                                <li>Pastikan nominal transfer sesuai tagihan administrasi</li>
                                 <li>Rekening penerima adalah Bank Mandiri PT Golden Tour Haramain</li>
                                 <li>Tanggal & jam transfer terlihat jelas pada resi</li>
                                 <li>Jika valid, klik tombol <strong>Verifikasi & Aktifkan</strong> di bawah.</li>

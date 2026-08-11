@@ -48,10 +48,10 @@ export const LEGAL_CARD_ITEMS: LegalCardItem[] = [
     category: 'kemenag',
     categoryLabel: 'Kementerian Agama RI',
     issuer: 'Direktorat Jenderal Penyelenggaraan Haji dan Umrah Kemenag RI',
-    accreditation: 'Akreditasi A (Sangat Baik)',
-    description: 'Terdaftar & terverifikasi resmi di Kementerian Agama RI sebagai Penyelenggara Perjalanan Ibadah Umrah resmi dengan predikat akreditasi tertinggi A.',
+    accreditation: 'Terakreditasi (Standar Kualitas & Layanan Teruji Profesional)',
+    description: 'Terdaftar & terverifikasi resmi di Kementerian Agama RI sebagai Penyelenggara Perjalanan Ibadah Umrah resmi dengan predikat terakreditasi terbaik.',
     highlights: [
-      'Akreditasi Grade A (Sangat Baik)',
+      'Terakreditasi dengan Kualitas Layanan Teruji Profesional',
       'Terintegrasi Sistem SISKOPATUH Kemenag RI',
       'Jaminan Kepastian Jadwal & Hotel Makkah-Madinah'
     ],
@@ -209,8 +209,8 @@ export default function LegalitasShowcase() {
               <span className="text-[10px] text-stone-300 uppercase tracking-wider font-semibold">Kemenag RI Resmi</span>
             </div>
             <div className="bg-[#012d20]/90 border border-[#D4AF37]/40 p-3.5 rounded-2xl backdrop-blur-md text-center shadow-lg">
-              <span className="block font-serif font-bold text-lg text-[#F3E5AB]">Akreditasi A</span>
-              <span className="text-[10px] text-stone-300 uppercase tracking-wider font-semibold">Predikat Sangat Baik</span>
+              <span className="block font-serif font-bold text-lg text-[#F3E5AB]">Terakreditasi</span>
+              <span className="text-[10px] text-stone-300 uppercase tracking-wider font-semibold">Standar Kualitas & Layanan Teruji Profesional</span>
             </div>
             <div className="bg-[#012d20]/90 border border-[#D4AF37]/40 p-3.5 rounded-2xl backdrop-blur-md text-center shadow-lg">
               <span className="block font-serif font-bold text-lg text-[#F3E5AB]">Anggota AMPHURI</span>

@@ -9,31 +9,31 @@ export default function MitraInfoKomisi() {
   // Simulator State
   const [harmoniCount, setHarmoniCount] = useState<number>(43);
   const [madaniCount, setMadaniCount] = useState<number>(0);
-  const [insaniCount, setInsaniCount] = useState<number>(0);
+  const [ihsaniCount, setIhsaniCount] = useState<number>(0);
   const [isTourLeader, setIsTourLeader] = useState<boolean>(true);
 
   // Prices & Rates
   const HARMONI_FEE = 2000000;
   const MADANI_FEE = 2500000;
-  const INSANI_FEE = 3000000;
+  const IHSANI_FEE = 3000000;
   const BONUS_PRESTASI_PER_10 = 1500000;
   const TOUR_LEADER_SEAT_VALUE = 34000000;
   const TOUR_LEADER_POCKET_MONEY = 2500000;
 
   // Calculations
-  const totalJamaah = harmoniCount + madaniCount + insaniCount;
+  const totalJamaah = harmoniCount + madaniCount + ihsaniCount;
   
   const totalUjrohHarmoni = harmoniCount * HARMONI_FEE;
   const totalUjrohMadani = madaniCount * MADANI_FEE;
-  const totalUjrohInsani = insaniCount * INSANI_FEE;
-  const totalUjrohDasar = totalUjrohHarmoni + totalUjrohMadani + totalUjrohInsani;
+  const totalUjrohIhsani = ihsaniCount * IHSANI_FEE;
+  const totalUjrohDasar = totalUjrohHarmoni + totalUjrohMadani + totalUjrohIhsani;
 
   // Bonus Prestasi: per 10 jamaah dalam 1x keberangkatan
   const bonusPrestasiMultiplier = Math.floor(totalJamaah / 10);
   const totalBonusPrestasi = bonusPrestasiMultiplier * BONUS_PRESTASI_PER_10;
 
   // Tour Leader perks
-  const hasTourLeaderEligible = totalJamaah >= 40 && isTourLeader;
+  const hasTourLeaderEligible = totalJamaah >= 43 && isTourLeader;
   const tourLeaderSeatBonus = hasTourLeaderEligible ? TOUR_LEADER_SEAT_VALUE : 0;
   const tourLeaderPocketBonus = hasTourLeaderEligible ? TOUR_LEADER_POCKET_MONEY : 0;
 
@@ -186,12 +186,12 @@ export default function MitraInfoKomisi() {
             </div>
           </div>
 
-          {/* INSANI */}
+          {/* IHSANI */}
           <div className="group relative bg-white rounded-3xl p-6 border border-slate-200 hover:border-emerald-500 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-100 text-purple-800 uppercase tracking-wider">
-                  Paket Insani (VIP)
+                  Paket Ihsani (VIP)
                 </span>
                 <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold text-lg">
                   👑
@@ -206,7 +206,7 @@ export default function MitraInfoKomisi() {
               <ul className="text-xs text-slate-600 space-y-2 pt-2 border-t border-slate-100 font-medium">
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />
-                  Berlaku untuk seluruh keberangkatan Insani VIP
+                  Berlaku untuk seluruh keberangkatan Ihsani VIP
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-purple-600 shrink-0" />
@@ -307,7 +307,7 @@ export default function MitraInfoKomisi() {
                 90 JAMAAH = <span className="text-amber-600">GRATIS 1 SEAT UMROH</span>
               </div>
               <p className="text-xs text-slate-700 font-medium leading-relaxed">
-                Setiap Mitra yang berhasil mengumpulkan total 90 jamaah (Paket Harmoni) berhak memperoleh 1 paket Umroh Gratis.
+                Setiap Mitra yang berhasil mengumpulkan total 90 jamaah berhak memperoleh 1 paket Umroh Gratis (Paket Harmoni).
               </p>
             </div>
 
@@ -400,18 +400,18 @@ export default function MitraInfoKomisi() {
               />
             </div>
 
-            {/* INSANI */}
+            {/* IHSANI */}
             <div className="space-y-2">
               <div className="flex justify-between items-center text-xs font-bold">
-                <label className="text-slate-700">Jamaah Paket Insani (Rp 3 Juta/Pax)</label>
-                <span className="text-purple-700 bg-purple-100 px-2 py-0.5 rounded-md font-mono">{insaniCount} Pax</span>
+                <label className="text-slate-700">Jamaah Paket Ihsani (Rp 3 Juta/Pax)</label>
+                <span className="text-purple-700 bg-purple-100 px-2 py-0.5 rounded-md font-mono">{ihsaniCount} Pax</span>
               </div>
               <input 
                 type="range" 
                 min="0" 
                 max="100" 
-                value={insaniCount} 
-                onChange={(e) => setInsaniCount(parseInt(e.target.value) || 0)}
+                value={ihsaniCount} 
+                onChange={(e) => setIhsaniCount(parseInt(e.target.value) || 0)}
                 className="w-full accent-purple-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
               />
             </div>
@@ -428,7 +428,7 @@ export default function MitraInfoKomisi() {
                 <div>
                   <span className="text-xs font-bold text-slate-900 block">Menjadi Tour Leader / Pembimbing Grup</span>
                   <span className="text-[11px] text-slate-500 font-medium">
-                    Berhak atas 1 Seat Umroh Gratis + Uang Saku TL apabila rombongan ≥ 40 Jamaah
+                    Berhak atas 1 Seat Umroh Gratis + Uang Saku TL apabila rombongan ≥ 43 Jamaah
                   </span>
                 </div>
               </label>
@@ -437,13 +437,13 @@ export default function MitraInfoKomisi() {
             {/* PRESET BUTTONS */}
             <div className="flex gap-2 pt-2">
               <button
-                onClick={() => { setHarmoniCount(43); setMadaniCount(0); setInsaniCount(0); setIsTourLeader(true); }}
+                onClick={() => { setHarmoniCount(43); setMadaniCount(0); setIhsaniCount(0); setIsTourLeader(true); }}
                 className="flex-1 py-2 px-3 rounded-xl bg-emerald-900 text-amber-300 text-xs font-bold hover:bg-emerald-800 transition-all shadow-sm"
               >
                 Set Preset Slide 3 (43 Jamaah)
               </button>
               <button
-                onClick={() => { setHarmoniCount(10); setMadaniCount(10); setInsaniCount(10); setIsTourLeader(false); }}
+                onClick={() => { setHarmoniCount(10); setMadaniCount(10); setIhsaniCount(10); setIsTourLeader(false); }}
                 className="py-2 px-3 rounded-xl bg-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-300 transition-all"
               >
                 Reset (30 Jamaah)
@@ -487,8 +487,8 @@ export default function MitraInfoKomisi() {
                   <span className="text-slate-300 font-medium block">
                     ✓ Gratis Umroh Tour Leader (S&K):
                   </span>
-                  {!hasTourLeaderEligible && totalJamaah < 40 && (
-                    <span className="text-[10px] text-amber-400/80 italic">Needs min. 40 Jamaah</span>
+                  {!hasTourLeaderEligible && totalJamaah < 43 && (
+                    <span className="text-[10px] text-amber-400/80 italic">Needs min. 43 Jamaah</span>
                   )}
                 </div>
                 <span className="font-bold text-emerald-300 font-mono">

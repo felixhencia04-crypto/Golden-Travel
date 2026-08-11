@@ -309,16 +309,19 @@ export default function Home() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             
             {/* Left Column: Hero Copy & Actions */}
-            <div className="lg:col-span-7 xl:col-span-8 space-y-4 sm:space-y-6">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/40 text-[#F3E5AB] text-xs sm:text-sm font-semibold tracking-wider uppercase backdrop-blur-md shadow-sm">
-                <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+            <div className="lg:col-span-7 xl:col-span-8 space-y-5 sm:space-y-7">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/35 text-[#F3E5AB] text-xs sm:text-sm font-semibold tracking-wide uppercase backdrop-blur-md shadow-md">
+                <ShieldCheck className="w-4 h-4 text-[#E8C766]" />
                 <span>Travel Umroh &amp; Haji Resmi Kemenag RI</span>
               </div>
 
-              <h1 className="font-serif font-bold text-2xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl leading-[1.25] sm:leading-[1.15] text-[#F3E5AB] drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)] text-balance">
-                Wujudkan Perjalanan Suci yang <span className="text-[#D4AF37] underline decoration-[#D4AF37]/40 underline-offset-8">Aman, Nyaman, Khusyuk,</span> dan Penuh Berkah.
+              <h1 className="font-serif font-bold text-3xl sm:text-4xl md:text-5xl lg:text-5xl xl:text-6.5xl leading-[1.25] sm:leading-[1.15] text-stone-100 drop-shadow-[0_4px_16px_rgba(0,0,0,0.6)] text-balance">
+                Wujudkan Perjalanan Suci yang <br className="hidden md:inline" />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F0DB95] via-[#E8C766] to-[#D4AF37] italic font-semibold tracking-wide drop-shadow-sm">
+                  Aman, Nyaman, &amp; Khusyuk
+                </span>,<br className="hidden sm:inline md:hidden" /> dan Penuh Berkah.
               </h1>
-              <p className="text-[#E6DBC6] text-sm sm:text-base md:text-xl leading-relaxed max-w-2xl font-normal drop-shadow">
+              <p className="text-stone-200/90 text-sm sm:text-base md:text-lg leading-relaxed max-w-2xl font-light tracking-wide drop-shadow-sm">
                 Golden Travel menghadirkan pelayanan ibadah Haji dan Umroh eksklusif dengan fasilitas personal, pembimbing bersertifikat, hotel dekat Masjidil Haram, dan kepastian jadwal.
               </p>
               
@@ -331,9 +334,11 @@ export default function Home() {
                 </a>
               </div>
 
-              <p className="text-[#D4AF37] font-serif italic text-xs sm:text-base md:text-lg drop-shadow-md pt-1">
-                "Kenyamanan dan Kepercayaan Anda, Prioritas Utama Kami."
-              </p>
+              <div className="pl-4 border-l-2 border-[#D4AF37]/50 py-1">
+                <p className="text-[#E8C766] font-serif italic text-sm sm:text-base md:text-lg tracking-wide drop-shadow-sm">
+                  "Kenyamanan dan Kepercayaan Anda, Prioritas Utama Kami."
+                </p>
+              </div>
             </div>
 
             {/* Right Column: Director Photo Display (Frameless & Clean Cutout) */}
@@ -377,31 +382,59 @@ export default function Home() {
 
           </div>
 
-          {/* Bottom 4 Feature Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4 mt-auto">
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3 shadow-lg border-b-4 border-[#d4af37]">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-[#d4af37]/30 flex items-center justify-center shrink-0">
-                <Award className="text-[#d4af37] w-4 h-4 sm:w-5 sm:h-5" />
+          {/* Bottom 4 Feature Cards - Detailed Commitments with Premium Design */}
+          <div className="space-y-5 pt-6 mt-4 relative z-10">
+            <div className="border-b border-[#D4AF37]/25 pb-3 mb-2 flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
+              <div>
+                <h2 className="font-serif text-lg sm:text-2xl font-bold text-stone-100 tracking-wide drop-shadow-sm">
+                  Komitmen Utama Pelayanan Golden Travel
+                </h2>
+                <p className="text-stone-300/80 text-xs sm:text-sm font-light">
+                  Dedikasi penuh demi menjamin kenyamanan, keamanan, dan kekhusyukan ibadah suci Anda.
+                </p>
               </div>
-              <span className="text-[#0d4732] font-semibold text-xs sm:text-sm leading-tight">Sertifikat<br/>Komitmen</span>
             </div>
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3 shadow-lg border-b-4 border-[#d4af37]">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-[#d4af37]/30 flex items-center justify-center shrink-0">
-                <ShieldCheck className="text-[#d4af37] w-4 h-4 sm:w-5 sm:h-5" />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              {/* Card 1 */}
+              <div className="group bg-gradient-to-r from-[#FDFBF7] to-[#F4EFE6] border border-[#D4AF37]/40 rounded-xl p-4 sm:p-5 shadow-lg hover:shadow-[0_8px_24px_rgba(212,175,55,0.2)] hover:border-[#D4AF37] transition-all duration-300 hover:-translate-y-1 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center shrink-0 group-hover:bg-[#D4AF37] transition-colors duration-300">
+                  <CheckCircle2 className="text-[#D4AF37] group-hover:text-white w-6 h-6 transition-colors duration-300" />
+                </div>
+                <h3 className="font-serif text-[#083829] text-sm sm:text-base md:text-sm lg:text-base font-bold tracking-wide leading-snug">
+                  Kepastian Jadwal &amp; Maskapai
+                </h3>
               </div>
-              <span className="text-[#0d4732] font-semibold text-xs sm:text-sm leading-tight">Sertifikat<br/>Resmi</span>
-            </div>
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3 shadow-lg border-b-4 border-[#d4af37]">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-[#d4af37]/30 flex items-center justify-center shrink-0">
-                <CheckCircle2 className="text-[#d4af37] w-4 h-4 sm:w-5 sm:h-5" />
+
+              {/* Card 2 */}
+              <div className="group bg-gradient-to-r from-[#FDFBF7] to-[#F4EFE6] border border-[#D4AF37]/40 rounded-xl p-4 sm:p-5 shadow-lg hover:shadow-[0_8px_24px_rgba(212,175,55,0.2)] hover:border-[#D4AF37] transition-all duration-300 hover:-translate-y-1 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center shrink-0 group-hover:bg-[#D4AF37] transition-colors duration-300">
+                  <Award className="text-[#D4AF37] group-hover:text-white w-6 h-6 transition-colors duration-300" />
+                </div>
+                <h3 className="font-serif text-[#083829] text-sm sm:text-base md:text-sm lg:text-base font-bold tracking-wide leading-snug">
+                  Pembimbing Tersertifikasi
+                </h3>
               </div>
-              <span className="text-[#0d4732] font-semibold text-sm sm:text-sm leading-tight">Layanan<br/>Premium</span>
-            </div>
-            <div className="bg-white/95 backdrop-blur-sm rounded-xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3 shadow-lg border-b-4 border-[#d4af37]">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-[#d4af37]/30 flex items-center justify-center shrink-0">
-                <MapPin className="text-[#d4af37] w-4 h-4 sm:w-5 sm:h-5" />
+
+              {/* Card 3 */}
+              <div className="group bg-gradient-to-r from-[#FDFBF7] to-[#F4EFE6] border border-[#D4AF37]/40 rounded-xl p-4 sm:p-5 shadow-lg hover:shadow-[0_8px_24px_rgba(212,175,55,0.2)] hover:border-[#D4AF37] transition-all duration-300 hover:-translate-y-1 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center shrink-0 group-hover:bg-[#D4AF37] transition-colors duration-300">
+                  <Hotel className="text-[#D4AF37] group-hover:text-white w-6 h-6 transition-colors duration-300" />
+                </div>
+                <h3 className="font-serif text-[#083829] text-sm sm:text-base md:text-sm lg:text-base font-bold tracking-wide leading-snug">
+                  Fasilitas Sangat Nyaman
+                </h3>
               </div>
-              <span className="text-[#0d4732] font-semibold text-xs sm:text-sm leading-tight">Transportasi<br/>Resmi</span>
+
+              {/* Card 4 */}
+              <div className="group bg-gradient-to-r from-[#FDFBF7] to-[#F4EFE6] border border-[#D4AF37]/40 rounded-xl p-4 sm:p-5 shadow-lg hover:shadow-[0_8px_24px_rgba(212,175,55,0.2)] hover:border-[#D4AF37] transition-all duration-300 hover:-translate-y-1 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/30 flex items-center justify-center shrink-0 group-hover:bg-[#D4AF37] transition-colors duration-300">
+                  <HeartHandshake className="text-[#D4AF37] group-hover:text-white w-6 h-6 transition-colors duration-300" />
+                </div>
+                <h3 className="font-serif text-[#083829] text-sm sm:text-base md:text-sm lg:text-base font-bold tracking-wide leading-snug">
+                  Pelayanan Sepenuh Hati
+                </h3>
+              </div>
             </div>
           </div>
         </div>
@@ -420,7 +453,7 @@ export default function Home() {
           {/* Main Title & Narrative Header */}
           <div className="text-center max-w-4xl mx-auto space-y-4">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#083829] border border-[#14533e] text-[#e5c158] text-xs font-semibold tracking-widest uppercase shadow-sm">
-              <Sparkles className="w-3.5 h-3.5 text-[#e5c158]" />
+              <Compass className="w-3.5 h-3.5 text-[#e5c158]" />
               <span>TENTANG PT. GOLDEN TOUR HARAMAIN</span>
             </div>
             
@@ -466,7 +499,7 @@ export default function Home() {
                 </div>
 
                 <div className="pt-5 mt-6 border-t border-[#14533e] flex items-center gap-2 text-xs font-medium text-[#e5c158]">
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Layanan Ibadah Eksklusif & Penuh Makna</span>
                 </div>
               </div>
@@ -498,31 +531,32 @@ export default function Home() {
                 </div>
 
                 <div className="pt-5 mt-6 border-t border-[#14533e] flex items-center gap-2 text-xs font-medium text-[#e5c158]">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Pendampingan Khusyuk & Tanpa Ragu</span>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Pendampingan Profesional & Bimbingan Spiritual</span>
                 </div>
               </div>
 
             </div>
 
             {/* Bottom Feature Ribbon Card */}
-            <div className="bg-[#083023]/90 border border-[#14533e] rounded-2xl p-6 sm:p-8 shadow-xl">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
-                <div className="space-y-1">
-                  <h4 className="font-serif font-semibold text-lg sm:text-xl text-[#e5c158]">Izin Resmi Kemenag RI</h4>
-                  <p className="text-xs sm:text-sm text-[#9eb2a7] font-light">Legalitas & Kepastian Keberangkatan</p>
+            <div className="bg-gradient-to-r from-[#18181B]/95 via-[#27272A]/90 to-[#18181B]/95 border border-[#D4AF37]/30 rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden backdrop-blur-sm">
+              <div className="absolute inset-0 bg-[linear-gradient(to_right,#D4AF37_0%,transparent_10%,transparent_90%,#D4AF37_100%)] opacity-[0.03]"></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 relative z-10">
+                <div className="space-y-1.5">
+                  <h4 className="font-serif font-semibold text-lg sm:text-xl text-[#F3E5AB]">Izin Resmi Kemenag RI</h4>
+                  <p className="text-xs sm:text-sm text-[#D4D4D8] font-light">Legalitas & Kepastian Keberangkatan</p>
                 </div>
-                <div className="space-y-1">
-                  <h4 className="font-serif font-semibold text-lg sm:text-xl text-[#e5c158]">Hotel Ring 1 Bintang 5</h4>
-                  <p className="text-xs sm:text-sm text-[#9eb2a7] font-light">Pelataran Masjidil Haram & Nabawi</p>
+                <div className="space-y-1.5">
+                  <h4 className="font-serif font-semibold text-lg sm:text-xl text-[#F3E5AB]">Hotel Bintang 3, 4, 5</h4>
+                  <p className="text-xs sm:text-sm text-[#D4D4D8] font-light">Akses Nyaman Menuju Masjid Suci</p>
                 </div>
-                <div className="space-y-1">
-                  <h4 className="font-serif font-semibold text-lg sm:text-xl text-[#e5c158]">Pembimbing Ahli Sunnah</h4>
-                  <p className="text-xs sm:text-sm text-[#9eb2a7] font-light">Asatidz Alumni Timur Tengah</p>
+                <div className="space-y-1.5">
+                  <h4 className="font-serif font-semibold text-lg sm:text-xl text-[#F3E5AB]">Pembimbing Ahli Sunnah</h4>
+                  <p className="text-xs sm:text-sm text-[#D4D4D8] font-light">Asatidz Alumni Timur Tengah</p>
                 </div>
-                <div className="space-y-1">
-                  <h4 className="font-serif font-semibold text-lg sm:text-xl text-[#e5c158]">Fasilitas Executive VIP</h4>
-                  <p className="text-xs sm:text-sm text-[#9eb2a7] font-light">Bus Private & Personal Care</p>
+                <div className="space-y-1.5">
+                  <h4 className="font-serif font-semibold text-lg sm:text-xl text-[#F3E5AB]">Fasilitas Executive VIP</h4>
+                  <p className="text-xs sm:text-sm text-[#D4D4D8] font-light">Bus Private & Personal Care</p>
                 </div>
               </div>
             </div>
@@ -532,7 +566,7 @@ export default function Home() {
           <div className="space-y-10 pt-6">
             <div className="text-center space-y-4 max-w-3xl mx-auto">
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#083829] border border-[#14533e] text-[#e5c158] text-xs font-semibold tracking-widest uppercase shadow-sm">
-                <Sparkles className="w-3.5 h-3.5 text-[#e5c158]" />
+                <Award className="w-3.5 h-3.5 text-[#e5c158]" />
                 <span>FONDASI KEUNGGULAN UTAMA</span>
               </div>
               
@@ -549,136 +583,132 @@ export default function Home() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6 items-stretch">
               
               {/* Pilar 01: Profesionalisme */}
-              <div className="bg-[#083023]/90 border border-[#14533e] hover:border-[#1e6e53] transition-all rounded-2xl p-6 flex flex-col justify-between shadow-xl group">
+              <div className="bg-gradient-to-b from-[#18181B] to-[#09090B] border border-[#27272A] hover:border-[#D4AF37]/50 transition-all rounded-2xl p-6 flex flex-col justify-between shadow-xl group">
                 <div>
                   <div className="flex items-center justify-between mb-5">
-                    <div className="w-11 h-11 rounded-xl bg-[#083829] border border-[#14533e] flex items-center justify-center text-[#e5c158] shadow-sm">
+                    <div className="w-11 h-11 rounded-xl bg-[#27272A] border border-[#3F3F46] flex items-center justify-center text-[#D4AF37] shadow-sm group-hover:scale-110 transition-transform">
                       <Award className="w-5 h-5" />
                     </div>
-                    <span className="text-[10px] font-semibold tracking-wider text-[#e5c158] uppercase bg-[#083829] px-3.5 py-1 rounded-full border border-[#14533e]">
+                    <span className="text-[10px] font-semibold tracking-wider text-[#D4AF37] uppercase bg-[#27272A] px-3.5 py-1 rounded-full border border-[#3F3F46]">
                       PILAR 01
                     </span>
                   </div>
 
-                  <h4 className="font-serif text-xl font-semibold text-[#f5f5f0] mb-3 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-[#e5c158] shrink-0" />
-                    <span>Profesionalisme</span>
+                  <h4 className="font-serif text-xl font-semibold text-[#F3E5AB] mb-3">
+                    Profesionalisme
                   </h4>
 
-                  <p className="font-sans text-[#bdccc4] text-xs sm:text-sm leading-relaxed font-light mb-6">
+                  <p className="font-sans text-[#A1A1AA] text-xs sm:text-sm leading-relaxed font-light mb-6">
                     Tim ahli kami yang berdedikasi bekerja tanpa henti di balik layar untuk memastikan setiap detail perjalanan Anda ditangani dengan standar kesempurnaan tertinggi.
                   </p>
                 </div>
 
-                <div className="pt-4 border-t border-[#14533e] space-y-2 text-xs text-[#bdccc4] font-light">
+                <div className="pt-4 border-t border-[#3F3F46] space-y-2 text-xs text-[#D4D4D8] font-light">
                   <div className="flex items-center gap-2">
-                    <span className="text-[#e5c158] font-bold">✓</span>
-                    <span>Standar Layanan Bintang 5</span>
+                    <span className="text-[#D4AF37] font-bold shrink-0">✓</span>
+                    <span className="whitespace-nowrap tracking-tight xl:tracking-normal">Standar Layanan Bintang 3, 4, 5</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[#e5c158] font-bold">✓</span>
+                    <span className="text-[#D4AF37] font-bold">✓</span>
                     <span>Tim Operasional Standby 24/7</span>
                   </div>
                 </div>
               </div>
 
               {/* Pilar 02: Integritas */}
-              <div className="bg-[#083023]/90 border border-[#14533e] hover:border-[#1e6e53] transition-all rounded-2xl p-6 flex flex-col justify-between shadow-xl group">
+              <div className="bg-gradient-to-b from-[#18181B] to-[#09090B] border border-[#27272A] hover:border-[#D4AF37]/50 transition-all rounded-2xl p-6 flex flex-col justify-between shadow-xl group">
                 <div>
                   <div className="flex items-center justify-between mb-5">
-                    <div className="w-11 h-11 rounded-xl bg-[#083829] border border-[#14533e] flex items-center justify-center text-[#e5c158] shadow-sm">
+                    <div className="w-11 h-11 rounded-xl bg-[#27272A] border border-[#3F3F46] flex items-center justify-center text-[#D4AF37] shadow-sm group-hover:scale-110 transition-transform">
                       <ShieldCheck className="w-5 h-5" />
                     </div>
-                    <span className="text-[10px] font-semibold tracking-wider text-[#e5c158] uppercase bg-[#083829] px-3.5 py-1 rounded-full border border-[#14533e]">
+                    <span className="text-[10px] font-semibold tracking-wider text-[#D4AF37] uppercase bg-[#27272A] px-3.5 py-1 rounded-full border border-[#3F3F46]">
                       PILAR 02
                     </span>
                   </div>
 
-                  <h4 className="font-serif text-xl font-semibold text-[#f5f5f0] mb-3 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-[#e5c158] shrink-0" />
-                    <span>Integritas</span>
+                  <h4 className="font-serif text-xl font-semibold text-[#F3E5AB] mb-3">
+                    Integritas
                   </h4>
 
-                  <p className="font-sans text-[#bdccc4] text-xs sm:text-sm leading-relaxed font-light mb-6">
+                  <p className="font-sans text-[#A1A1AA] text-xs sm:text-sm leading-relaxed font-light mb-6">
                     Fondasi utama kami adalah kejujuran dan keterbukaan. Kami menjunjung tinggi prinsip moral ini dalam setiap interaksi, membangun jembatan kepercayaan yang kokoh.
                   </p>
                 </div>
 
-                <div className="pt-4 border-t border-[#14533e] space-y-2 text-xs text-[#bdccc4] font-light">
+                <div className="pt-4 border-t border-[#3F3F46] space-y-2 text-xs text-[#D4D4D8] font-light">
                   <div className="flex items-center gap-2">
-                    <span className="text-[#e5c158] font-bold">✓</span>
+                    <span className="text-[#D4AF37] font-bold">✓</span>
                     <span>Tanpa Biaya Tersembunyi</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[#e5c158] font-bold">✓</span>
+                    <span className="text-[#D4AF37] font-bold">✓</span>
                     <span>Transparansi Fasilitas & Jadwal</span>
                   </div>
                 </div>
               </div>
 
-              {/* Pilar 03: Kenyamanan Total */}
-              <div className="bg-[#083023]/90 border border-[#14533e] hover:border-[#1e6e53] transition-all rounded-2xl p-6 flex flex-col justify-between shadow-xl group">
+              {/* Pilar 03: Kecepatan Total */}
+              <div className="bg-gradient-to-b from-[#18181B] to-[#09090B] border border-[#27272A] hover:border-[#D4AF37]/50 transition-all rounded-2xl p-6 flex flex-col justify-between shadow-xl group">
                 <div>
                   <div className="flex items-center justify-between mb-5">
-                    <div className="w-11 h-11 rounded-xl bg-[#083829] border border-[#14533e] flex items-center justify-center text-[#e5c158] shadow-sm">
+                    <div className="w-11 h-11 rounded-xl bg-[#27272A] border border-[#3F3F46] flex items-center justify-center text-[#D4AF37] shadow-sm group-hover:scale-110 transition-transform">
                       <Hotel className="w-5 h-5" />
                     </div>
-                    <span className="text-[10px] font-semibold tracking-wider text-[#e5c158] uppercase bg-[#083829] px-3.5 py-1 rounded-full border border-[#14533e]">
+                    <span className="text-[10px] font-semibold tracking-wider text-[#D4AF37] uppercase bg-[#27272A] px-3.5 py-1 rounded-full border border-[#3F3F46]">
                       PILAR 03
                     </span>
                   </div>
 
-                  <h4 className="font-serif text-xl font-semibold text-[#f5f5f0] mb-3 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-[#e5c158] shrink-0" />
-                    <span>Kenyamanan Total</span>
+                  <h4 className="font-serif text-xl font-semibold text-[#F3E5AB] mb-3">
+                    Kecepatan Total
                   </h4>
 
-                  <p className="font-sans text-[#bdccc4] text-xs sm:text-sm leading-relaxed font-light mb-6">
-                    Fokus dan kekhusyukan ibadah Anda adalah prioritas absolut kami. Kami menyediakan fasilitas premium dan akomodasi bertaraf internasional terbaik.
+                  <p className="font-sans text-[#A1A1AA] text-xs sm:text-sm leading-relaxed font-light mb-6">
+                    Layanan yang responsif dan tanggap adalah prioritas kami. Kami memastikan setiap fasilitas, akomodasi, dan proses berjalan efisien demi kelancaran ibadah Anda.
                   </p>
                 </div>
 
-                <div className="pt-4 border-t border-[#14533e] space-y-2 text-xs text-[#bdccc4] font-light">
+                <div className="pt-4 border-t border-[#3F3F46] space-y-2 text-xs text-[#D4D4D8] font-light">
                   <div className="flex items-center gap-2">
-                    <span className="text-[#e5c158] font-bold">✓</span>
-                    <span>Akomodasi Ring 1 Terdekat</span>
+                    <span className="text-[#D4AF37] font-bold">✓</span>
+                    <span>Pilihan Akomodasi Fleksibel & Strategis</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[#e5c158] font-bold">✓</span>
+                    <span className="text-[#D4AF37] font-bold">✓</span>
                     <span>Bus Executive & Menu Indonesia</span>
                   </div>
                 </div>
               </div>
 
               {/* Pilar 04: Transparansi Proses */}
-              <div className="bg-[#083023]/90 border border-[#14533e] hover:border-[#1e6e53] transition-all rounded-2xl p-6 flex flex-col justify-between shadow-xl group">
+              <div className="bg-gradient-to-b from-[#18181B] to-[#09090B] border border-[#27272A] hover:border-[#D4AF37]/50 transition-all rounded-2xl p-6 flex flex-col justify-between shadow-xl group">
                 <div>
                   <div className="flex items-center justify-between mb-5">
-                    <div className="w-11 h-11 rounded-xl bg-[#083829] border border-[#14533e] flex items-center justify-center text-[#e5c158] shadow-sm">
+                    <div className="w-11 h-11 rounded-xl bg-[#27272A] border border-[#3F3F46] flex items-center justify-center text-[#D4AF37] shadow-sm group-hover:scale-110 transition-transform">
                       <FileCheck className="w-5 h-5" />
                     </div>
-                    <span className="text-[10px] font-semibold tracking-wider text-[#e5c158] uppercase bg-[#083829] px-3.5 py-1 rounded-full border border-[#14533e]">
+                    <span className="text-[10px] font-semibold tracking-wider text-[#D4AF37] uppercase bg-[#27272A] px-3.5 py-1 rounded-full border border-[#3F3F46]">
                       PILAR 04
                     </span>
                   </div>
 
-                  <h4 className="font-serif text-xl font-semibold text-[#f5f5f0] mb-3 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-[#e5c158] shrink-0" />
-                    <span>Transparansi Proses</span>
+                  <h4 className="font-serif text-xl font-semibold text-[#F3E5AB] mb-3">
+                    Transparansi Proses
                   </h4>
 
-                  <p className="font-sans text-[#bdccc4] text-xs sm:text-sm leading-relaxed font-light mb-6">
-                    Kepastian adalah kunci ketenangan. Setiap proses—mulai pendaftaran, persiapan, pelaksanaan hingga kepulangan—kami jelaskan secara jernih dan terperinci.
+                  <p className="font-sans text-[#A1A1AA] text-xs sm:text-sm leading-relaxed font-light mb-6">
+                    Kepastian adalah kunci ketenangan. Setiap tahapan operasional—mulai pendaftaran, persiapan, hingga kepulangan—kami komunikasikan secara jernih dan terperinci.
                   </p>
                 </div>
 
-                <div className="pt-4 border-t border-[#14533e] space-y-2 text-xs text-[#bdccc4] font-light">
+                <div className="pt-4 border-t border-[#3F3F46] space-y-2 text-xs text-[#D4D4D8] font-light">
                   <div className="flex items-center gap-2">
-                    <span className="text-[#e5c158] font-bold">✓</span>
+                    <span className="text-[#D4AF37] font-bold">✓</span>
                     <span>Bimbingan Manasik Intensif</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[#e5c158] font-bold">✓</span>
+                    <span className="text-[#D4AF37] font-bold">✓</span>
                     <span>Pendampingan Paspor & Visa</span>
                   </div>
                 </div>

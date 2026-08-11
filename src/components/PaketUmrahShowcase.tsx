@@ -29,7 +29,7 @@ import { PAKET_UMRAH_BG_DATA } from '../assets/paketUmrahBgData';
 export interface UmrahPackage {
   id: string;
   name: string;
-  category: 'reguler' | 'vip' | 'plus' | 'ramadhan';
+  category: 'ekonomis' | 'reguler' | 'vip' | 'plus' | 'ramadhan';
   categoryLabel: string;
   duration: string;
   price: number;
@@ -54,6 +54,58 @@ export interface UmrahPackage {
 }
 
 const DEFAULT_UMRAH_PACKAGES: UmrahPackage[] = [
+  {
+    id: 'pkg-mina-hemat',
+    name: 'Paket Mina (Umrah Bintang 3 - 9 Hari)',
+    category: 'ekonomis',
+    categoryLabel: 'Hemat Bintang 3',
+    duration: '9 Hari',
+    price: 24500000,
+    dpAmount: 'Rp 5.000.000',
+    imageUrl: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&w=800&q=80',
+    airline: 'Lion Air / Saudia Airlines (Transit/Direct)',
+    hotelMakkah: 'Olayan / Fajr Al Badea',
+    hotelMakkahStars: 3,
+    hotelMakkahDistance: '± 500m - 700m dari Masjidil Haram',
+    hotelMadinah: 'Concorde Dar Al Khair / Jawharat Al Rasheed',
+    hotelMadinahStars: 3,
+    hotelMadinahDistance: '± 300m - 500m dari Masjid Nabawi',
+    departureDate: '15 September 2024',
+    totalSeats: 45,
+    seatsLeft: 12,
+    highlights: [
+      'Harga Terjangkau & Hemat',
+      'Fasilitas Nyaman Bintang 3',
+      'Mutawwif Berpengalaman',
+      'Bimbingan Manasik Intensif'
+    ],
+    includes: [
+      'Tiket Pesawat Kelas Ekonomi PP',
+      'Visa Umrah',
+      'Hotel Bintang 3 Makkah & Madinah',
+      'Makan 3x Sehari (Menu Indonesia)',
+      'Transportasi Bus Full AC',
+      'Muthawwif / Pembimbing Ibadah',
+      'Air Zam-zam 5 Liter (Sesuai Aturan Maskapai)'
+    ],
+    excludes: [
+      'Pembuatan Paspor',
+      'Vaksin Meningitis',
+      'Pengeluaran Pribadi',
+      'Kelebihan Bagasi (Overweight)'
+    ],
+    itinerary: [
+      { day: 1, title: 'Keberangkatan Jakarta - Jeddah', description: 'Kumpul di bandara dan penerbangan menuju Jeddah.' },
+      { day: 2, title: 'Jeddah - Madinah', description: 'Tiba di Jeddah, melanjutkan perjalanan ke Madinah, check-in hotel dan istirahat.' },
+      { day: 3, title: 'Ziarah Madinah', description: 'Ziarah ke Makam Rasulullah SAW, Raudhah, dan pemakaman Baqi.' },
+      { day: 4, title: 'Ziarah Kota Madinah', description: 'City tour Madinah mengunjungi Masjid Quba, Masjid Qiblatain, Jabal Uhud, dan Kebun Kurma.' },
+      { day: 5, title: 'Madinah - Makkah (Umrah Pertama)', description: 'Persiapan ihram di miqat Bir Ali, perjalanan menuju Makkah, check-in hotel dan pelaksanaan Umrah pertama.' },
+      { day: 6, title: 'Memperbanyak Ibadah di Masjidil Haram', description: 'Acara bebas memperbanyak ibadah wajib dan sunnah di Masjidil Haram.' },
+      { day: 7, title: 'Ziarah Kota Makkah (Umrah Kedua)', description: 'Ziarah Makkah mengunjungi Jabal Tsur, Padang Arafah, Jabal Rahmah, Muzdalifah, Mina, dan Jabal Nur. Miqat di Ji\'ranah untuk Umrah kedua.' },
+      { day: 8, title: 'Makkah - Jeddah - Kepulangan', description: 'Tawaf Wada\', perjalanan menuju Jeddah, city tour Jeddah, dan penerbangan kembali ke Jakarta.' },
+      { day: 9, title: 'Tiba di Tanah Air', description: 'Tiba di Bandara Internasional Soekarno Hatta, program umrah selesai.' }
+    ]
+  },
   {
     id: 'pkg-safa-reguler',
     name: 'Paket Safa (Umrah Reguler 9 Hari)',
@@ -326,8 +378,15 @@ export default function PaketUmrahShowcase() {
                     return ['Pembuatan Paspor', 'Vaksin Meningitis', 'Pengeluaran Pribadi'];
                   }
                 })(),
-                itinerary: p.itinerary || []
-             }});
+                itinerary: (() => {
+                  try {
+                    return Array.isArray(p.itinerary) ? p.itinerary : (typeof p.itinerary === 'string' ? JSON.parse(p.itinerary || '[]') : []);
+                  } catch(e) {
+                    return [];
+                  }
+                })()
+             } as UmrahPackage;
+             });
              setPackages(mapped);
           }
         } else {
@@ -454,7 +513,7 @@ export default function PaketUmrahShowcase() {
         {/* Section Header */}
         <div className="text-center max-w-4xl mx-auto space-y-4">
           <div className="inline-flex items-center gap-2.5 px-5 py-2 rounded-full bg-[#022A1F]/90 border border-[#D4AF37]/60 text-[#D4AF37] text-xs sm:text-sm font-semibold tracking-[0.2em] uppercase shadow-lg backdrop-blur-md">
-            <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+            <Award className="w-4 h-4 text-[#D4AF37]" />
             <span>Paket Umrah Eksklusif & Reguler</span>
           </div>
 
@@ -474,6 +533,7 @@ export default function PaketUmrahShowcase() {
         <div className="flex flex-wrap items-center justify-center gap-2.5 sm:gap-4 pt-2 pb-2">
           {[
             { id: 'all', label: 'Semua Paket' },
+            { id: 'ekonomis', label: 'Umrah Bintang Tiga (3⭐)' },
             { id: 'reguler', label: 'Umrah Reguler (4⭐)' },
             { id: 'vip', label: 'Umrah VIP Executive (5⭐)' },
             { id: 'plus', label: 'Umrah Plus Turki' },
@@ -991,12 +1051,12 @@ export default function PaketUmrahShowcase() {
                     <div className="bg-[#022A1F] p-5 rounded-2xl border border-[#D4AF37]/30 space-y-3">
                       <h4 className="text-sm font-bold text-[#F3E5AB] flex items-center gap-2">
                         <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
-                        <span>Sistem Pembayaran & Legalitas Resmi</span>
+                        <span>Sistem Pembayaran & Ketentuan Setoran DP</span>
                       </h4>
                       <div className="space-y-2 text-xs text-stone-200">
-                        <p>• <strong>Pembayaran DP:</strong> Minimal {selectedPkg.dpAmount} per jemaah saat booking seat.</p>
+                        <p>• <strong>DP Perlengkapan:</strong> Rp 1.500.000</p>
+                        <p>• <strong>DP Booking Seat:</strong> Rp 10.000.000 saat pendaftaran.</p>
                         <p>• <strong>Pelunasan:</strong> Wajib dilunasi paling lambat 30 hari sebelum tanggal keberangkatan.</p>
-                        <p>• <strong>Legalitas PPIU:</strong> Golden Travel terdaftar resmi Kemenag RI dengan Izin No. 91202028128320002.</p>
                       </div>
                     </div>
                   </div>

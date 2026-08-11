@@ -295,8 +295,24 @@ export default function PaketHajiShowcase() {
                     return ['Pembuatan Paspor', 'Vaksin Meningitis', 'Pengeluaran Pribadi'];
                   }
                 })(),
-                itinerary: p.itinerary || []
-             }});
+                itinerary: (() => {
+                  try {
+                    return Array.isArray(p.itinerary) ? p.itinerary : (typeof p.itinerary === 'string' ? JSON.parse(p.itinerary || '[]') : []);
+                  } catch(e) {
+                    return [];
+                  }
+                })(),
+                requirements: (() => {
+                  try {
+                    const parsed = Array.isArray(p.requirements) ? p.requirements : (typeof p.requirements === 'string' ? JSON.parse(p.requirements) : null);
+                    return Array.isArray(parsed) && parsed.length > 0 ? parsed : ['Paspor Asli (Masa berlaku minimal 8 bulan)', 'Fotokopi KTP & Kartu Keluarga (KK)', 'Fotokopi Akta Kelahiran / Surat Nikah', 'Pas Foto berwarna dengan latar belakang putih', 'Sertifikat Vaksin Meningitis (Asli)'];
+                  } catch(e) {
+                    return ['Paspor Asli (Masa berlaku minimal 8 bulan)', 'Fotokopi KTP & Kartu Keluarga (KK)', 'Fotokopi Akta Kelahiran / Surat Nikah', 'Pas Foto berwarna dengan latar belakang putih', 'Sertifikat Vaksin Meningitis (Asli)'];
+                  }
+                })(),
+                tentMinaArafah: p.tentMinaArafah || 'Tenda Maktab Standar (Mina & Arafah)'
+             } as HajiPackage;
+             });
              setPackages(mapped);
           }
         } else {
@@ -427,7 +443,7 @@ export default function PaketHajiShowcase() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 sm:gap-8 border-b border-[#D4AF37]/20 pb-8 sm:pb-12">
           <div className="max-w-3xl space-y-3 sm:space-y-4">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/40 text-[#D4AF37] text-xs font-bold tracking-wider uppercase">
-              <Sparkles className="w-3.5 h-3.5" /> Program Haji Khusus & Furoda Resmi
+              <ShieldCheck className="w-3.5 h-3.5 text-[#D4AF37]" /> Program Haji Khusus & Furoda Resmi
             </div>
             <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl text-white leading-tight">
               Pilihan Perjalanan <span className="text-[#D4AF37]">Ibadah Haji Mabrur</span>
@@ -663,7 +679,7 @@ export default function PaketHajiShowcase() {
                     {/* Highlights Bullet List */}
                     <div className="space-y-2 pt-2 border-t border-[#D4AF37]/20">
                       <div className="text-xs font-bold uppercase tracking-wider text-[#D4AF37] mb-2 flex items-center gap-1.5">
-                        <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+                        <Award className="w-4 h-4 text-[#D4AF37]" />
                         <span>Fasilitas Keunggulan Haji:</span>
                       </div>
                       {pkg.highlights.slice(0, 3).map((item, idx) => (
@@ -949,9 +965,9 @@ export default function PaketHajiShowcase() {
                         <span>Sistem Pembayaran & Ketentuan Setoran DP</span>
                       </h4>
                       <div className="space-y-2 text-xs text-stone-200">
-                        <p>• <strong>Setoran DP Booking Seat:</strong> {selectedPackage.dpAmount} saat pendaftaran.</p>
-                        <p>• <strong>Pelunasan Haji Furoda:</strong> Dilakukan saat penerbitan Visa Haji Furoda resmi oleh Kerajaan Arab Saudi.</p>
-                        <p>• <strong>Legalitas Resmi:</strong> Dikelola langsung oleh PT. Golden Tour Haramain dengan izin resmi Kementerian Agama RI.</p>
+                        <p>• <strong>DP Perlengkapan:</strong> Rp 1.500.000</p>
+                        <p>• <strong>DP Booking Seat:</strong> Rp 10.000.000 saat pendaftaran.</p>
+                        <p>• <strong>Pelunasan:</strong> Dilakukan saat penerbitan Visa Haji resmi oleh Kerajaan Arab Saudi.</p>
                       </div>
                     </div>
                   </div>

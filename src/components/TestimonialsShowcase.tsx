@@ -181,19 +181,7 @@ export const TestimonialsShowcase: React.FC = () => {
       <div className="max-w-7xl mx-auto relative z-10">
         
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#F3E5AB] text-xs sm:text-sm font-semibold tracking-wider uppercase mb-4 shadow-sm">
-            <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-            <span>Kisah Real & Ulasan Otentik</span>
-          </div>
-
-          <h2 className="font-serif text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight mb-4 drop-shadow-sm">
-            Apakah Kata Mereka Tentang <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#F3E5AB] via-[#D4AF37] to-[#E6CA65]">Layanan Kami?</span>
-          </h2>
-
-          <p className="text-stone-300 text-sm sm:text-base md:text-lg leading-relaxed font-light max-w-2xl mx-auto">
-            Pengalaman nyata dari para jemaah yang telah mempercayakan perjalanan ibadah suci mereka kepada <strong className="text-white font-semibold">PT. Golden Tour Haramain</strong>.
-          </p>
+        <div className="text-center max-w-3xl mx-auto mb-6 sm:mb-8">
         </div>
 
         {/* Key Trust Stats Bar */}

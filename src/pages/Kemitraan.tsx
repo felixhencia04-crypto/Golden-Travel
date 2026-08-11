@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { HEADER_BG_DATA } from '../assets/headerBgData';
 import { KEMITRAAN_BG_DATA } from '../assets/kemitraanBgData';
+import { DIREKTUR_PHOTO_DATA } from '../assets/direkturPhotoData';
 
 export default function Kemitraan() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -22,7 +23,7 @@ export default function Kemitraan() {
   const faqs = [
     {
       q: 'Apakah pendaftaran Mitra Agen di Golden Travel dipungut biaya?',
-      a: 'Tidak ada biaya pendaftaran (100% Gratis). Siapa saja yang ingin menjadi bagian dari Syiar Ibadah Umroh & Haji dapat mendaftar tanpa uang pangkal.'
+      a: 'Pendaftaran kemitraan memerlukan investasi awal yang terjangkau sebagai bentuk komitmen nyata dalam mensyiarkan Baitullah. Investasi ini berlaku seumur hidup dan Anda akan langsung mendapatkan paket perlengkapan fasilitas eksklusif untuk mendukung aktivitas syiar Anda.'
     },
     {
       q: 'Berapa besaran komisi atau Ujrah yang didapatkan per Jemaah?',
@@ -55,7 +56,7 @@ export default function Kemitraan() {
           <div className="text-center lg:text-left max-w-3xl space-y-7 my-2">
             {/* Badge Title */}
             <div className="inline-flex items-center gap-2.5 px-5 py-2 rounded-full bg-[#063b2c] border border-[#D4AF37] text-[#F5E6B3] text-xs font-extrabold uppercase tracking-widest shadow-xl shadow-emerald-950/10 backdrop-blur-md">
-              <Sparkles className="w-4 h-4 text-[#D4AF37] animate-pulse shrink-0" />
+              <ShieldCheck className="w-4 h-4 text-[#D4AF37] animate-pulse shrink-0" />
               <span>Program Resmi Syiar Keagenan &amp; Kemitraan</span>
             </div>
 
@@ -147,7 +148,7 @@ export default function Kemitraan() {
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 sm:gap-3.5 text-xs text-[#063b2c] font-black pt-1">
               <span className="inline-flex items-center gap-2 bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-full border border-[#D4AF37]/60 shadow-sm hover:shadow-md transition-shadow whitespace-nowrap">
                 <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
-                100% Pendaftaran Gratis
+                Sistem Kemitraan Terpercaya
               </span>
               <span className="inline-flex items-center gap-2 bg-white/95 backdrop-blur-md px-4 py-2.5 rounded-full border border-[#D4AF37]/60 shadow-sm hover:shadow-md transition-shadow whitespace-nowrap">
                 <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
@@ -175,7 +176,7 @@ export default function Kemitraan() {
           {/* Header Banner Block */}
           <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#063b2c]/10 border border-[#D4AF37]/50 text-[#063b2c] text-xs font-black uppercase tracking-widest">
-              <Sparkles className="w-3.5 h-3.5 text-[#9A7B1C]" />
+              <TrendingUp className="w-3.5 h-3.5 text-[#9A7B1C]" />
               <span>Analisis Peluang Usaha Syiar</span>
             </div>
 
@@ -430,7 +431,7 @@ export default function Kemitraan() {
           {/* Header Block */}
           <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#063b2c] border border-[#D4AF37] text-[#F5E6B3] text-xs font-black uppercase tracking-widest shadow-md">
-              <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <Globe className="w-3.5 h-3.5 text-[#D4AF37]" />
               <span>EKOSISTEM KEMITRAAN TERPADU</span>
             </div>
 
@@ -702,7 +703,7 @@ export default function Kemitraan() {
           {/* Header Block */}
           <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#063b2c] border border-[#D4AF37] text-[#F5E6B3] text-xs font-black uppercase tracking-widest shadow-md">
-              <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <CheckCircle2 className="w-3.5 h-3.5 text-[#D4AF37]" />
               <span>ALUR PENDAFTARAN CEPAT &amp; TRANSPARAN</span>
             </div>
 
@@ -855,7 +856,7 @@ export default function Kemitraan() {
           {/* Header Block */}
           <div className="text-center max-w-3xl mx-auto mb-12 space-y-4">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#063b2c] border border-[#D4AF37] text-[#F5E6B3] text-xs font-black uppercase tracking-widest shadow-md">
-              <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <Award className="w-3.5 h-3.5 text-[#D4AF37]" />
               <span>SYARAT &amp; INVESTASI KEMITRAAN</span>
             </div>
 
@@ -867,11 +868,11 @@ export default function Kemitraan() {
             </h2>
 
             <p className="text-stone-700 text-sm sm:text-base font-semibold max-w-2xl mx-auto">
-              Sangat mudah! Tanpa ikatan rumit, siapapun dapat bergabung mensyiarkan Baitullah dan memperoleh paket fasilitas starter kit keagenan lengkap.
+              Sangat mudah! Tanpa ikatan rumit, siapapun dapat bergabung mensyiarkan Baitullah dan memperoleh paket perlengkapan kemitraan lengkap.
             </p>
           </div>
 
-          {/* Promo Price & Offer Banner */}
+          {/* Promo Offer Banner */}
           <div className="mb-14 p-6 sm:p-10 rounded-3xl bg-gradient-to-r from-[#063b2c] via-[#084836] to-[#04281e] border-2 border-[#D4AF37] text-white shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 -mt-10 -mr-10 w-72 h-72 bg-[#D4AF37]/15 rounded-full blur-3xl pointer-events-none"></div>
             
@@ -879,28 +880,16 @@ export default function Kemitraan() {
               
               {/* Left Side: Promo Title & Pricing */}
               <div className="text-center lg:text-left space-y-3">
-                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-red-600/90 text-white font-black text-xs uppercase tracking-widest shadow-md border border-red-400 animate-pulse">
-                  🔥 PROMO SPESIAL TERBATAS
+                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#D4AF37]/20 text-[#F3E5AB] font-black text-xs uppercase tracking-widest shadow-md border border-[#D4AF37]/50">
+                  🌟 INVESTASI BERKAH
                 </div>
 
                 <h3 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
-                  Cukup Investasi Starter Kit Syiar
+                  Perlengkapan Mitra
                 </h3>
 
-                <div className="flex flex-wrap items-baseline justify-center lg:justify-start gap-4 pt-1">
-                  <div className="text-stone-400 text-lg sm:text-xl font-bold line-through">
-                    Rp 1.000.000,-
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-xs font-bold text-amber-300 uppercase">Cukup Dengan</span>
-                    <span className="text-4xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-[#FFE082] via-[#F3E5AB] to-[#D4AF37] drop-shadow-md">
-                      Rp 350.000,-
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-xs sm:text-sm text-emerald-100/90 font-medium">
-                  *Sekali seumur hidup • Tanpa biaya tahunan • Langsung berhak memasarkan &amp; terima komisi
+                <p className="text-sm sm:text-base text-emerald-100/90 font-medium max-w-xl leading-relaxed">
+                  Dapatkan fasilitas perlengkapan kemitraan eksklusif untuk mendukung perjalanan syiar Anda. *Sekali seumur hidup • Tanpa biaya tahunan • Langsung berhak memasarkan &amp; terima komisi.
                 </p>
               </div>
 
@@ -908,28 +897,27 @@ export default function Kemitraan() {
               <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0 w-full sm:w-auto">
                 <div className="px-5 py-3 rounded-2xl bg-white/10 backdrop-blur-md border border-[#D4AF37]/60 flex items-center gap-3">
                   <CheckCircle2 className="w-5 h-5 text-amber-300 shrink-0" />
-                  <span className="text-xs sm:text-sm font-extrabold text-white">Fasilitas Starter Kit 6 in 1 Langsung Dikirim</span>
+                  <span className="text-xs sm:text-sm font-extrabold text-white">Fasilitas Perlengkapan Lengkap Langsung Dikirim</span>
                 </div>
                 <div className="px-5 py-3 rounded-2xl bg-white/10 backdrop-blur-md border border-[#D4AF37]/60 flex items-center gap-3">
                   <CheckCircle2 className="w-5 h-5 text-amber-300 shrink-0" />
                   <span className="text-xs sm:text-sm font-extrabold text-white">Akses Portal Digital &amp; Mentoring Rutin</span>
                 </div>
               </div>
-
             </div>
           </div>
 
           {/* Section Subhead: 6 Kit Items */}
           <div className="text-center mb-8">
             <h3 className="text-xl sm:text-2xl font-black text-[#083325]">
-              MEMPEROLEH 6 FASILITAS STARTER KIT EKSKLUSIF:
+              MEMPEROLEH 6 FASILITAS EKSKLUSIF:
             </h3>
             <p className="text-stone-700 text-xs sm:text-sm font-semibold mt-1">
               Perlengkapan resmi siap pakai untuk mendukung aktivitas syiar pemasaran Anda di lapangan
             </p>
           </div>
 
-          {/* 6 Starter Kit Items Grid */}
+          {/* 6 Kit Items Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
             
             {/* Item 1: SPANDUK */}
@@ -1061,16 +1049,24 @@ export default function Kemitraan() {
                 </h3>
 
                 {/* Profile Badge Card */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-white/10 backdrop-blur-md border border-[#D4AF37]/50 flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#D4AF37] to-[#AA771C] text-[#04170d] font-black text-xl flex items-center justify-center border-2 border-white shrink-0 shadow-lg">
-                    AD
+                <div className="p-4 sm:p-5 rounded-2xl bg-white/10 backdrop-blur-md border border-[#D4AF37]/50 flex sm:items-center flex-col sm:flex-row gap-4">
+                  <div className="w-20 h-20 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-gradient-to-tr from-[#D4AF37]/20 to-[#AA771C]/20 border-2 border-[#D4AF37] shrink-0 shadow-xl flex items-center justify-center">
+                    <img 
+                      src={DIREKTUR_PHOTO_DATA} 
+                      alt="Ustadz Ahmad Daud" 
+                      className="w-full h-full object-cover object-top scale-110"
+                      onError={(e) => {
+                        e.currentTarget.src = '/owner.png';
+                        e.currentTarget.onerror = null;
+                      }}
+                    />
                   </div>
-                  <div>
+                  <div className="text-center sm:text-left">
                     <h4 className="text-lg font-black text-amber-300">Ahmad Daud</h4>
-                    <p className="text-xs font-bold text-white">
-                      Direktur PT. Golden Tour Haramain <span className="text-emerald-300 font-semibold">(Mantan Tukang Ojek)</span>
+                    <p className="text-xs font-bold text-white mb-2 sm:mb-0">
+                      Direktur PT. Golden Tour Haramain <span className="text-emerald-300 font-semibold block sm:inline mt-0.5 sm:mt-0">(Mantan Tukang Ojek)</span>
                     </p>
-                    <p className="text-[11px] text-emerald-100/90 mt-1 italic">
+                    <p className="text-[11px] sm:text-xs text-emerald-100/90 mt-1.5 sm:mt-1 italic leading-relaxed">
                       "Perjalanan syiar ini membuktikan bahwa latar belakang profesi bukanlah penghalang. Siapapun yang berniat tulus mensyiarkan Baitullah pasti Allah bukakan jalan keberkahan."
                     </p>
                   </div>
@@ -1103,7 +1099,7 @@ export default function Kemitraan() {
                   </div>
                   <div className="flex items-start gap-2.5">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>Registrasi Starter Kit Promo Rp 350.000,- (Sekali selamanya).</span>
+                    <span>Registrasi Perlengkapan Kemitraan (Sekali seumur hidup).</span>
                   </div>
                 </div>
 
@@ -1136,7 +1132,7 @@ export default function Kemitraan() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center max-w-3xl mx-auto mb-12 space-y-4">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#063b2c] border border-[#D4AF37] text-[#F5E6B3] text-xs font-black uppercase tracking-widest shadow-md">
-              <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <HelpCircle className="w-3.5 h-3.5 text-[#D4AF37]" />
               <span>PERTANYAAN POPULER</span>
             </div>
 

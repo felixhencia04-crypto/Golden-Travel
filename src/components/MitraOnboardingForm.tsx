@@ -125,7 +125,7 @@ export default function MitraOnboardingForm({ onComplete, initialData }: MitraOn
 
   const handleSubmit = async () => {
     if (!formData.buktiTransfer) {
-      toast.error('Mohon unggah foto bukti transfer biaya pendaftaran administrasi (Rp 350.000) terlebih dahulu.');
+      toast.error('Mohon unggah foto bukti transfer biaya pendaftaran administrasi terlebih dahulu.');
       return;
     }
     setLoading(true);
@@ -633,19 +633,19 @@ export default function MitraOnboardingForm({ onComplete, initialData }: MitraOn
                     <div>
                       <h3 className="text-2xl sm:text-3xl font-playfair font-black text-white">Biaya Registrasi Resmi Mitra</h3>
                       <p className="text-xs sm:text-sm text-emerald-200/80 font-medium mt-1">
-                        Biaya pendaftaran sebesar <strong className="text-amber-300 font-bold">Rp 350.000</strong> berlaku 1 kali untuk lisensi kemitraan resmi Golden Travel.
+                        Biaya pendaftaran berlaku 1 kali untuk perlengkapan dan lisensi kemitraan resmi Golden Travel.
                       </p>
                     </div>
                     <div className="bg-white/10 backdrop-blur-md px-5 py-3 rounded-2xl border border-white/20 text-right shrink-0">
-                      <span className="text-[10px] uppercase font-bold text-emerald-300 block">Total Nominal Transfer</span>
-                      <span className="text-2xl sm:text-3xl font-playfair font-black text-amber-300">Rp 350.000</span>
+                      <span className="text-[10px] uppercase font-bold text-emerald-300 block">Investasi Syiar</span>
+                      <span className="text-2xl sm:text-3xl font-playfair font-black text-amber-300">Berkah</span>
                     </div>
                   </div>
 
-                  {/* List Fasilitas Starter Kit */}
+                  {/* List Fasilitas Perlengkapan */}
                   <div className="space-y-3 pt-2">
                     <h4 className="text-xs font-black uppercase tracking-widest text-emerald-200">
-                      Fasilitas & Starter Kit Yang Didapatkan Mitra Golden Travel:
+                      Fasilitas Perlengkapan Yang Didapatkan Mitra Golden Travel:
                     </h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {[
@@ -679,7 +679,7 @@ export default function MitraOnboardingForm({ onComplete, initialData }: MitraOn
                   </div>
                   <div>
                     <h4 className="text-base font-bold text-slate-900">Rekening Resmi Tujuan Transfer</h4>
-                    <p className="text-xs text-slate-500 font-medium">Silakan lakukan transfer sebesar Rp 350.000 ke rekening resmi PT Golden Tour Haramain di bawah ini:</p>
+                    <p className="text-xs text-slate-500 font-medium">Silakan lakukan transfer pendaftaran administrasi ke rekening resmi PT Golden Tour Haramain di bawah ini:</p>
                   </div>
                 </div>
 
@@ -717,16 +717,9 @@ export default function MitraOnboardingForm({ onComplete, initialData }: MitraOn
                   <div className="flex items-start sm:items-center gap-3">
                     <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 sm:mt-0" />
                     <div className="text-xs text-amber-900 font-medium">
-                      Mohon mentransfer tepat sejumlah <strong>Rp 350.000</strong> agar proses verifikasi tim keuangan berjalan otomatis & cepat.
+                      Mohon mentransfer sesuai instruksi admin agar proses verifikasi tim keuangan berjalan otomatis & cepat.
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleCopyText('350000', 'Nominal Transfer')}
-                    className="shrink-0 px-3.5 py-1.5 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors active:scale-95 shadow-xs"
-                  >
-                    <Copy className="w-3.5 h-3.5" /> Salin Nominal
-                  </button>
                 </div>
               </div>
 

@@ -264,7 +264,7 @@ export const DepartureGalleryShowcase: React.FC = () => {
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#F3E5AB] text-xs sm:text-sm font-semibold tracking-wider uppercase mb-4 shadow-sm">
-            <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+            <Camera className="w-4 h-4 text-[#D4AF37]" />
             <span>Dokumentasi Autentik & Momen Suci</span>
           </div>
 
