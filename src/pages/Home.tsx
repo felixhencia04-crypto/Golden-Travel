@@ -11,7 +11,6 @@ import LegalitasShowcase from '../components/LegalitasShowcase';
 import WhyChooseGoldenTravel from '../components/WhyChooseGoldenTravel';
 import PaketUmrahShowcase from '../components/PaketUmrahShowcase';
 import PaketHajiShowcase from '../components/PaketHajiShowcase';
-import TestimonialsShowcase from '../components/TestimonialsShowcase';
 import DepartureGalleryShowcase from '../components/DepartureGalleryShowcase';
 
 export default function Home() {
@@ -732,8 +731,6 @@ export default function Home() {
       {/* Paket Haji Section - Executive Showcase Component */}
       <PaketHajiShowcase />
 
-      {/* Testimonial Section - Executive Testimonials Showcase Component */}
-      <TestimonialsShowcase />
 
       {/* Gallery Section - Departure Gallery Showcase Component */}
       <DepartureGalleryShowcase />
