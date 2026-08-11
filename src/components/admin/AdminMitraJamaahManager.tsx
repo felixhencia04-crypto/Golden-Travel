@@ -134,7 +134,8 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                     
                     // We want terminal statuses (verified, approved, VERIFIED, rejected, REJECTED) to take precedence over pending status
                     [...existingPayments, ...newPayments].forEach(pm => {
-                      const pmKey = pm.id || `${pm.date}_${pm.amount}_${pm.step}`;
+                      const pmStage = (pm.stage || pm.step || 'DP').toLowerCase();
+                      const pmKey = pm.id ? pm.id : `${pm.date}_${pm.amount}_${pmStage}`;
                       const existingPm = paymentMap.get(pmKey);
                       if (existingPm) {
                         const isExistingTerminal = ['verified', 'approved', 'VERIFIED', 'rejected', 'REJECTED'].includes(existingPm.status);
@@ -324,7 +325,12 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                 ...prev,
                 documents: { ...(j.documents || {}), ...(prev.documents || {}) },
                 payments: [...(j.payments || []), ...(prev.payments || [])].filter((p, i, self) => 
-                  self.findIndex(x => x.id === p.id || (x.date === p.date && x.amount === p.amount && x.step === p.step)) === i
+                  self.findIndex(x => {
+                    if (x.id && p.id) return x.id === p.id;
+                    const pStage = (p.stage || p.step || '').toLowerCase();
+                    const xStage = (x.stage || x.step || '').toLowerCase();
+                    return x.date === p.date && x.amount === p.amount && xStage === pStage;
+                  }) === i
                 )
               };
             }
@@ -878,10 +884,12 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
 
       if (isTargetJamaah) {
         const updatedPayments = (j.payments || []).map((p: any, i: number) => {
+          const pStage = (p.stage || p.step || '').toLowerCase();
+          const payStage = (payment.stage || payment.step || '').toLowerCase();
           const isMatch = 
             (payment.id && p.id === payment.id) || 
             (payment.proofUrl && p.proofUrl === payment.proofUrl) ||
-            (p.amount === payment.amount && p.date === payment.date && p.step === payment.step) ||
+            (p.amount === payment.amount && p.date === payment.date && pStage === payStage) ||
             (payment.pIdx !== undefined && i === payment.pIdx);
           
           return isMatch ? { ...p, status: targetStatus, verifiedAt: new Date().toISOString() } : p;
@@ -913,10 +921,12 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                 if (isTargetPax) {
                   changed = true;
                   const newPayments = pax.payments.map((p: any, idx: number) => {
+                    const pStage = (p.stage || p.step || '').toLowerCase();
+                    const payStage = (payment.stage || payment.step || '').toLowerCase();
                     const isMatch = 
                       (payment.id && p.id === payment.id) || 
                       (payment.proofUrl && p.proofUrl === payment.proofUrl) ||
-                      (p.amount === payment.amount && p.date === payment.date && p.step === payment.step) ||
+                      (p.amount === payment.amount && p.date === payment.date && pStage === payStage) ||
                       (payment.pIdx !== undefined && idx === payment.pIdx);
                     return isMatch ? { ...p, status: targetStatus, verifiedAt: new Date().toISOString() } : p;
                   });
@@ -3087,7 +3097,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                             </td>
                             <td className="px-6 py-4">
                               <span className="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-black uppercase">
-                                {payment.step || 'DP'}
+                                {payment.stage || payment.step || 'DP'}
                               </span>
                             </td>
                             <td className="px-6 py-4">
@@ -3268,7 +3278,7 @@ export default function AdminMitraJamaahManager({ activeSubTab = 'biodata', onRe
                             </td>
                             <td className="px-6 py-4">
                               <p className="text-xs font-black text-emerald-700">Rp {Number(payment.amount).toLocaleString('id-ID')}</p>
-                              <p className="text-[9px] text-slate-400 font-bold uppercase">{payment.step || 'DP'}</p>
+                               <p className="text-[9px] text-slate-400 font-bold uppercase">{payment.stage || payment.step || 'DP'}</p>
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-1.5">

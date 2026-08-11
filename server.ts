@@ -5937,11 +5937,17 @@ async function startServer() {
             const exPayments = Array.isArray(ex?.payments) ? ex.payments : [];
             const pPayments = Array.isArray(p.payments) ? p.payments : [];
             const mergedPayments = pPayments.map((pPay: any) => {
-              const exPay = exPayments.find((ePay: any) => 
-                (pPay.id && ePay.id && pPay.id === ePay.id) ||
-                (pPay.proofUrl && ePay.proofUrl && pPay.proofUrl === ePay.proofUrl) ||
-                (pPay.amount === ePay.amount && pPay.date === ePay.date && pPay.stage === ePay.stage)
-              );
+              const exPay = exPayments.find((ePay: any) => {
+                if (pPay.id && ePay.id) {
+                  return pPay.id === ePay.id;
+                }
+                if (pPay.proofUrl && ePay.proofUrl) {
+                  return pPay.proofUrl === ePay.proofUrl;
+                }
+                const pStage = (pPay.stage || pPay.step || '').toLowerCase();
+                const eStage = (ePay.stage || ePay.step || '').toLowerCase();
+                return pPay.amount === ePay.amount && pPay.date === ePay.date && pStage === eStage;
+              });
               if (exPay) {
                 const exStatus = (exPay.status || '').toLowerCase();
                 const isTerminal = ['verified', 'approved', 'rejected', 'verified', 'rejected'].includes(exStatus);
