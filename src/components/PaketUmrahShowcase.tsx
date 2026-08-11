@@ -70,8 +70,8 @@ const DEFAULT_UMRAH_PACKAGES: UmrahPackage[] = [
     hotelMadinah: 'Concorde Dar Al Khair / Jawharat Al Rasheed',
     hotelMadinahStars: 3,
     hotelMadinahDistance: '± 300m - 500m dari Masjid Nabawi',
-    departureDate: '15 September 2024',
-    totalSeats: 45,
+    departureSchedule: 'TBD',
+    // totalSeats omitted
     seatsLeft: 12,
     highlights: [
       'Harga Terjangkau & Hemat',
@@ -354,7 +354,7 @@ export default function PaketUmrahShowcase() {
                 return {
                 id: p.id,
                 name: p.name,
-                category: p.type === 'haji' ? 'Haji' : 'Umrah',
+                category: (p.type === 'umroh' ? 'reguler' : 'khusus') as any,
                 categoryLabel: p.type === 'haji' ? 'Haji' : 'Umrah',
                 duration: p.duration || '9 Hari',
                 price: Number(p.price) || 0,

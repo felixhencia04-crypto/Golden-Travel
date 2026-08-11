@@ -10786,17 +10786,17 @@ async function seedAllPortals() {
   }
 }
 
-  httpServer.listen(Number(PORT), "0.0.0.0", () => {
-    // Run initialization in the background so it doesn't delay startup
-    (async () => {
-      try {
-        await initializeGlobalDatabase();
-        await seedAllPortals();
-      } catch (err) {
-        console.error("Gagal menjalankan inisialisasi database / seeder:", err);
-      }
-    })();
+  // Trigger DB initialization concurrently on server start
+  (async () => {
+    try {
+      await initializeGlobalDatabase();
+      await seedAllPortals();
+    } catch (err) {
+      console.error("Gagal menjalankan inisialisasi database / seeder:", err);
+    }
+  })();
 
+  httpServer.listen(Number(PORT), "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${PORT}`);
   });
 }

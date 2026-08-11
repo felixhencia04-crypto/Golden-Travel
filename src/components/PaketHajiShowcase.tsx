@@ -265,7 +265,7 @@ export default function PaketHajiShowcase() {
                 return {
                 id: p.id,
                 name: p.name,
-                category: p.type === 'haji' ? 'Haji' : 'Umrah',
+                category: (p.type === 'haji' ? 'khusus' : 'reguler') as any,
                 categoryLabel: p.type === 'haji' ? 'Haji' : 'Umrah',
                 duration: p.duration || '9 Hari',
                 price: Number(p.price) || 0,

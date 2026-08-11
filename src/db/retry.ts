@@ -10,11 +10,34 @@ export async function withRetry<T = any>(fn: () => Promise<T>, retries = 5, dela
     } catch (err: any) {
       lastError = err;
       const errorMessage = err?.message || String(err);
-      const cause = err?.cause || err?.originalError || (err as any)?.driverError;
-      const causeMessage = cause instanceof Error ? cause.message : String(cause || '');
-      const causeCode = (cause as any)?.code || err?.code || '';
-      const fullError = `${errorMessage} ${causeMessage} ${causeCode}`.toLowerCase();
       
+      const extractInfo = (e: any): { text: string; code: string } => {
+        if (!e) return { text: '', code: '' };
+        let text = typeof e === 'string' ? e : (e.message || '');
+        if (e.detail) text += ' ' + e.detail;
+        if (e.hint) text += ' ' + e.hint;
+        let code = e.code || e.sqlState || '';
+        if (e.cause) {
+          const sub = extractInfo(e.cause);
+          text += ' ' + sub.text;
+          if (!code && sub.code) code = sub.code;
+        }
+        if (e.driverError) {
+          const sub = extractInfo(e.driverError);
+          text += ' ' + sub.text;
+          if (!code && sub.code) code = sub.code;
+        }
+        if (e.originalError) {
+          const sub = extractInfo(e.originalError);
+          text += ' ' + sub.text;
+          if (!code && sub.code) code = sub.code;
+        }
+        return { text, code };
+      };
+
+      const { text: fullErrorText, code: causeCode } = extractInfo(err);
+      const fullError = fullErrorText.toLowerCase();
+
       const isNonRetryable = 
         fullError.includes('does not exist') ||
         fullError.includes('syntax error') ||
@@ -32,16 +55,13 @@ export async function withRetry<T = any>(fn: () => Promise<T>, retries = 5, dela
         causeCode === '22P02' ||
         causeCode === '22003';
 
-      // Treat ANY unknown error as retryable if it's not a clear SQL syntax/constraint error
       const isRetryable = !isNonRetryable;
 
       if (isRetryable && i < retries - 1) {
-        // Use exponential backoff with jitter, capped at 5000ms
         const baseDelay = delay * Math.pow(2, i);
         const jitter = Math.random() * 200;
         const currentDelay = Math.min(5000, baseDelay + jitter);
         
-        // Only log transient errors at attempt 2 or higher to reduce log noise for harmless connection drops
         if (i >= 1) {
            console.warn(`[DB] Transient error (Attempt ${i + 1}/${retries}), retrying in ${Math.round(currentDelay)}ms. Error: ${errorMessage}. Code: ${causeCode}`);
         }
@@ -49,7 +69,7 @@ export async function withRetry<T = any>(fn: () => Promise<T>, retries = 5, dela
         continue;
       }
 
-      console.error(`[DB FATAL] Query failed after ${retries} attempts: ${errorMessage}. Cause: ${causeMessage}. Code: ${causeCode}`);
+      console.error(`[DB FATAL] Query failed after ${retries} attempts: ${errorMessage}. Code: ${causeCode}`);
       throw err;
     }
   }
