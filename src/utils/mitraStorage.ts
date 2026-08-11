@@ -172,32 +172,32 @@ export function mergeJamaahObjects(target: any, source: any): any {
     ...(target.docFiles || {})
   };
 
-  // If source or target explicitly states isCertIssued === false (e.g. deleted), respect the deletion!
-  if (source.isCertIssued === false || target.isCertIssued === false) {
+  // Merge certificate status cleanly
+  // A certificate is issued if either target (DB) or source (local) has isCertIssued === true OR has a valid certificate URL
+  const certData = target.docFiles?.sertifikat || source.docFiles?.sertifikat;
+  const certUrl = target.certificateUrl || source.certificateUrl || certData?.url || certData?.data || '';
+  
+  const isIssued = !!(
+    target.isCertIssued === true || 
+    source.isCertIssued === true || 
+    (certUrl && certUrl !== '')
+  );
+
+  if (isIssued && certUrl) {
+    merged.isCertIssued = true;
+    merged.certificateUrl = certUrl;
+    const recipientName = certData?.recipientName || target.fullName || target.userName || source.fullName || source.userName || 'Jemaah';
+    mergedDocFiles.sertifikat = certData || {
+      name: `Sertifikat_${recipientName.replace(/\s+/g, '_')}.pdf`,
+      url: certUrl,
+      data: certUrl,
+      uploadedAt: certData?.uploadedAt || new Date().toLocaleDateString('id-ID'),
+      recipientName: recipientName
+    };
+  } else {
     merged.isCertIssued = false;
     delete merged.certificateUrl;
     delete mergedDocFiles.sertifikat;
-  } else {
-    const certData = source.docFiles?.sertifikat || target.docFiles?.sertifikat;
-    const certUrl = source.certificateUrl || target.certificateUrl || certData?.url || certData?.data || '';
-    const isIssued = !!((source.isCertIssued !== false && source.isCertIssued) || (target.isCertIssued !== false && target.isCertIssued) || certUrl || certData);
-
-    if (isIssued && certUrl) {
-      merged.isCertIssued = true;
-      merged.certificateUrl = certUrl;
-      const recipientName = certData?.recipientName || source.fullName || source.userName || target.fullName || target.userName || 'Jemaah';
-      mergedDocFiles.sertifikat = certData || {
-        name: `Sertifikat_${recipientName.replace(/\s+/g, '_')}.pdf`,
-        url: certUrl,
-        data: certUrl,
-        uploadedAt: new Date().toLocaleDateString('id-ID'),
-        recipientName: recipientName
-      };
-    } else {
-      merged.isCertIssued = false;
-      delete merged.certificateUrl;
-      delete mergedDocFiles.sertifikat;
-    }
   }
 
   merged.docFiles = mergedDocFiles;
