@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { filterJamaahForCurrentMitra, getScopedKey } from '../../utils/mitraStorage';
+import { api } from '../../lib/api';
 
 interface MitraPembayaranProps {
   jamaahList: any[];
@@ -121,6 +122,7 @@ export default function MitraPembayaran({ jamaahList, onRefresh }: MitraPembayar
   const [selectedBank, setSelectedBank] = useState('mandiri');
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Sync nominal when selected jemaah or stage changes
   React.useEffect(() => {
@@ -153,65 +155,95 @@ export default function MitraPembayaran({ jamaahList, onRefresh }: MitraPembayar
       return;
     }
 
-    const newPayment = {
-      id: `PAY-${Date.now()}`,
-      date: paymentDate || new Date().toISOString().split('T')[0],
-      stage: paymentStage === 'dp1' ? 'DP 1 (Perlengkapan)' : 
-             paymentStage === 'dp2' ? 'DP 2 (Booking Seat)' : 
-             paymentStage === 'pelunasan_penuh' ? 'Pelunasan Penuh' :
-             'Pelunasan Akhir',
-      amount: Number(nominal),
-      bank: selectedBank === 'bsi' ? 'Bank Syariah Indonesia (BSI)' : selectedBank === 'mandiri' ? 'Bank Mandiri' : 'Bank BCA',
-      status: 'pending',
-      proofUrl: proofPreview || '#'
+    setIsUploading(true);
+    const loadingToast = toast.loading('Mengunggah bukti pembayaran...');
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64Url = event.target?.result as string;
+
+      const newPayment = {
+        id: `PAY-${Date.now()}`,
+        date: paymentDate || new Date().toISOString().split('T')[0],
+        stage: paymentStage === 'dp1' ? 'DP 1 (Perlengkapan)' : 
+               paymentStage === 'dp2' ? 'DP 2 (Booking Seat)' : 
+               paymentStage === 'pelunasan_penuh' ? 'Pelunasan Penuh' :
+               'Pelunasan Akhir',
+        amount: Number(nominal),
+        bank: selectedBank === 'bsi' ? 'Bank Syariah Indonesia (BSI)' : selectedBank === 'mandiri' ? 'Bank Mandiri' : 'Bank BCA',
+        status: 'pending',
+        proofUrl: base64Url
+      };
+
+      // Update central database and scoped pax list
+      try {
+        let updatedCentralList: any[] = [];
+        const stored = localStorage.getItem('mitra_jamaah_database');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          updatedCentralList = parsed.map((j: any) => {
+            if (j.id === selectedJamaah.id) {
+              const history = j.payments || [];
+              return {
+                ...j,
+                payments: [newPayment, ...history],
+                paymentStep: paymentStage,
+              };
+            }
+            return j;
+          });
+          localStorage.setItem('mitra_jamaah_database', JSON.stringify(updatedCentralList));
+        }
+
+        const scopedKey = getScopedKey('mitra_saved_pax_list');
+        const scopedStored = localStorage.getItem(scopedKey);
+        if (scopedStored) {
+          const scopedParsed = JSON.parse(scopedStored);
+          const updatedScoped = scopedParsed.map((p: any) => {
+            if (p.id === selectedJamaah.id || p.userName === selectedJamaah.userName) {
+              const history = p.payments || [];
+              return {
+                ...p,
+                payments: [newPayment, ...history],
+                paymentStep: paymentStage
+              };
+            }
+            return p;
+          });
+          localStorage.setItem(scopedKey, JSON.stringify(updatedScoped));
+        }
+
+        // Post current Mitra's pilgrims to the server database
+        const currentMitraJamaah = filterJamaahForCurrentMitra(updatedCentralList);
+        
+        await api.post('/mitra/jamaah/sync', { 
+          jamaahList: currentMitraJamaah.length > 0 ? currentMitraJamaah : updatedCentralList 
+        });
+
+        // Dispatch local storage & sync event
+        window.dispatchEvent(new Event('mitra_jamaah_updated'));
+        
+        toast.dismiss(loadingToast);
+        toast.success('Bukti pembayaran berhasil dikirim! Admin akan memverifikasi dalam 1x24 jam.');
+        setProofFile(null);
+        setProofPreview(null);
+        if (onRefresh) onRefresh();
+      } catch (err: any) {
+        console.error('Failed to update payment in database:', err);
+        toast.dismiss(loadingToast);
+        toast.error(`Gagal menyinkronkan data pembayaran ke server: ${err.message || 'Server error'}`);
+      } finally {
+        setIsUploading(false);
+      }
     };
 
-    // Update central database and scoped pax list
-    try {
-      const stored = localStorage.getItem('mitra_jamaah_database');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const updated = parsed.map((j: any) => {
-          if (j.id === selectedJamaah.id) {
-            const history = j.payments || [];
-            return {
-              ...j,
-              payments: [newPayment, ...history],
-              paymentStep: paymentStage,
-            };
-          }
-          return j;
-        });
-        localStorage.setItem('mitra_jamaah_database', JSON.stringify(updated));
-      }
+    reader.onerror = () => {
+      toast.dismiss(loadingToast);
+      toast.error('Gagal membaca file bukti pembayaran.');
+      setIsUploading(false);
+    };
 
-      const scopedKey = getScopedKey('mitra_saved_pax_list');
-      const scopedStored = localStorage.getItem(scopedKey);
-      if (scopedStored) {
-        const scopedParsed = JSON.parse(scopedStored);
-        const updatedScoped = scopedParsed.map((p: any) => {
-          if (p.id === selectedJamaah.id || p.userName === selectedJamaah.userName) {
-            const history = p.payments || [];
-            return {
-              ...p,
-              payments: [newPayment, ...history],
-              paymentStep: paymentStage
-            };
-          }
-          return p;
-        });
-        localStorage.setItem(scopedKey, JSON.stringify(updatedScoped));
-      }
-
-      window.dispatchEvent(new Event('mitra_jamaah_updated'));
-    } catch (e) {
-      console.error('Failed to update payment in database:', e);
-    }
-
-    setProofFile(null);
-    setProofPreview(null);
-    toast.success('Bukti pembayaran berhasil dikirim! Admin akan memverifikasi dalam 1x24 jam.');
-    if (onRefresh) onRefresh();
+    reader.readAsDataURL(proofFile);
   };
 
   const paymentHistory = selectedJamaah?.payments || [];
@@ -408,11 +440,20 @@ export default function MitraPembayaran({ jamaahList, onRefresh }: MitraPembayar
               </label>
             </div>
 
-            <button
+             <button
               type="submit"
-              className="w-full py-3.5 bg-emerald-900 hover:bg-emerald-850 text-white font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 active:scale-95"
+              disabled={isUploading}
+              className="w-full py-3.5 bg-emerald-900 hover:bg-emerald-850 disabled:bg-slate-300 text-white font-extrabold text-xs rounded-xl transition-all shadow-md flex items-center justify-center gap-2 active:scale-95"
             >
-              <CreditCard className="w-4 h-4 text-amber-400" /> Kirim Bukti Pembayaran
+              {isUploading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 text-amber-400 animate-spin" /> Mengirim...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-4 h-4 text-amber-400" /> Kirim Bukti Pembayaran
+                </>
+              )}
             </button>
           </form>
         </div>

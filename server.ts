@@ -5934,6 +5934,28 @@ async function startServer() {
               }
             });
             
+            const exPayments = Array.isArray(ex?.payments) ? ex.payments : [];
+            const pPayments = Array.isArray(p.payments) ? p.payments : [];
+            const mergedPayments = pPayments.map((pPay: any) => {
+              const exPay = exPayments.find((ePay: any) => 
+                (pPay.id && ePay.id && pPay.id === ePay.id) ||
+                (pPay.proofUrl && ePay.proofUrl && pPay.proofUrl === ePay.proofUrl) ||
+                (pPay.amount === ePay.amount && pPay.date === ePay.date && pPay.stage === ePay.stage)
+              );
+              if (exPay) {
+                const exStatus = (exPay.status || '').toLowerCase();
+                const isTerminal = ['verified', 'approved', 'rejected', 'verified', 'rejected'].includes(exStatus);
+                if (isTerminal) {
+                  return {
+                    ...pPay,
+                    status: exPay.status,
+                    verifiedAt: exPay.verifiedAt || new Date().toISOString()
+                  };
+                }
+              }
+              return pPay;
+            });
+
             const mergedItem = {
               ...(ex || {}),
               ...p,
@@ -5941,7 +5963,8 @@ async function startServer() {
               mitraId: mId,
               mitraName: mName,
               mitraEmail: mEmail,
-              documents: mergedDocs
+              documents: mergedDocs,
+              payments: mergedPayments
             };
             
             updatedPaxList.push(mergedItem);
