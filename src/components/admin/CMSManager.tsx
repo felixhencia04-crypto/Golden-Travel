@@ -318,19 +318,79 @@ function CMSPackageList() {
             Tidak ada {activeCategory === 'haji' ? 'Paket Haji' : activeCategory === 'umroh' ? 'Paket Umroh' : 'Paket'} ditemukan
           </h4>
           <p className="text-xs text-gray-500 max-w-sm mx-auto">
-            {searchQuery ? `Tidak ada hasil pencarian untuk "${searchQuery}".` : 'Belum ada data paket untuk kategori ini. Buat paket baru dengan tombol di atas.'}
+            {searchQuery ? `Tidak ada hasil pencarian untuk "${searchQuery}".` : 'Belum ada data paket untuk kategori ini. Buat paket baru dengan tombol di bawah.'}
           </p>
-          <div className="pt-2 flex justify-center gap-2">
-            <button
-              onClick={() => {
-                setEditingPackage({ type: activeCategory === 'haji' ? 'haji' : 'umroh' });
-                setIsModalOpen(true);
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Buat Paket Baru</span>
-            </button>
+          <div className="pt-2 flex flex-wrap justify-center gap-2">
+            {activeCategory === 'haji' ? (
+              <>
+                <button
+                  onClick={() => {
+                    setEditingPackage({
+                      type: 'haji',
+                      name: 'Haji Furoda VIP (Visa Mujamalah - Tanpa Antre)',
+                      price: '340000000',
+                      duration: '25 Hari',
+                      quota: 45,
+                      waitingTime: 'Tanpa Antre (Langsung Berangkat)',
+                      visaType: 'Visa Haji Mujamalah / Furoda Resmi',
+                      airline: 'Saudia Airlines / Garuda Indonesia (Direct Flight)',
+                      dpAmount: 'DP Rp 20.000.000',
+                      hotelMakkah: 'MAYSAN AL-MASAER / PULLMAN ZAMZAM (Bintang 5)',
+                      hotelMakkahDistance: '±100m dari Pelataran Masjidil Haram',
+                      hotelMadinah: 'MIRAGE SALAM / GRAND PLAZA (Bintang 5)',
+                      hotelMadinahDistance: '±100m dari Pelataran Masjid Nabawi',
+                      facilities: 'Direct Flight Saudia, Visa Haji Mujamalah Resmi, Tenda VIP Mina & Arafah AC, Bus AC Executive, Konsumsi Fullboard Buffet, Muthawwif Berpengalaman, Kereta Cepat Haramain',
+                      description: 'Visa Haji Mujamalah / Furoda Resmi Kerajaan Arab Saudi\nKeberangkatan Langsung Tanpa Masa Tunggu Siskohat\nAkomodasi Hotel Bintang 5 Dekat Pelataran Utama\nTenda Maktab VIP Arafah & Mina Ber-AC Super Nyaman\nBimbingan Manasik Haji Sesuai Sunnah oleh Ustadz Senior\nPenerbangan Langsung Direct Flight Tanpa Transit',
+                      excludes: 'Pembuatan Paspor RI\nSuntik Vaksin Meningitis\nPengeluaran Pribadi & Dam/Hadyu'
+                    });
+                    setIsModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 transition-all shadow-sm cursor-pointer"
+                >
+                  <Tent className="w-4 h-4 text-amber-200" />
+                  <span>+ Buat Paket Haji Furoda VIP</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setEditingPackage({
+                      type: 'haji',
+                      name: 'Haji Khusus / ONH Plus (Kemenag RI)',
+                      price: '230000000',
+                      duration: '25 Hari',
+                      quota: 45,
+                      waitingTime: 'Masa Tunggu ~5-7 Tahun (Siskohat Resmi)',
+                      visaType: 'Visa Haji Kuota Resmi Kemenag RI',
+                      airline: 'Saudia Airlines / Garuda Indonesia Direct',
+                      dpAmount: 'DP Rp 10.000.000',
+                      hotelMakkah: 'PULLMAN ZAMZAM / ANJUM MAKKAH (Bintang 5)',
+                      hotelMakkahDistance: '±100m dari Pelataran Masjidil Haram',
+                      hotelMadinah: 'GRAND PLAZA MADINAH (Bintang 5)',
+                      hotelMadinahDistance: '±100m dari Pelataran Masjid Nabawi',
+                      facilities: 'Visa Haji Resmi Kemenag, Hotel Bintang 5, Tenda AC Mina & Arafah, Konsumsi Fullboard Buffet, Bimbingan Ibadah Berkelanjutan',
+                      description: 'Pendaftaran Resmi Siskohat Kemenag RI dengan Nomor Porsi\nMasa Tunggu Lebih Cepat Dibanding Haji Reguler (~5-7 Tahun)\nAkomodasi Hotel Bintang 5 Dekat Masjidil Haram & Nabawi\nTenda AC Nyaman di Arafah & Mina\nPelayanan Kesehatan & Pembimbing Ibadah Profesional',
+                      excludes: 'Pembuatan Paspor RI\nSuntik Vaksin Meningitis\nPengeluaran Pribadi & Dam/Hadyu'
+                    });
+                    setIsModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-stone-800 text-amber-300 rounded-xl text-xs font-bold hover:bg-stone-900 transition-all shadow-sm cursor-pointer"
+                >
+                  <Award className="w-4 h-4 text-amber-400" />
+                  <span>+ Buat Paket Haji Khusus (ONH Plus)</span>
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => {
+                  setEditingPackage({ type: 'umroh' });
+                  setIsModalOpen(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Buat Paket Umroh Baru</span>
+              </button>
+            )}
           </div>
         </div>
       ) : (

@@ -242,7 +242,7 @@ const DEFAULT_HAJI_PACKAGES: HajiPackage[] = [
 
 export default function PaketHajiShowcase() {
 
-  const [packages, setPackages] = useState<HajiPackage[]>(DEFAULT_HAJI_PACKAGES);
+  const [packages, setPackages] = useState<HajiPackage[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isError, setIsError] = useState<boolean>(false);
 
@@ -262,58 +262,67 @@ export default function PaketHajiShowcase() {
                 const hMakkah = hotels[0] || 'Hotel Pilihan Makkah';
                 const hMadinah = hotels[1] || 'Hotel Pilihan Madinah';
                 
+                const lowerName = (p.name || '').toLowerCase();
+                let cat: 'furoda' | 'khusus' | 'plus_turki' = 'khusus';
+                if (lowerName.includes('turki') || lowerName.includes('transit')) {
+                  cat = 'plus_turki';
+                } else if (lowerName.includes('furoda') || lowerName.includes('mujamalah')) {
+                  cat = 'furoda';
+                }
+
                 return {
-                id: p.id,
-                name: p.name,
-                category: (p.type === 'haji' ? 'khusus' : 'reguler') as any,
-                categoryLabel: p.type === 'haji' ? 'Haji' : 'Umrah',
-                duration: p.duration || '9 Hari',
-                price: Number(p.price) || 0,
-                priceUsd: Math.round((Number(p.price) || 0) / 16000),
-                priceIdrApprox: (Number(p.price) || 0).toLocaleString('id-ID'),
-                waitingTime: p.waitingTime || 'Langsung Berangkat (Tanpa Antre)',
-                visaType: p.visaType || 'Visa Haji Mujamalah / Furoda Resmi',
-                isPopular: false,
-                isBestSeller: false,
-                dpAmount: p.dpAmount || 'DP Rp 10.000.000',
-                imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
-                airline: p.airline || 'Saudia Airlines / Garuda Indonesia (Direct Flight)',
-                hotelMakkah: p.hotelMakkah || hMakkah,
-                hotelMakkahStars: 5,
-                hotelMakkahDistance: p.hotelMakkahDistance || '±100m',
-                hotelMadinah: p.hotelMadinah || hMadinah,
-                hotelMadinahStars: 5,
-                hotelMadinahDistance: p.hotelMadinahDistance || '±100m',
-                departureSchedule: p.departureDate ? new Date(p.departureDate).toLocaleDateString('id-ID', {month: 'long', year: 'numeric'}) : 'Lihat Jadwal',
-                seatsLeft: p.remainingSeats ?? (p.quota || 45),
-                highlights: (p.facilities || '').split(',').map((f:string)=>f.trim()).filter(Boolean),
-                includes: Array.isArray(p.description) ? p.description : [],
-                excludes: (() => {
-                  try {
-                    return Array.isArray(p.excludes) ? p.excludes : (typeof p.excludes === 'string' ? JSON.parse(p.excludes || '[]') : ['Pembuatan Paspor', 'Vaksin Meningitis', 'Pengeluaran Pribadi']);
-                  } catch(e) {
-                    return ['Pembuatan Paspor', 'Vaksin Meningitis', 'Pengeluaran Pribadi'];
-                  }
-                })(),
-                itinerary: (() => {
-                  try {
-                    return Array.isArray(p.itinerary) ? p.itinerary : (typeof p.itinerary === 'string' ? JSON.parse(p.itinerary || '[]') : []);
-                  } catch(e) {
-                    return [];
-                  }
-                })(),
-                requirements: (() => {
-                  try {
-                    const parsed = Array.isArray(p.requirements) ? p.requirements : (typeof p.requirements === 'string' ? JSON.parse(p.requirements) : null);
-                    return Array.isArray(parsed) && parsed.length > 0 ? parsed : ['Paspor Asli (Masa berlaku minimal 8 bulan)', 'Fotokopi KTP & Kartu Keluarga (KK)', 'Fotokopi Akta Kelahiran / Surat Nikah', 'Pas Foto berwarna dengan latar belakang putih', 'Sertifikat Vaksin Meningitis (Asli)'];
-                  } catch(e) {
-                    return ['Paspor Asli (Masa berlaku minimal 8 bulan)', 'Fotokopi KTP & Kartu Keluarga (KK)', 'Fotokopi Akta Kelahiran / Surat Nikah', 'Pas Foto berwarna dengan latar belakang putih', 'Sertifikat Vaksin Meningitis (Asli)'];
-                  }
-                })(),
-                tentMinaArafah: p.tentMinaArafah || 'Tenda Maktab Standar (Mina & Arafah)'
-             } as HajiPackage;
+                  id: p.id,
+                  name: p.name,
+                  category: cat,
+                  categoryLabel: 'Haji',
+                  duration: p.duration || '25 Hari',
+                  priceUsd: Math.round((Number(p.price) || 0) / 16000),
+                  priceIdrApprox: (Number(p.price) || 0).toLocaleString('id-ID'),
+                  waitingTime: p.waitingTime || (cat === 'furoda' ? 'Tanpa Antre (Langsung Berangkat)' : 'Masa Tunggu ~5-7 Tahun'),
+                  visaType: p.visaType || (cat === 'furoda' ? 'Visa Haji Mujamalah / Furoda Resmi' : 'Visa Haji Kuota Resmi Indonesia'),
+                  isPopular: false,
+                  isBestSeller: false,
+                  dpAmount: p.dpAmount || 'DP Rp 10.000.000',
+                  imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
+                  airline: p.airline || 'Saudia Airlines / Garuda Indonesia (Direct Flight)',
+                  hotelMakkah: p.hotelMakkah || hMakkah,
+                  hotelMakkahStars: 5,
+                  hotelMakkahDistance: p.hotelMakkahDistance || '±100m dari Pelataran',
+                  hotelMadinah: p.hotelMadinah || hMadinah,
+                  hotelMadinahStars: 5,
+                  hotelMadinahDistance: p.hotelMadinahDistance || '±100m dari Pelataran',
+                  departureSchedule: p.departureDate ? new Date(p.departureDate).toLocaleDateString('id-ID', {month: 'long', year: 'numeric'}) : 'Lihat Jadwal',
+                  seatsLeft: p.remainingSeats ?? (p.quota || 45),
+                  highlights: (p.facilities || '').split(',').map((f:string)=>f.trim()).filter(Boolean),
+                  includes: Array.isArray(p.description) ? p.description : [],
+                  excludes: (() => {
+                    try {
+                      return Array.isArray(p.excludes) ? p.excludes : (typeof p.excludes === 'string' ? JSON.parse(p.excludes || '[]') : ['Pembuatan Paspor', 'Vaksin Meningitis', 'Pengeluaran Pribadi']);
+                    } catch(e) {
+                      return ['Pembuatan Paspor', 'Vaksin Meningitis', 'Pengeluaran Pribadi'];
+                    }
+                  })(),
+                  itinerary: (() => {
+                    try {
+                      return Array.isArray(p.itinerary) ? p.itinerary : (typeof p.itinerary === 'string' ? JSON.parse(p.itinerary || '[]') : []);
+                    } catch(e) {
+                      return [];
+                    }
+                  })(),
+                  requirements: (() => {
+                    try {
+                      const parsed = Array.isArray(p.requirements) ? p.requirements : (typeof p.requirements === 'string' ? JSON.parse(p.requirements) : null);
+                      return Array.isArray(parsed) && parsed.length > 0 ? parsed : ['Paspor Asli (Masa berlaku minimal 8 bulan)', 'Fotokopi KTP & Kartu Keluarga (KK)', 'Fotokopi Akta Kelahiran / Surat Nikah', 'Pas Foto berwarna dengan latar belakang putih', 'Sertifikat Vaksin Meningitis (Asli)'];
+                    } catch(e) {
+                      return ['Paspor Asli (Masa berlaku minimal 8 bulan)', 'Fotokopi KTP & Kartu Keluarga (KK)', 'Fotokopi Akta Kelahiran / Surat Nikah', 'Pas Foto berwarna dengan latar belakang putih', 'Sertifikat Vaksin Meningitis (Asli)'];
+                    }
+                  })(),
+                  tentMinaArafah: p.tentMinaArafah || 'Tenda Maktab VIP (Mina & Arafah AC)'
+               } as HajiPackage;
              });
              setPackages(mapped);
+          } else {
+             setPackages([]);
           }
         } else {
           setIsError(true);
@@ -549,6 +558,27 @@ export default function PaketHajiShowcase() {
             >
               Coba Lagi
             </button>
+          </div>
+        ) : filteredPackages.length === 0 ? (
+          <div className="my-6 py-16 px-6 bg-[#022A1F]/80 border-2 border-dashed border-[#D4AF37]/40 rounded-3xl text-center max-w-2xl mx-auto backdrop-blur-md shadow-2xl">
+            <div className="w-16 h-16 bg-[#D4AF37]/15 border border-[#D4AF37]/40 rounded-2xl flex items-center justify-center mx-auto mb-5 text-[#D4AF37] shadow-lg">
+              <Tent className="w-8 h-8" />
+            </div>
+            <h3 className="text-2xl font-serif font-bold text-[#F3E5AB] mb-3">
+              {activeTab === 'semua' ? 'Belum Ada Paket Haji Ditampilkan' : 'Belum Ada Paket untuk Kategori Ini'}
+            </h3>
+            <p className="text-stone-300 text-sm leading-relaxed mb-6 max-w-lg mx-auto">
+              Paket Haji terbaru sedang disiapkan oleh tim Golden Travel. Anda dapat langsung menginput atau memperbarui data paket haji dari Panel Admin atau berkonsultasi langsung bersama Customer Service kami.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                onClick={() => handleConsultation('Program Haji Khusus & Furoda Resmi')}
+                className="px-6 py-3 bg-gradient-to-r from-[#D4AF37] to-[#B8860B] hover:from-[#F3E5AB] hover:to-[#D4AF37] text-[#011E15] font-extrabold rounded-xl shadow-lg transition-all flex items-center gap-2 text-xs uppercase tracking-wider cursor-pointer"
+              >
+                <MessageCircle className="w-4 h-4 fill-current" />
+                <span>Konsultasi Haji via WhatsApp</span>
+              </button>
+            </div>
           </div>
         ) : (
           <>
