@@ -722,6 +722,7 @@ async function startServer() {
   app.use('/uploads', express.static(publicUploadDir));
   app.use('/public/uploads', express.static(publicUploadDir));
   app.use('/public/uploads', express.static(uploadDir));
+  app.use(express.static(path.join(process.cwd(), 'public')));
 
   // Fallback handler for missing uploads on ephemeral disk (e.g. after container restart)
   const handleMissingUpload = async (req: express.Request, res: express.Response) => {
