@@ -34,7 +34,7 @@ import { getDocPreviewDataUrl } from '../utils/docPreviewGenerator';
 import { 
   LayoutDashboard, Database, Briefcase, Calendar as CalendarIcon, Users, 
   CreditCard, Globe, Image as ImageIcon, FileText, Tag, Star, 
-  ShieldCheck, Download, UsersRound, Settings, BarChart3, LogOut, User, Building, Plane, Bus, UserCheck, FileSpreadsheet,
+  ShieldCheck, Download, UsersRound, Settings, BarChart3, LogOut, User, Building, Building2, Hotel, Plane, Bus, UserCheck, FileSpreadsheet,
   Plus, Edit2, Trash2, Search, Filter, MoreVertical, CheckCircle, CheckCircle2, X, MapPin, Printer, Smartphone,
   Banknote, Bell, History, Clock, AlertCircle, ChevronRight, ChevronDown, Megaphone, Package as InventoryIcon, Package as PackageIcon, Scroll, Check, UserPlus,
   MessageCircle, Award, UserCircle, Send, MessageSquare, Eye, RefreshCw, AlertTriangle, ExternalLink, FileCheck, Video, Upload, UploadCloud,
@@ -1672,8 +1672,18 @@ export default function Admin() {
       isAvailable: true,
       scheduleUrl: '',
       manasikPdfUrl: '',
-      quota: 45
+      quota: 45,
+      hotelMakkah: 'MAKKAH: MAYSAN AL-MASAER / SETARA',
+      hotelMakkahDistance: '±100m dari Pelataran Masjidil Haram',
+      hotelMadinah: 'MADINAH: HOTEL PILIHAN / SETARA',
+      hotelMadinahDistance: '±100m dari Pelataran Masjid Nabawi',
     };
+    if (pkg) {
+      editPkg.hotelMakkah = pkg.hotelMakkah || 'MAKKAH: MAYSAN AL-MASAER / SETARA';
+      editPkg.hotelMakkahDistance = pkg.hotelMakkahDistance || '±100m dari Pelataran Masjidil Haram';
+      editPkg.hotelMadinah = pkg.hotelMadinah || 'MADINAH: HOTEL PILIHAN / SETARA';
+      editPkg.hotelMadinahDistance = pkg.hotelMadinahDistance || '±100m dari Pelataran Masjid Nabawi';
+    }
     if (pkg && pkg.imageUrl) {
       editPkg.image = pkg.imageUrl;
     }
@@ -6369,6 +6379,78 @@ export default function Admin() {
                   </div>
                 </div>
 
+                {/* Hotel Accommodation Section */}
+                <div className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200/80 space-y-4">
+                  <div className="flex items-center gap-2 text-amber-900 font-bold text-sm uppercase tracking-wider">
+                    <Building2 className="w-5 h-5 text-amber-600" />
+                    <span>Akomodasi Hotel Pilihan (Makkah & Madinah)</span>
+                  </div>
+                  <p className="text-xs text-stone-600">
+                    Input akomodasi hotel di Makkah dan Madinah beserta lokasi/jarak relatif ke Masjidil Haram & Masjid Nabawi.
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                    {/* Makkah Hotel */}
+                    <div className="bg-white p-4 rounded-xl border border-stone-200 space-y-3 shadow-xs">
+                      <div className="text-xs font-bold text-amber-800 flex items-center gap-1.5 uppercase">
+                        <Hotel className="w-4 h-4 text-amber-600" />
+                        <span>Makkah Al-Mukarramah</span>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Nama Hotel Makkah *</label>
+                        <input 
+                          type="text" 
+                          required
+                          value={editingPackage.hotelMakkah || ''} 
+                          onChange={e => setEditingPackage({...editingPackage, hotelMakkah: e.target.value})} 
+                          className="w-full border-gray-200 rounded-xl bg-gray-50/60 border py-2.5 px-3 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all text-xs font-medium"
+                          placeholder="Contoh: MAYSAN AL-MASAER / PULLMAN ZAMZAM"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Jarak / Lokasi Makkah *</label>
+                        <input 
+                          type="text" 
+                          required
+                          value={editingPackage.hotelMakkahDistance || ''} 
+                          onChange={e => setEditingPackage({...editingPackage, hotelMakkahDistance: e.target.value})} 
+                          className="w-full border-gray-200 rounded-xl bg-gray-50/60 border py-2.5 px-3 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all text-xs font-medium"
+                          placeholder="Contoh: ±100m dari Pelataran"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Madinah Hotel */}
+                    <div className="bg-white p-4 rounded-xl border border-stone-200 space-y-3 shadow-xs">
+                      <div className="text-xs font-bold text-amber-800 flex items-center gap-1.5 uppercase">
+                        <Hotel className="w-4 h-4 text-amber-600" />
+                        <span>Madinah Al-Munawwarah</span>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Nama Hotel Madinah *</label>
+                        <input 
+                          type="text" 
+                          required
+                          value={editingPackage.hotelMadinah || ''} 
+                          onChange={e => setEditingPackage({...editingPackage, hotelMadinah: e.target.value})} 
+                          className="w-full border-gray-200 rounded-xl bg-gray-50/60 border py-2.5 px-3 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all text-xs font-medium"
+                          placeholder="Contoh: HOTEL PILIHAN / GRAND PLAZA"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Jarak / Lokasi Madinah *</label>
+                        <input 
+                          type="text" 
+                          required
+                          value={editingPackage.hotelMadinahDistance || ''} 
+                          onChange={e => setEditingPackage({...editingPackage, hotelMadinahDistance: e.target.value})} 
+                          className="w-full border-gray-200 rounded-xl bg-gray-50/60 border py-2.5 px-3 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all text-xs font-medium"
+                          placeholder="Contoh: ±100m dari Pelataran"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="flex items-center space-x-3">
                   <input 

@@ -738,11 +738,6 @@ export default function PaketUmrahShowcase() {
                       <div className="bg-[#021811]/70 p-3 rounded-xl border border-[#D4AF37]/25 space-y-1">
                         <div className="flex items-center justify-between text-[#D4AF37] font-semibold">
                           <span className="flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> Makkah</span>
-                          <span className="flex items-center gap-0.5 text-[10px]">
-                            {Array.from({ length: pkg.hotelMakkahStars }).map((_, i) => (
-                              <Star key={i} className="w-3 h-3 fill-[#D4AF37] text-[#D4AF37]" />
-                            ))}
-                          </span>
                         </div>
                         <div className="font-bold text-white truncate">{pkg.hotelMakkah}</div>
                         <div className="text-[11px] text-stone-300 font-light truncate">{pkg.hotelMakkahDistance}</div>
@@ -751,11 +746,6 @@ export default function PaketUmrahShowcase() {
                       <div className="bg-[#021811]/70 p-3 rounded-xl border border-[#D4AF37]/25 space-y-1">
                         <div className="flex items-center justify-between text-[#D4AF37] font-semibold">
                           <span className="flex items-center gap-1"><Hotel className="w-3.5 h-3.5" /> Madinah</span>
-                          <span className="flex items-center gap-0.5 text-[10px]">
-                            {Array.from({ length: pkg.hotelMadinahStars }).map((_, i) => (
-                              <Star key={i} className="w-3 h-3 fill-[#D4AF37] text-[#D4AF37]" />
-                            ))}
-                          </span>
                         </div>
                         <div className="font-bold text-white truncate">{pkg.hotelMadinah}</div>
                         <div className="text-[11px] text-stone-300 font-light truncate">{pkg.hotelMadinahDistance}</div>
@@ -927,17 +917,12 @@ export default function PaketUmrahShowcase() {
                     <div>
                       <h4 className="text-sm font-bold uppercase tracking-wider text-[#D4AF37] mb-3 flex items-center gap-2">
                         <Hotel className="w-4 h-4" />
-                        <span>Akomodasi Hotel Bintang Pilihan</span>
+                        <span>Akomodasi Hotel Pilihan</span>
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-[#022A1F] p-4 rounded-2xl border border-[#D4AF37]/30 space-y-2">
                           <div className="flex items-center justify-between text-[#F3E5AB]">
                             <span className="font-bold text-sm">Makkah Al-Mukarramah</span>
-                            <div className="flex text-[#D4AF37]">
-                              {Array.from({ length: selectedPkg.hotelMakkahStars }).map((_, i) => (
-                                <Star key={i} className="w-3.5 h-3.5 fill-current" />
-                              ))}
-                            </div>
                           </div>
                           <div className="text-white font-bold text-base">{selectedPkg.hotelMakkah}</div>
                           <p className="text-xs text-stone-300 font-light">{selectedPkg.hotelMakkahDistance}</p>
@@ -946,11 +931,6 @@ export default function PaketUmrahShowcase() {
                         <div className="bg-[#022A1F] p-4 rounded-2xl border border-[#D4AF37]/30 space-y-2">
                           <div className="flex items-center justify-between text-[#F3E5AB]">
                             <span className="font-bold text-sm">Madinah Al-Munawwarah</span>
-                            <div className="flex text-[#D4AF37]">
-                              {Array.from({ length: selectedPkg.hotelMadinahStars }).map((_, i) => (
-                                <Star key={i} className="w-3.5 h-3.5 fill-current" />
-                              ))}
-                            </div>
                           </div>
                           <div className="text-white font-bold text-base">{selectedPkg.hotelMadinah}</div>
                           <p className="text-xs text-stone-300 font-light">{selectedPkg.hotelMadinahDistance}</p>

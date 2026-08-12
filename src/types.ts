@@ -17,6 +17,10 @@ export interface Package {
   muthawwifPhone?: string;
   muthawwifAvatarUrl?: string;
   muthawwifNotes?: string;
+  hotelMakkah?: string;
+  hotelMakkahDistance?: string;
+  hotelMadinah?: string;
+  hotelMadinahDistance?: string;
 }
 
 export interface Schedule {
