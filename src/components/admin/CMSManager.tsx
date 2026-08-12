@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Globe, Package, Image as ImageIcon, Video, Plus, Edit2, Trash2, 
   Search, Filter, ChevronRight, MapPin, Calendar, Clock, 
-  CheckCircle2, AlertCircle, Save, X, Upload, Info, Hotel, 
+  CheckCircle2, AlertCircle, Save, X, Upload, Info, Hotel, Building2, ShieldCheck,
   List, Map as MapIcon, Utensils
 } from 'lucide-react';
 import { api } from '../../lib/api';
@@ -284,6 +284,9 @@ function CMSPackageList() {
 }
 
 function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () => void, onSuccess: () => void }) {
+  const initialHotel = pkg?.hotel || '';
+  const hotelParts = initialHotel.split(',').map((s: string) => s.trim());
+
   const [formData, setFormData] = useState({
     name: pkg?.name || '',
     type: pkg?.type || 'umroh',
@@ -292,9 +295,12 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
     imageUrl: pkg?.imageUrl || '',
     facilities: pkg?.facilities || '',
     hotel: pkg?.hotel || '',
+    hotelMakkah: pkg?.hotelMakkah || hotelParts[0] || 'MAKKAH: MAYSAN AL-MASAER',
+    hotelMakkahDistance: pkg?.hotelMakkahDistance || '±100m dari Pelataran',
+    hotelMadinah: pkg?.hotelMadinah || hotelParts[1] || 'Hotel Pilihan Madinah',
+    hotelMadinahDistance: pkg?.hotelMadinahDistance || '±100m dari Pelataran',
     excludes: Array.isArray(pkg?.excludes) ? pkg.excludes.join('\n') : (pkg?.excludes || ''),
-    description: Array.isArray(pkg?.description) ? pkg.description.join('\n') : (pkg?.description || '')
-  ,
+    description: Array.isArray(pkg?.description) ? pkg.description.join('\n') : (pkg?.description || ''),
     quota: pkg?.quota || 45
   });
 
@@ -325,9 +331,15 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
     e.preventDefault();
     try {
       setIsSubmitting(true);
+      const computedHotel = `${formData.hotelMakkah || ''}${formData.hotelMadinah ? `, ${formData.hotelMadinah}` : ''}`;
       const payload = {
         ...formData,
         price: Number(formData.price),
+        hotel: computedHotel,
+        hotelMakkah: formData.hotelMakkah,
+        hotelMakkahDistance: formData.hotelMakkahDistance,
+        hotelMadinah: formData.hotelMadinah,
+        hotelMadinahDistance: formData.hotelMadinahDistance,
         description: formData.description.split('\n').filter((d: string) => d.trim() !== ''),
         excludes: formData.excludes.split('\n').filter((d: string) => d.trim() !== ''),
         itineraries: itinerary
@@ -477,27 +489,98 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Info Hotel</label>
-                    <input 
-                      type="text" 
-                      value={formData.hotel}
-                      onChange={(e) => setFormData({...formData, hotel: e.target.value})}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all outline-none"
-                      placeholder="Makkah: Anjum, Madinah: Nozol Royal"
-                    />
+                </div>
+              </div>
+
+              {/* Hotel Accommodation Section - 2 Columns (Makkah & Madinah) */}
+              <div className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200/80 space-y-4">
+                <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
+                  <Building2 className="w-4 h-4 text-amber-600" />
+                  <span>Akomodasi Hotel Pilihan (2 Kolom Makkah & Madinah)</span>
+                </div>
+                <p className="text-xs text-stone-600">
+                  Input akomodasi hotel di Makkah dan Madinah beserta lokasi/jarak relatif ke Masjidil Haram & Masjid Nabawi.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                  {/* Makkah Hotel */}
+                  <div className="bg-white p-4 rounded-xl border border-stone-200 space-y-3 shadow-xs">
+                    <div className="text-xs font-bold text-amber-800 flex items-center gap-1.5 uppercase">
+                      <Hotel className="w-4 h-4 text-amber-600" />
+                      <span>Makkah Al-Mukarramah</span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Nama Hotel Makkah *</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={formData.hotelMakkah} 
+                        onChange={e => setFormData({...formData, hotelMakkah: e.target.value})} 
+                        className="w-full border-gray-200 rounded-xl bg-gray-50/60 border py-2.5 px-3 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all text-xs font-medium"
+                        placeholder="Contoh: MAYSAN AL-MASAER / PULLMAN ZAMZAM"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Jarak / Lokasi Makkah *</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={formData.hotelMakkahDistance} 
+                        onChange={e => setFormData({...formData, hotelMakkahDistance: e.target.value})} 
+                        className="w-full border-gray-200 rounded-xl bg-gray-50/60 border py-2.5 px-3 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all text-xs font-medium"
+                        placeholder="Contoh: ±100m dari Pelataran"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Fasilitas Utama</label>
-                    <input 
-                      type="text" 
-                      value={formData.facilities}
-                      onChange={(e) => setFormData({...formData, facilities: e.target.value})}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all outline-none"
-                      placeholder="Tiket PP, Visa, Hotel, Makan 3x"
-                    />
+
+                  {/* Madinah Hotel */}
+                  <div className="bg-white p-4 rounded-xl border border-stone-200 space-y-3 shadow-xs">
+                    <div className="text-xs font-bold text-amber-800 flex items-center gap-1.5 uppercase">
+                      <Hotel className="w-4 h-4 text-amber-600" />
+                      <span>Madinah Al-Munawwarah</span>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Nama Hotel Madinah *</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={formData.hotelMadinah} 
+                        onChange={e => setFormData({...formData, hotelMadinah: e.target.value})} 
+                        className="w-full border-gray-200 rounded-xl bg-gray-50/60 border py-2.5 px-3 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all text-xs font-medium"
+                        placeholder="Contoh: HOTEL PILIHAN / GRAND PLAZA"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Jarak / Lokasi Madinah *</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={formData.hotelMadinahDistance} 
+                        onChange={e => setFormData({...formData, hotelMadinahDistance: e.target.value})} 
+                        className="w-full border-gray-200 rounded-xl bg-gray-50/60 border py-2.5 px-3 focus:bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all text-xs font-medium"
+                        placeholder="Contoh: ±100m dari Pelataran"
+                      />
+                    </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Fasilitas Utama Section */}
+              <div className="bg-emerald-50/60 p-4 rounded-2xl border border-emerald-200/80 space-y-2">
+                <label className="block text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Fasilitas Utama Paket (Daftar Poin Keunggulan)</span>
+                </label>
+                <p className="text-xs text-stone-600">
+                  Poin keunggulan utama paket ini akan tampil pada kartu paket & modal detail website. Pisahkan setiap fasilitas dengan koma (,).
+                </p>
+                <input 
+                  type="text" 
+                  value={formData.facilities}
+                  onChange={(e) => setFormData({...formData, facilities: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-xs font-medium"
+                  placeholder="Contoh: Direct Flight Saudia, Visa Umroh Resmi, Makan 3x, Bus AC Executive, Muthawwif Berpengalaman"
+                />
               </div>
 
               <div>

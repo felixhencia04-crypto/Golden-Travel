@@ -1126,6 +1126,10 @@ async function startServer() {
     await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "facilities" text;`);
     await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "excludes" text;`);
     await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "hotel" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "hotel_makkah" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "hotel_makkah_distance" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "hotel_madinah" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "hotel_madinah_distance" text;`);
     await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "type" text DEFAULT 'umroh';`);
     await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "is_available" boolean DEFAULT true;`);
     await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "quota" integer DEFAULT 45;`);
@@ -8624,6 +8628,10 @@ async function startServer() {
             facilities: schema.packages.facilities,
             excludes: schema.packages.excludes,
             hotel: schema.packages.hotel,
+            hotelMakkah: schema.packages.hotelMakkah,
+            hotelMakkahDistance: schema.packages.hotelMakkahDistance,
+            hotelMadinah: schema.packages.hotelMadinah,
+            hotelMadinahDistance: schema.packages.hotelMadinahDistance,
             createdAt: schema.packages.createdAt
           })
           .from(schema.packages)
@@ -8636,7 +8644,10 @@ async function startServer() {
             SELECT id, workspace_id as "workspaceId", name, description, price, 
                    departure_date as "departureDate", duration, image_url as "imageUrl", 
                    type, is_available as "isAvailable", quota, 
-                   manasik_pdf_url as "manasikPdfUrl", facilities, excludes, hotel, created_at as "createdAt"
+                   manasik_pdf_url as "manasikPdfUrl", facilities, excludes, hotel, 
+                   hotel_makkah as "hotelMakkah", hotel_makkah_distance as "hotelMakkahDistance",
+                   hotel_madinah as "hotelMadinah", hotel_madinah_distance as "hotelMadinahDistance",
+                   created_at as "createdAt"
             FROM packages
             ORDER BY created_at DESC
           `);
@@ -8719,7 +8730,7 @@ async function startServer() {
     if (req.user?.role !== 'admin' && req.user?.role !== 'super_admin' && req.user?.email !== 'felix.hencia04@gmail.com') return res.status(403).json({ error: "Forbidden" });
     try {
       await ensureTableAndColumns().catch(e => console.error("ensureTableAndColumns error in POST package:", e));
-      const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, excludes, itineraries } = req.body;
+      const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, hotelMakkah, hotelMakkahDistance, hotelMadinah, hotelMadinahDistance, excludes, itineraries } = req.body;
       
       const cleanPrice = Number(price) || 0;
       const cleanQuota = Number(quota) || 45;
@@ -8749,6 +8760,8 @@ async function startServer() {
 
       const cleanImgUrl = imageUrl ? saveFileToUploads(imageUrl, 'pkg') : "https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80";
 
+      const computedHotel = hotel || (hotelMakkah ? `${hotelMakkah}${hotelMadinah ? `, ${hotelMadinah}` : ''}` : null);
+
       const data: any = {
         workspaceId: wsId || null,
         name: (name || "Paket Baru").trim(),
@@ -8761,7 +8774,11 @@ async function startServer() {
         quota: cleanQuota,
         manasikPdfUrl: manasikPdfUrl ? saveFileToUploads(manasikPdfUrl, 'doc') : null,
         facilities: facilities || null,
-        hotel: hotel || null,
+        hotel: computedHotel,
+        hotelMakkah: hotelMakkah || null,
+        hotelMakkahDistance: hotelMakkahDistance || null,
+        hotelMadinah: hotelMadinah || null,
+        hotelMadinahDistance: hotelMadinahDistance || null,
         excludes: cleanExcludes
       };
 
@@ -8812,7 +8829,7 @@ async function startServer() {
   app.put("/api/admin/packages/:id", authenticate, async (req: AuthRequest, res) => {
     if (req.user?.role !== 'admin' && req.user?.role !== 'super_admin' && req.user?.email !== 'felix.hencia04@gmail.com') return res.status(403).json({ error: "Forbidden" });
     try {
-      const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, excludes, itineraries } = req.body;
+      const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, hotelMakkah, hotelMakkahDistance, hotelMadinah, hotelMadinahDistance, excludes, itineraries } = req.body;
       
       const cleanPrice = Number(price) || 0;
       const cleanQuota = Number(quota) || 45;
@@ -8836,6 +8853,8 @@ async function startServer() {
       const normalizedType = String(type || 'umroh').trim().toLowerCase() === 'haji' ? 'haji' : 'umroh';
       const normalizedIsAvailable = isAvailable !== false && isAvailable !== 'false' && isAvailable !== 0 && isAvailable !== '0';
 
+      const computedHotel = hotel || (hotelMakkah ? `${hotelMakkah}${hotelMadinah ? `, ${hotelMadinah}` : ''}` : null);
+
       const data: any = {
         name: (name || "Paket Baru").trim(),
         description: cleanDesc,
@@ -8845,7 +8864,11 @@ async function startServer() {
         isAvailable: normalizedIsAvailable,
         quota: cleanQuota,
         facilities: facilities || null,
-        hotel: hotel || null,
+        hotel: computedHotel,
+        hotelMakkah: hotelMakkah || null,
+        hotelMakkahDistance: hotelMakkahDistance || null,
+        hotelMadinah: hotelMadinah || null,
+        hotelMadinahDistance: hotelMadinahDistance || null,
         excludes: cleanExcludes
       };
 

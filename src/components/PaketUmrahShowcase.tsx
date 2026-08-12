@@ -361,12 +361,12 @@ export default function PaketUmrahShowcase() {
                 dpAmount: 'DP Rp 5.000.000',
                 imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
                 airline: 'Saudia Airlines',
-                hotelMakkah: hMakkah,
+                hotelMakkah: p.hotelMakkah || hMakkah,
                 hotelMakkahStars: 5,
-                hotelMakkahDistance: '±100m',
-                hotelMadinah: hMadinah,
+                hotelMakkahDistance: p.hotelMakkahDistance || '±100m',
+                hotelMadinah: p.hotelMadinah || hMadinah,
                 hotelMadinahStars: 5,
-                hotelMadinahDistance: '±100m',
+                hotelMadinahDistance: p.hotelMadinahDistance || '±100m',
                 departureSchedule: p.departureDate ? new Date(p.departureDate).toLocaleDateString('id-ID', {month: 'long', year: 'numeric'}) : 'Lihat Jadwal',
                 seatsLeft: p.remainingSeats ?? (p.quota || 45),
                 highlights: (p.facilities || '').split(',').map((f:string)=>f.trim()).filter(Boolean),
@@ -937,6 +937,24 @@ export default function PaketUmrahShowcase() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Fasilitas Utama Paket Section */}
+                    {selectedPkg.highlights && selectedPkg.highlights.length > 0 && (
+                      <div className="pt-2">
+                        <h4 className="text-sm font-bold uppercase tracking-wider text-[#D4AF37] mb-3 flex items-center gap-2">
+                          <ShieldCheck className="w-4 h-4 text-[#D4AF37]" />
+                          <span>Fasilitas Utama Paket</span>
+                        </h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-[#022A1F] p-4 rounded-2xl border border-[#D4AF37]/30">
+                          {selectedPkg.highlights.map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-2.5 text-xs text-white font-medium bg-[#021811]/70 px-3.5 py-2.5 rounded-xl border border-[#D4AF37]/20">
+                              <CheckCircle2 className="w-4 h-4 text-[#D4AF37] shrink-0" />
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                       <div className="bg-[#022A1F]/70 p-5 rounded-2xl border border-[#D4AF37]/30 space-y-3">

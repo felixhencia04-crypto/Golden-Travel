@@ -85,6 +85,10 @@ export const packages = pgTable('packages', {
   facilities: text('facilities'),
   excludes: text('excludes'), // Added for CMS
   hotel: text('hotel'), // Added for CMS
+  hotelMakkah: text('hotel_makkah'),
+  hotelMakkahDistance: text('hotel_makkah_distance'),
+  hotelMadinah: text('hotel_madinah'),
+  hotelMadinahDistance: text('hotel_madinah_distance'),
   type: text('type').default('umroh').notNull(),
   isAvailable: boolean('is_available').default(true).notNull(),
   quota: integer('quota').default(45).notNull(),
