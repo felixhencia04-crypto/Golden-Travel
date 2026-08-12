@@ -1130,6 +1130,10 @@ async function startServer() {
     await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "hotel_makkah_distance" text;`);
     await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "hotel_madinah" text;`);
     await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "hotel_madinah_distance" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "waiting_time" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "visa_type" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "airline" text;`);
+    await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "dp_amount" text;`);
     await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "type" text DEFAULT 'umroh';`);
     await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "is_available" boolean DEFAULT true;`);
     await runSql(`ALTER TABLE "packages" ADD COLUMN IF NOT EXISTS "quota" integer DEFAULT 45;`);
@@ -4558,6 +4562,14 @@ async function startServer() {
               facilities: schema.packages.facilities,
               excludes: schema.packages.excludes,
               hotel: schema.packages.hotel,
+              hotelMakkah: schema.packages.hotelMakkah,
+              hotelMakkahDistance: schema.packages.hotelMakkahDistance,
+              hotelMadinah: schema.packages.hotelMadinah,
+              hotelMadinahDistance: schema.packages.hotelMadinahDistance,
+              waitingTime: schema.packages.waitingTime,
+              visaType: schema.packages.visaType,
+              airline: schema.packages.airline,
+              dpAmount: schema.packages.dpAmount,
               createdAt: schema.packages.createdAt
             })
             .from(schema.packages)
@@ -4571,7 +4583,11 @@ async function startServer() {
               SELECT id, workspace_id as "workspaceId", name, description, price, 
                      departure_date as "departureDate", duration, image_url as "imageUrl", 
                      type, is_available as "isAvailable", quota, 
-                     manasik_pdf_url as "manasikPdfUrl", facilities, excludes, hotel, created_at as "createdAt"
+                     manasik_pdf_url as "manasikPdfUrl", facilities, excludes, hotel, 
+                     hotel_makkah as "hotelMakkah", hotel_makkah_distance as "hotelMakkahDistance",
+                     hotel_madinah as "hotelMadinah", hotel_madinah_distance as "hotelMadinahDistance",
+                     waiting_time as "waitingTime", visa_type as "visaType", airline, dp_amount as "dpAmount",
+                     created_at as "createdAt"
               FROM packages
               ORDER BY created_at DESC
             `);
@@ -8632,6 +8648,10 @@ async function startServer() {
             hotelMakkahDistance: schema.packages.hotelMakkahDistance,
             hotelMadinah: schema.packages.hotelMadinah,
             hotelMadinahDistance: schema.packages.hotelMadinahDistance,
+            waitingTime: schema.packages.waitingTime,
+            visaType: schema.packages.visaType,
+            airline: schema.packages.airline,
+            dpAmount: schema.packages.dpAmount,
             createdAt: schema.packages.createdAt
           })
           .from(schema.packages)
@@ -8647,6 +8667,7 @@ async function startServer() {
                    manasik_pdf_url as "manasikPdfUrl", facilities, excludes, hotel, 
                    hotel_makkah as "hotelMakkah", hotel_makkah_distance as "hotelMakkahDistance",
                    hotel_madinah as "hotelMadinah", hotel_madinah_distance as "hotelMadinahDistance",
+                   waiting_time as "waitingTime", visa_type as "visaType", airline, dp_amount as "dpAmount",
                    created_at as "createdAt"
             FROM packages
             ORDER BY created_at DESC
@@ -8730,7 +8751,7 @@ async function startServer() {
     if (req.user?.role !== 'admin' && req.user?.role !== 'super_admin' && req.user?.email !== 'felix.hencia04@gmail.com') return res.status(403).json({ error: "Forbidden" });
     try {
       await ensureTableAndColumns().catch(e => console.error("ensureTableAndColumns error in POST package:", e));
-      const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, hotelMakkah, hotelMakkahDistance, hotelMadinah, hotelMadinahDistance, excludes, itineraries } = req.body;
+      const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, hotelMakkah, hotelMakkahDistance, hotelMadinah, hotelMadinahDistance, waitingTime, visaType, airline, dpAmount, excludes, itineraries } = req.body;
       
       const cleanPrice = Number(price) || 0;
       const cleanQuota = Number(quota) || 45;
@@ -8779,6 +8800,10 @@ async function startServer() {
         hotelMakkahDistance: hotelMakkahDistance || null,
         hotelMadinah: hotelMadinah || null,
         hotelMadinahDistance: hotelMadinahDistance || null,
+        waitingTime: waitingTime || null,
+        visaType: visaType || null,
+        airline: airline || null,
+        dpAmount: dpAmount || null,
         excludes: cleanExcludes
       };
 
@@ -8829,7 +8854,7 @@ async function startServer() {
   app.put("/api/admin/packages/:id", authenticate, async (req: AuthRequest, res) => {
     if (req.user?.role !== 'admin' && req.user?.role !== 'super_admin' && req.user?.email !== 'felix.hencia04@gmail.com') return res.status(403).json({ error: "Forbidden" });
     try {
-      const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, hotelMakkah, hotelMakkahDistance, hotelMadinah, hotelMadinahDistance, excludes, itineraries } = req.body;
+      const { name, description, price, duration, imageUrl, type, isAvailable, quota, manasikPdfUrl, facilities, hotel, hotelMakkah, hotelMakkahDistance, hotelMadinah, hotelMadinahDistance, waitingTime, visaType, airline, dpAmount, excludes, itineraries } = req.body;
       
       const cleanPrice = Number(price) || 0;
       const cleanQuota = Number(quota) || 45;
@@ -8869,6 +8894,10 @@ async function startServer() {
         hotelMakkahDistance: hotelMakkahDistance || null,
         hotelMadinah: hotelMadinah || null,
         hotelMadinahDistance: hotelMadinahDistance || null,
+        waitingTime: waitingTime || null,
+        visaType: visaType || null,
+        airline: airline || null,
+        dpAmount: dpAmount || null,
         excludes: cleanExcludes
       };
 

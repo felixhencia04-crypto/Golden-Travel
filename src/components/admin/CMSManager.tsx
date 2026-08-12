@@ -3,7 +3,7 @@ import {
   Globe, Package, Image as ImageIcon, Video, Plus, Edit2, Trash2, 
   Search, Filter, ChevronRight, MapPin, Calendar, Clock, 
   CheckCircle2, AlertCircle, Save, X, Upload, Info, Hotel, Building2, ShieldCheck,
-  List, Map as MapIcon, Utensils
+  List, Map as MapIcon, Utensils, Plane, Award, Tent, Sparkles, DollarSign, Layers, Tag
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { toast } from 'sonner';
@@ -126,11 +126,14 @@ function CMSPackageList() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPackage, setEditingPackage] = useState<any>(null);
+  const [activeCategory, setActiveCategory] = useState<'all' | 'umroh' | 'haji'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const fetchPackages = async () => {
     try {
       setLoading(true);
-      const data = await api.get('/api/packages'); // Use existing packages list
+      const data = await api.get('/api/packages');
       setPackages(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch packages:', error);
@@ -143,9 +146,6 @@ function CMSPackageList() {
   useEffect(() => {
     fetchPackages();
   }, []);
-
-  
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const handleDelete = async () => {
     if (!deleteConfirmId) return;
@@ -161,9 +161,29 @@ function CMSPackageList() {
     }
   };
 
+  const totalCount = packages.length;
+  const umrohCount = packages.filter(p => p.type?.toLowerCase() === 'umroh' || !p.type).length;
+  const hajiCount = packages.filter(p => p.type?.toLowerCase() === 'haji').length;
+
+  const filteredPackages = packages.filter(pkg => {
+    const pkgType = (pkg.type || 'umroh').toLowerCase();
+    const matchCategory = activeCategory === 'all' 
+      ? true 
+      : activeCategory === 'haji' 
+        ? pkgType === 'haji' 
+        : (pkgType === 'umroh' || !pkgType);
+    
+    const query = searchQuery.toLowerCase().trim();
+    const matchSearch = !query || 
+      (pkg.name && pkg.name.toLowerCase().includes(query)) ||
+      (pkg.hotel && pkg.hotel.toLowerCase().includes(query)) ||
+      (pkg.facilities && pkg.facilities.toLowerCase().includes(query));
+
+    return matchCategory && matchSearch;
+  });
 
   return (
-    <div className="p-6">
+    <div className="p-6 space-y-6">
       <ConfirmDialog
         isOpen={!!deleteConfirmId}
         title="Hapus Paket"
@@ -171,101 +191,287 @@ function CMSPackageList() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirmId(null)}
       />
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="font-bold text-gray-900">Daftar Paket Umroh & Haji</h3>
-        <button 
-          onClick={() => {
-            setEditingPackage(null);
-            setIsModalOpen(true);
-          }}
-          className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Tambah Paket Baru</span>
-        </button>
+
+      {/* Top Bar with Title and Action Buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <Package className="w-6 h-6 text-emerald-600" />
+            <span>Katalog Paket Umroh & Haji</span>
+          </h3>
+          <p className="text-xs text-gray-500 mt-1">
+            Kelola seluruh paket umroh dan paket haji yang ditampilkan pada website utama
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => {
+              setEditingPackage({ type: 'haji' });
+              setIsModalOpen(true);
+            }}
+            className="flex items-center space-x-2 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-amber-600/20 transition-all active:scale-95 cursor-pointer"
+          >
+            <Tent className="w-4 h-4 text-amber-200" />
+            <span>+ Tambah Paket Haji</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              setEditingPackage({ type: 'umroh' });
+              setIsModalOpen(true);
+            }}
+            className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-95 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Tambah Paket Umroh</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Category Filter Tabs & Search Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/80 p-2 rounded-2xl border border-gray-200/80">
+        <div className="flex items-center space-x-1.5 overflow-x-auto custom-scrollbar pb-1 md:pb-0">
+          <button
+            onClick={() => setActiveCategory('all')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeCategory === 'all'
+                ? 'bg-gray-900 text-white shadow-sm'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Semua Paket</span>
+            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-[10px] ${
+              activeCategory === 'all' ? 'bg-gray-800 text-gray-200' : 'bg-gray-200 text-gray-700'
+            }`}>
+              {totalCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveCategory('umroh')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeCategory === 'umroh'
+                ? 'bg-emerald-700 text-white shadow-sm shadow-emerald-700/20'
+                : 'text-gray-600 hover:text-emerald-700 hover:bg-emerald-50'
+            }`}
+          >
+            <Award className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Paket Umroh</span>
+            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-[10px] ${
+              activeCategory === 'umroh' ? 'bg-emerald-800 text-emerald-100' : 'bg-emerald-100 text-emerald-800'
+            }`}>
+              {umrohCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveCategory('haji')}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              activeCategory === 'haji'
+                ? 'bg-amber-600 text-white shadow-sm shadow-amber-600/20'
+                : 'text-gray-600 hover:text-amber-700 hover:bg-amber-50'
+            }`}
+          >
+            <Tent className="w-3.5 h-3.5 text-amber-300" />
+            <span>Paket Haji</span>
+            <span className={`ml-1.5 px-2 py-0.5 rounded-full text-[10px] ${
+              activeCategory === 'haji' ? 'bg-amber-700 text-amber-100' : 'bg-amber-100 text-amber-900 font-bold'
+            }`}>
+              {hajiCount}
+            </span>
+          </button>
+        </div>
+
+        {/* Search Input */}
+        <div className="relative w-full md:w-72">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input 
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Cari paket / hotel / fasilitas..."
+            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-500"></div>
+        <div className="flex justify-center py-16">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
         </div>
-      ) : packages.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-          <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-500">Belum ada paket yang tersedia</p>
+      ) : filteredPackages.length === 0 ? (
+        <div className="text-center py-16 bg-gray-50 rounded-2xl border border-dashed border-gray-300 space-y-3">
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+            <Package className="w-7 h-7" />
+          </div>
+          <h4 className="font-bold text-gray-800 text-base">
+            Tidak ada {activeCategory === 'haji' ? 'Paket Haji' : activeCategory === 'umroh' ? 'Paket Umroh' : 'Paket'} ditemukan
+          </h4>
+          <p className="text-xs text-gray-500 max-w-sm mx-auto">
+            {searchQuery ? `Tidak ada hasil pencarian untuk "${searchQuery}".` : 'Belum ada data paket untuk kategori ini. Buat paket baru dengan tombol di atas.'}
+          </p>
+          <div className="pt-2 flex justify-center gap-2">
+            <button
+              onClick={() => {
+                setEditingPackage({ type: activeCategory === 'haji' ? 'haji' : 'umroh' });
+                setIsModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Buat Paket Baru</span>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {packages.map((pkg) => (
-            <div key={pkg.id} className="group bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
-              <div className="relative h-48">
-                <img 
-                  src={pkg.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80'} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  alt={pkg.name}
-                />
-                <div className="absolute top-3 right-3 flex space-x-2">
-                  <button 
-                    onClick={() => {
-                      setEditingPackage(pkg);
-                      setIsModalOpen(true);
-                    }}
-                    className="p-2 bg-white/90 hover:bg-white text-blue-600 rounded-lg shadow-sm backdrop-blur-sm"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button 
-                    onClick={() => setDeleteConfirmId(pkg.id)}
-                    className="p-2 bg-white/90 hover:bg-white text-red-600 rounded-lg shadow-sm backdrop-blur-sm"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="absolute bottom-3 left-3">
-                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm ${
-                    pkg.type === 'haji' ? 'bg-amber-500 text-white' : 'bg-emerald-600 text-white'
-                  }`}>
-                    {pkg.type}
-                  </span>
-                </div>
-              </div>
-              
-              <div className="p-5">
-                <h4 className="font-bold text-gray-900 mb-1 line-clamp-1">{pkg.name}</h4>
-                <p className="text-emerald-600 font-bold text-lg mb-3">
-                  Rp {Number(pkg.price).toLocaleString('id-ID')}
-                </p>
-                
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center text-xs text-gray-500 space-x-2">
-                    <Clock className="w-3.5 h-3.5 text-gold-500" />
-                    <span>{pkg.duration}</span>
+          {filteredPackages.map((pkg) => {
+            const isHaji = (pkg.type || '').toLowerCase() === 'haji';
+            return (
+              <div 
+                key={pkg.id} 
+                className={`group bg-white rounded-2xl border overflow-hidden transition-all duration-300 hover:shadow-xl flex flex-col ${
+                  isHaji ? 'border-amber-200/90 shadow-xs' : 'border-gray-200'
+                }`}
+              >
+                <div className="relative h-48 overflow-hidden">
+                  <img 
+                    src={pkg.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&q=80'} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    alt={pkg.name}
+                  />
+                  
+                  {/* Action Buttons Top Right */}
+                  <div className="absolute top-3 right-3 flex space-x-2">
+                    <button 
+                      onClick={() => {
+                        setEditingPackage(pkg);
+                        setIsModalOpen(true);
+                      }}
+                      className="p-2 bg-white/90 hover:bg-white text-blue-600 rounded-xl shadow-md backdrop-blur-sm transition-all active:scale-95"
+                      title="Edit Paket"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => setDeleteConfirmId(pkg.id)}
+                      className="p-2 bg-white/90 hover:bg-white text-red-600 rounded-xl shadow-md backdrop-blur-sm transition-all active:scale-95"
+                      title="Hapus Paket"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  <div className="flex items-center text-xs text-gray-500 space-x-2">
-                    <Hotel className="w-3.5 h-3.5 text-gold-500" />
-                    <span className="line-clamp-1">{pkg.hotel || 'Info Hotel Belum Ada'}</span>
-                  </div>
-                </div>
 
-                <div className="pt-4 border-t border-gray-100 flex justify-between items-center">
-                   <div className="flex items-center space-x-1 text-[10px] font-bold text-gray-400">
-                      <List className="w-3 h-3" />
-                      <span>{pkg.itineraryCount || 0} Hari Jadwal</span>
-                   </div>
-                   <button 
-                    onClick={() => {
-                      setEditingPackage(pkg);
-                      setIsModalOpen(true);
-                    }}
-                    className="text-xs font-bold text-gold-600 hover:text-gold-700 flex items-center space-x-1"
-                   >
-                     <span>Detail & Itinerary</span>
-                     <ChevronRight className="w-3 h-3" />
-                   </button>
+                  {/* Category Badge Top Left */}
+                  <div className="absolute top-3 left-3">
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-md flex items-center gap-1.5 ${
+                      isHaji 
+                        ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-stone-900 border border-amber-300' 
+                        : 'bg-emerald-700 text-white'
+                    }`}>
+                      {isHaji ? <Tent className="w-3 h-3 text-stone-900" /> : <Award className="w-3 h-3 text-white" />}
+                      <span>{isHaji ? 'Paket Haji' : 'Paket Umroh'}</span>
+                    </span>
+                  </div>
+
+                  {/* Available / Full Booked Status Bottom Left */}
+                  <div className="absolute bottom-3 left-3">
+                    {pkg.isAvailable !== false ? (
+                      <span className="bg-emerald-500/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm shadow-sm flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Tersedia ({pkg.remainingSeats ?? pkg.quota ?? 45} Seat)</span>
+                      </span>
+                    ) : (
+                      <span className="bg-red-500/90 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-sm shadow-sm">
+                        Full Booked
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                  <div>
+                    <h4 className="font-bold text-gray-900 text-base mb-1 line-clamp-1 group-hover:text-emerald-700 transition-colors">
+                      {pkg.name}
+                    </h4>
+
+                    {/* Price Tag */}
+                    <div className="flex items-baseline gap-2 mb-3">
+                      <span className={`font-black text-lg ${isHaji ? 'text-amber-600' : 'text-emerald-600'}`}>
+                        Rp {Number(pkg.price).toLocaleString('id-ID')}
+                      </span>
+                      <span className="text-[11px] text-gray-400 font-medium">/ pax</span>
+                    </div>
+
+                    {/* Meta Details */}
+                    <div className="space-y-2 bg-gray-50/80 p-3 rounded-xl border border-gray-100 text-xs text-gray-600">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-gray-500">
+                          <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          <span>Durasi Paket:</span>
+                        </div>
+                        <span className="font-bold text-gray-800">{pkg.duration || '9 Hari'}</span>
+                      </div>
+
+                      {isHaji && (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-gray-500">
+                              <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              <span>Masa Tunggu:</span>
+                            </div>
+                            <span className="font-bold text-amber-700 line-clamp-1">{pkg.waitingTime || 'Langsung Berangkat'}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 text-gray-500">
+                              <ShieldCheck className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              <span>Jenis Visa:</span>
+                            </div>
+                            <span className="font-bold text-gray-800 line-clamp-1">{pkg.visaType || 'Visa Haji Resmi'}</span>
+                          </div>
+                        </>
+                      )}
+
+                      <div className="flex items-start gap-1.5 text-gray-500 pt-1 border-t border-gray-200/60">
+                        <Hotel className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                        <span className="line-clamp-2 text-gray-700 font-medium">
+                          {pkg.hotelMakkah ? `${pkg.hotelMakkah} & ${pkg.hotelMadinah || 'Madinah'}` : (pkg.hotel || 'Hotel Bintang 5')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-gray-100 flex justify-between items-center">
+                    <div className="flex items-center space-x-1 text-[11px] font-bold text-gray-400">
+                      <List className="w-3.5 h-3.5 text-gray-400" />
+                      <span>{pkg.itineraryCount || 0} Hari Itinerary</span>
+                    </div>
+
+                    <button 
+                      onClick={() => {
+                        setEditingPackage(pkg);
+                        setIsModalOpen(true);
+                      }}
+                      className="text-xs font-bold text-amber-600 hover:text-amber-700 flex items-center space-x-1 cursor-pointer"
+                    >
+                      <span>Detail & Itinerary</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -291,7 +497,7 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
     name: pkg?.name || '',
     type: pkg?.type || 'umroh',
     price: pkg?.price || '',
-    duration: pkg?.duration || '',
+    duration: pkg?.duration || '9 Hari',
     imageUrl: pkg?.imageUrl || '',
     facilities: pkg?.facilities || '',
     hotel: pkg?.hotel || '',
@@ -299,6 +505,10 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
     hotelMakkahDistance: pkg?.hotelMakkahDistance || '±100m dari Pelataran',
     hotelMadinah: pkg?.hotelMadinah || hotelParts[1] || 'Hotel Pilihan Madinah',
     hotelMadinahDistance: pkg?.hotelMadinahDistance || '±100m dari Pelataran',
+    waitingTime: pkg?.waitingTime || (pkg?.type === 'haji' ? 'Tanpa Antre (Langsung Berangkat)' : ''),
+    visaType: pkg?.visaType || (pkg?.type === 'haji' ? 'Visa Haji Mujamalah / Furoda Resmi' : ''),
+    airline: pkg?.airline || 'Saudia Airlines / Garuda Indonesia (Direct Flight)',
+    dpAmount: pkg?.dpAmount || (pkg?.type === 'haji' ? 'DP Rp 10.000.000' : 'DP Rp 5.000.000'),
     excludes: Array.isArray(pkg?.excludes) ? pkg.excludes.join('\n') : (pkg?.excludes || ''),
     description: Array.isArray(pkg?.description) ? pkg.description.join('\n') : (pkg?.description || ''),
     quota: pkg?.quota || 45
@@ -327,6 +537,52 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
     }
   };
 
+  const applyHajiPreset = (presetType: 'furoda' | 'onh' | 'custom') => {
+    if (presetType === 'furoda') {
+      setFormData(prev => ({
+        ...prev,
+        name: 'Haji Furoda VIP (Visa Mujamalah - Tanpa Antre)',
+        type: 'haji',
+        price: '340000000',
+        duration: '25 Hari',
+        quota: 45,
+        waitingTime: 'Tanpa Antre (Langsung Berangkat)',
+        visaType: 'Visa Haji Mujamalah / Furoda Resmi',
+        airline: 'Saudia Airlines / Garuda Indonesia (Direct Flight)',
+        dpAmount: 'DP Rp 20.000.000',
+        hotelMakkah: 'MAYSAN AL-MASAER / PULLMAN ZAMZAM (Bintang 5)',
+        hotelMakkahDistance: '±100m dari Pelataran Masjidil Haram',
+        hotelMadinah: 'MIRAGE SALAM / GRAND PLAZA (Bintang 5)',
+        hotelMadinahDistance: '±100m dari Pelataran Masjid Nabawi',
+        facilities: 'Direct Flight Saudia, Visa Haji Mujamalah Resmi, Tenda VIP Mina & Arafah AC, Bus AC Executive, Konsumsi Fullboard Buffet, Muthawwif Berpengalaman, Kereta Cepat Haramain',
+        description: 'Visa Haji Mujamalah / Furoda Resmi Kerajaan Arab Saudi\nKeberangkatan Langsung Tanpa Masa Tunggu Siskohat\nAkomodasi Hotel Bintang 5 Dekat Pelataran Utama\nTenda Maktab VIP Arafah & Mina Ber-AC Super Nyaman\nBimbingan Manasik Haji Sesuai Sunnah oleh Ustadz Senior\nPenerbangan Langsung Direct Flight Tanpa Transit',
+        excludes: 'Pembuatan Paspor RI\nSuntik Vaksin Meningitis\nPengeluaran Pribadi & Dam/Hadyu'
+      }));
+      toast.success('Preset Haji Furoda VIP berhasil diterapkan');
+    } else if (presetType === 'onh') {
+      setFormData(prev => ({
+        ...prev,
+        name: 'Haji Khusus / ONH Plus (Kemenag RI)',
+        type: 'haji',
+        price: '230000000',
+        duration: '25 Hari',
+        quota: 45,
+        waitingTime: 'Masa Tunggu ~5-7 Tahun (Siskohat Resmi)',
+        visaType: 'Visa Haji Kuota Resmi Kemenag RI',
+        airline: 'Saudia Airlines / Garuda Indonesia Direct',
+        dpAmount: 'DP Rp 10.000.000',
+        hotelMakkah: 'PULLMAN ZAMZAM / ANJUM MAKKAH (Bintang 5)',
+        hotelMakkahDistance: '±100m dari Pelataran Masjidil Haram',
+        hotelMadinah: 'GRAND PLAZA MADINAH (Bintang 5)',
+        hotelMadinahDistance: '±100m dari Pelataran Masjid Nabawi',
+        facilities: 'Visa Haji Resmi Kemenag, Hotel Bintang 5, Tenda AC Mina & Arafah, Konsumsi Fullboard Buffet, Bimbingan Ibadah Berkelanjutan',
+        description: 'Pendaftaran Resmi Siskohat Kemenag RI dengan Nomor Porsi\nMasa Tunggu Lebih Cepat Dibanding Haji Reguler (~5-7 Tahun)\nAkomodasi Hotel Bintang 5 Dekat Masjidil Haram & Nabawi\nTenda AC Nyaman di Arafah & Mina\nPelayanan Kesehatan & Pembimbing Ibadah Profesional',
+        excludes: 'Pembuatan Paspor RI\nSuntik Vaksin Meningitis\nPengeluaran Pribadi & Dam/Hadyu'
+      }));
+      toast.success('Preset Haji Khusus / ONH Plus diterapkan');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -340,8 +596,16 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
         hotelMakkahDistance: formData.hotelMakkahDistance,
         hotelMadinah: formData.hotelMadinah,
         hotelMadinahDistance: formData.hotelMadinahDistance,
-        description: formData.description.split('\n').filter((d: string) => d.trim() !== ''),
-        excludes: formData.excludes.split('\n').filter((d: string) => d.trim() !== ''),
+        waitingTime: formData.waitingTime,
+        visaType: formData.visaType,
+        airline: formData.airline,
+        dpAmount: formData.dpAmount,
+        description: typeof formData.description === 'string' 
+          ? formData.description.split('\n').filter((d: string) => d.trim() !== '')
+          : formData.description,
+        excludes: typeof formData.excludes === 'string'
+          ? formData.excludes.split('\n').filter((d: string) => d.trim() !== '')
+          : formData.excludes,
         itineraries: itinerary
       };
 
@@ -352,6 +616,7 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
       } else {
         await api.post('/admin/packages', payload);
         toast.success('Paket berhasil ditambahkan');
+        notifyRealtimeCatalogChange();
       }
       onSuccess();
     } catch (error: any) {
@@ -361,41 +626,59 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
     }
   };
 
+  const isHajiMode = formData.type === 'haji';
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+      <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[92vh] overflow-hidden shadow-2xl flex flex-col">
+        {/* Header */}
+        <div className={`px-6 py-4 border-b flex items-center justify-between ${
+          isHajiMode ? 'bg-amber-50/80 border-amber-200' : 'bg-emerald-50/80 border-emerald-200'
+        }`}>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-gold-500/10 flex items-center justify-center">
-              <Package className="w-6 h-6 text-gold-600" />
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-xs ${
+              isHajiMode ? 'bg-amber-500 text-stone-900 font-bold' : 'bg-emerald-600 text-white'
+            }`}>
+              {isHajiMode ? <Tent className="w-5 h-5" /> : <Package className="w-5 h-5" />}
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-900">{pkg ? 'Edit Paket' : 'Tambah Paket Baru'}</h3>
-              <p className="text-xs text-gray-500">Lengkapi informasi paket perjalanan</p>
+              <h3 className="text-lg font-bold text-gray-900">
+                {pkg?.id ? `Edit ${isHajiMode ? 'Paket Haji' : 'Paket Umroh'}` : `Tambah ${isHajiMode ? 'Paket Haji' : 'Paket Umroh'} Baru`}
+              </h3>
+              <p className="text-xs text-gray-500">
+                Lengkapi rincian paket perjalanan untuk ditampilkan pada website utama Golden Travel
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <X className="w-5 h-5 text-gray-400" />
+          <button onClick={onClose} className="p-2 hover:bg-gray-200/60 rounded-full transition-colors cursor-pointer">
+            <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
-        <div className="flex border-b border-gray-100">
+        {/* Modal Tabs */}
+        <div className="flex border-b border-gray-200 bg-gray-50/50">
            <button 
+            type="button"
             onClick={() => setActiveTab('info')}
-            className={`px-6 py-3 text-sm font-bold border-b-2 transition-all ${
-              activeTab === 'info' ? 'border-gold-500 text-gold-600 bg-gold-50/30' : 'border-transparent text-gray-500 hover:text-gray-700'
+            className={`px-6 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+              activeTab === 'info' 
+                ? (isHajiMode ? 'border-amber-600 text-amber-800 bg-amber-50/50' : 'border-emerald-600 text-emerald-800 bg-emerald-50/50') 
+                : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
            >
-             Informasi Utama
+             1. Informasi Utama & Fasilitas
            </button>
            {pkg?.id && (
              <button 
+              type="button"
               onClick={() => setActiveTab('itinerary')}
-              className={`px-6 py-3 text-sm font-bold border-b-2 transition-all ${
-                activeTab === 'itinerary' ? 'border-gold-500 text-gold-600 bg-gold-50/30' : 'border-transparent text-gray-500 hover:text-gray-700'
+              className={`px-6 py-3 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                activeTab === 'itinerary' 
+                  ? (isHajiMode ? 'border-amber-600 text-amber-800 bg-amber-50/50' : 'border-emerald-600 text-emerald-800 bg-emerald-50/50') 
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
              >
-               Jadwal Itinerary
+               2. Jadwal Itinerary Per Hari ({itinerary.length} Hari)
              </button>
            )}
         </div>
@@ -403,73 +686,232 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
           {activeTab === 'info' ? (
             <form id="pkg-form" onSubmit={handleSubmit} className="space-y-6">
+              
+              {/* Category Selector Cards (Umroh vs Haji) */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                  Pilih Kategori Perjalanan *
+                </label>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, type: 'umroh' })}
+                    className={`p-4 rounded-2xl border text-left transition-all flex items-center gap-3 cursor-pointer ${
+                      formData.type === 'umroh'
+                        ? 'border-emerald-600 bg-emerald-50/60 ring-2 ring-emerald-500/20 shadow-sm'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      formData.type === 'umroh' ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      <Award className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h5 className="font-bold text-sm text-gray-900">Paket Umroh</h5>
+                      <p className="text-[11px] text-gray-500">Ibadah Umroh Regular & Plus</p>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({
+                        ...prev,
+                        type: 'haji',
+                        waitingTime: prev.waitingTime || 'Tanpa Antre (Langsung Berangkat)',
+                        visaType: prev.visaType || 'Visa Haji Mujamalah / Furoda Resmi',
+                        dpAmount: prev.dpAmount || 'DP Rp 10.000.000'
+                      }));
+                    }}
+                    className={`p-4 rounded-2xl border text-left transition-all flex items-center gap-3 cursor-pointer ${
+                      formData.type === 'haji'
+                        ? 'border-amber-500 bg-amber-50/80 ring-2 ring-amber-500/30 shadow-sm'
+                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      formData.type === 'haji' ? 'bg-amber-500 text-stone-900 font-bold' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      <Tent className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h5 className="font-bold text-sm text-amber-950 flex items-center gap-1.5">
+                        <span>Paket Haji</span>
+                        <span className="bg-amber-200 text-amber-900 text-[9px] px-1.5 py-0.5 rounded font-black">KHUSUS</span>
+                      </h5>
+                      <p className="text-[11px] text-amber-800">Haji Furoda, Mujamalah & ONH Plus</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Presets Banner for Haji */}
+              {isHajiMode && (
+                <div className="p-4 bg-gradient-to-r from-amber-50 to-amber-100/60 rounded-2xl border border-amber-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
+                      <Sparkles className="w-4 h-4 text-amber-600" />
+                      <span>Preset Cepat Form Paket Haji</span>
+                    </div>
+                    <span className="text-[10px] text-amber-700 bg-amber-200/80 px-2 py-0.5 rounded-full font-bold">Otomatisasi Form</span>
+                  </div>
+                  <p className="text-xs text-amber-900/80">
+                    Klik tombol di bawah untuk langsung mengisi formulir dengan templat paket haji standar profesional:
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => applyHajiPreset('furoda')}
+                      className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Tent className="w-3.5 h-3.5 text-amber-200" />
+                      <span>Haji Furoda VIP (Mujamalah)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyHajiPreset('onh')}
+                      className="px-3 py-2 bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Award className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Haji Khusus / ONH Plus (Kemenag RI)</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Basic Package Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Nama Paket</label>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                      Nama Paket *
+                    </label>
                     <input 
                       type="text" 
                       value={formData.name}
                       onChange={(e) => setFormData({...formData, name: e.target.value})}
                       required
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all outline-none"
-                      placeholder="Contoh: Umroh Syawal Bintang 5"
+                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-xs font-bold text-gray-900"
+                      placeholder={isHajiMode ? "Contoh: Haji Furoda VIP Direct Flight 2026" : "Contoh: Umroh Syawal Bintang 5 9 Hari"}
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Kategori</label>
-                    <select 
-                      value={formData.type}
-                      onChange={(e) => setFormData({...formData, type: e.target.value})}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all outline-none"
-                    >
-                      <option value="umroh">Umroh</option>
-                      <option value="haji">Haji</option>
-                    </select>
-                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Harga (Rp)</label>
+                      <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                        Harga paket (Rp) *
+                      </label>
                       <input 
                         type="number" 
                         value={formData.price}
                         onChange={(e) => setFormData({...formData, price: e.target.value})}
                         required
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all outline-none"
-                        placeholder="35000000"
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-xs font-bold text-emerald-700"
+                        placeholder={isHajiMode ? "340000000" : "35000000"}
                       />
                     </div>
+
                     <div>
-                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Kuota / Total Seat</label>
+                      <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                        Kuota / Seat *
+                      </label>
                       <input 
                         type="number" 
                         value={formData.quota}
                         onChange={(e) => setFormData({...formData, quota: Number(e.target.value)})}
                         required
-                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all outline-none"
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-xs font-medium"
                         placeholder="45"
                       />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Durasi</label>
-                    <input 
-                      type="text" 
-                      value={formData.duration}
-                      onChange={(e) => setFormData({...formData, duration: e.target.value})}
-                      required
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all outline-none"
-                      placeholder="9 Hari"
-                    />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                        Durasi Paket *
+                      </label>
+                      <input 
+                        type="text" 
+                        value={formData.duration}
+                        onChange={(e) => setFormData({...formData, duration: e.target.value})}
+                        required
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-xs font-medium"
+                        placeholder={isHajiMode ? "25 Hari" : "9 Hari"}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
+                        Minimal DP / Uang Muka
+                      </label>
+                      <input 
+                        type="text" 
+                        value={formData.dpAmount}
+                        onChange={(e) => setFormData({...formData, dpAmount: e.target.value})}
+                        className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-xs font-medium"
+                        placeholder="DP Rp 10.000.000"
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
+                  {/* Additional Haji Fields if Haji mode */}
+                  {isHajiMode && (
+                    <div className="space-y-4 bg-amber-50/50 p-4 rounded-2xl border border-amber-200/60">
+                      <div>
+                        <label className="block text-xs font-bold text-amber-900 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Masa Tunggu / Antrean Haji *</span>
+                        </label>
+                        <input 
+                          type="text" 
+                          value={formData.waitingTime}
+                          onChange={(e) => setFormData({...formData, waitingTime: e.target.value})}
+                          required={isHajiMode}
+                          className="w-full px-3.5 py-2 bg-white border border-amber-200 rounded-xl focus:ring-2 focus:ring-amber-500 transition-all outline-none text-xs font-medium"
+                          placeholder="Contoh: Tanpa Antre (Langsung Berangkat)"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-amber-900 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Jenis Visa Haji *</span>
+                        </label>
+                        <input 
+                          type="text" 
+                          value={formData.visaType}
+                          onChange={(e) => setFormData({...formData, visaType: e.target.value})}
+                          required={isHajiMode}
+                          className="w-full px-3.5 py-2 bg-white border border-amber-200 rounded-xl focus:ring-2 focus:ring-amber-500 transition-all outline-none text-xs font-medium"
+                          placeholder="Contoh: Visa Haji Mujamalah / Furoda Resmi"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-amber-900 uppercase tracking-wider mb-1 flex items-center gap-1">
+                          <Plane className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Maskapai Penerbangan</span>
+                        </label>
+                        <input 
+                          type="text" 
+                          value={formData.airline}
+                          onChange={(e) => setFormData({...formData, airline: e.target.value})}
+                          className="w-full px-3.5 py-2 bg-white border border-amber-200 rounded-xl focus:ring-2 focus:ring-amber-500 transition-all outline-none text-xs font-medium"
+                          placeholder="Saudia Airlines / Garuda Indonesia"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Gambar (Opsional)</label>
+                    <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">Gambar Sampul Paket</label>
                     <div className="flex items-center space-x-4">
                       {formData.imageUrl && (
-                        <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 shrink-0">
+                        <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-200 shrink-0">
                           <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
                         </div>
                       )}
@@ -481,11 +923,11 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
                           if (!file) return;
                           const reader = new FileReader();
                           reader.onloadend = () => {
-                            setFormData({...formData, imageUrl: reader.result});
+                            setFormData({...formData, imageUrl: reader.result as string});
                           };
                           reader.readAsDataURL(file);
                         }}
-                        className="flex-1 w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all outline-none text-xs"
+                        className="flex-1 w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-xs"
                       />
                     </div>
                   </div>
@@ -579,28 +1021,30 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
                   value={formData.facilities}
                   onChange={(e) => setFormData({...formData, facilities: e.target.value})}
                   className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-xs font-medium"
-                  placeholder="Contoh: Direct Flight Saudia, Visa Umroh Resmi, Makan 3x, Bus AC Executive, Muthawwif Berpengalaman"
+                  placeholder="Contoh: Direct Flight Saudia, Visa Resmi, Tenda AC VIP, Fullboard Buffet, Muthawwif Berpengalaman"
                 />
               </div>
 
+              {/* Description */}
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Deskripsi Lengkap (Satu per baris)</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Deskripsi Lengkap / Inklusi (Satu per baris)</label>
                 <textarea 
                   value={formData.description}
                   onChange={(e) => setFormData({...formData, description: e.target.value})}
                   rows={4}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all outline-none resize-none"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none resize-none text-xs"
                   placeholder="Fasilitas Bintang 5&#10;Pesawat Saudi Airlines&#10;Muthawwif Berpengalaman"
                 />
               </div>
 
+              {/* Excludes */}
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Belum Termasuk / Excludes (Satu per baris)</label>
                 <textarea 
                   value={formData.excludes}
                   onChange={(e) => setFormData({...formData, excludes: e.target.value})}
                   rows={3}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-gold-500/20 focus:border-gold-500 transition-all outline-none resize-none"
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none resize-none text-xs"
                   placeholder="Pembuatan Paspor&#10;Vaksin Meningitis&#10;Pengeluaran Pribadi"
                 />
               </div>
@@ -608,9 +1052,9 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
           ) : (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
-                <h4 className="font-bold text-gray-900 flex items-center gap-2">
-                   <MapIcon className="w-5 h-5 text-gold-500" />
-                   Rincian Jadwal Perjalanan
+                <h4 className="font-bold text-gray-900 flex items-center gap-2 text-sm">
+                   <MapIcon className="w-5 h-5 text-amber-500" />
+                   Rincian Jadwal Perjalanan Per Hari
                 </h4>
                 <button 
                   type="button"
@@ -618,15 +1062,15 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
                     const nextDay = itinerary.length > 0 ? Math.max(...itinerary.map(i => i.day)) + 1 : 1;
                     setItinerary([...itinerary, { day: nextDay, title: '', description: '', location: '', meals: '' }]);
                   }}
-                  className="text-xs bg-gold-100 text-gold-700 px-3 py-1.5 rounded-lg font-bold hover:bg-gold-200 transition-all"
+                  className="text-xs bg-amber-100 text-amber-800 px-3 py-1.5 rounded-lg font-bold hover:bg-amber-200 transition-all cursor-pointer"
                 >
-                  Tambah Hari
+                  + Tambah Hari
                 </button>
               </div>
 
               {itinerary.length === 0 ? (
                 <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                  <p className="text-sm text-gray-500">Belum ada rincian itinerary.</p>
+                  <p className="text-xs text-gray-500">Belum ada rincian itinerary.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -634,7 +1078,7 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
                     <div key={index} className="p-4 bg-gray-50 rounded-2xl border border-gray-200 space-y-3">
                       <div className="flex items-center justify-between">
                          <div className="flex items-center gap-3">
-                            <span className="w-8 h-8 bg-gold-500 text-gray-900 rounded-lg flex items-center justify-center font-black text-sm">
+                            <span className="w-8 h-8 bg-amber-500 text-gray-900 rounded-lg flex items-center justify-center font-black text-xs">
                               {item.day}
                             </span>
                             <input 
@@ -645,11 +1089,12 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
                                 newItin[index].title = e.target.value;
                                 setItinerary(newItin);
                               }}
-                              className="bg-transparent border-b border-gray-300 focus:border-gold-500 outline-none text-sm font-bold py-1 w-64"
-                              placeholder="Judul Agenda (contoh: Keberangkatan)"
+                              className="bg-transparent border-b border-gray-300 focus:border-amber-500 outline-none text-xs font-bold py-1 w-64"
+                              placeholder="Judul Agenda (contoh: Tiba di Jeddah & Transfer Madinah)"
                             />
                          </div>
                          <button 
+                          type="button"
                           onClick={() => {
                             const newItin = itinerary.filter((_, i) => i !== index);
                             setItinerary(newItin);
@@ -669,12 +1114,12 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
                             setItinerary(newItin);
                           }}
                           rows={2}
-                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-gold-500 resize-none"
+                          className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-amber-500 resize-none"
                           placeholder="Deskripsi kegiatan hari ini..."
                         />
                         <div className="space-y-2">
                            <div className="flex items-center gap-2">
-                              <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                              <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                               <input 
                                 type="text"
                                 value={item.location}
@@ -683,12 +1128,12 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
                                   newItin[index].location = e.target.value;
                                   setItinerary(newItin);
                                 }}
-                                className="flex-1 bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-gold-500"
+                                className="flex-1 bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-amber-500"
                                 placeholder="Lokasi"
                               />
                            </div>
                            <div className="flex items-center gap-2">
-                              <Utensils className="w-3.5 h-3.5 text-gray-400" />
+                              <Utensils className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                               <input 
                                 type="text"
                                 value={item.meals}
@@ -697,52 +1142,52 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
                                   newItin[index].meals = e.target.value;
                                   setItinerary(newItin);
                                 }}
-                                className="flex-1 bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-gold-500"
-                                placeholder="Makan (contoh: B, L, D)"
+                                className="flex-1 bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-amber-500"
+                                placeholder="Konsumsi (contoh: Makan Pagi, Siang, Malam)"
                               />
                            </div>
                         </div>
                       </div>
                     </div>
                   ))}
-                  <button 
-                    onClick={async () => {
-                      try {
-                        await api.post(`/api/cms/packages/${pkg.id}/itinerary`, { itineraries: itinerary });
-                        toast.success('Itinerary berhasil disimpan');
-                      } catch (err: any) {
-                        toast.error(err?.message || 'Gagal menyimpan itinerary');
-                      }
-                    }}
-                    className="w-full py-3 bg-gold-100 text-gold-700 rounded-2xl font-bold hover:bg-gold-200 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Save className="w-4 h-4" />
-                    Simpan Perubahan Itinerary
-                  </button>
                 </div>
               )}
             </div>
           )}
         </div>
 
-        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end space-x-3">
-          <button onClick={onClose} className="px-6 py-2.5 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all">
+        {/* Modal Footer */}
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-200 transition-all cursor-pointer"
+          >
             Batal
           </button>
-          {activeTab === 'info' && (
-            <button 
-              form="pkg-form"
-              disabled={isSubmitting}
-              className="px-8 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-200 disabled:opacity-50 transition-all flex items-center space-x-2"
-            >
-              {isSubmitting ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              ) : (
+
+          <button 
+            type="submit" 
+            form="pkg-form"
+            disabled={isSubmitting}
+            className={`px-6 py-2.5 rounded-xl text-xs font-bold text-white shadow-md flex items-center gap-2 transition-all cursor-pointer ${
+              isHajiMode 
+                ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20' 
+                : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+            }`}
+          >
+            {isSubmitting ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Menyimpan...</span>
+              </>
+            ) : (
+              <>
                 <Save className="w-4 h-4" />
-              )}
-              <span>{pkg ? 'Simpan Perubahan' : 'Tambah Paket'}</span>
-            </button>
-          )}
+                <span>Simpan Paket Perjalanan</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
