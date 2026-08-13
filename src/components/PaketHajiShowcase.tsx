@@ -242,7 +242,7 @@ const DEFAULT_HAJI_PACKAGES: HajiPackage[] = [
 
 export default function PaketHajiShowcase() {
 
-  const [packages, setPackages] = useState<HajiPackage[]>([]);
+  const [packages, setPackages] = useState<HajiPackage[]>(DEFAULT_HAJI_PACKAGES);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isError, setIsError] = useState<boolean>(false);
 
@@ -255,7 +255,7 @@ export default function PaketHajiShowcase() {
         const response = await fetch(`${baseUrl}/api/packages`);
         if (response.ok) {
           const data = await response.json();
-          const hajiPackages = data.filter((p: any) => p.type?.toLowerCase() === 'haji');
+          const hajiPackages = Array.isArray(data) ? data.filter((p: any) => p.type?.toLowerCase() === 'haji') : [];
           if (hajiPackages.length > 0) {
              const mapped = hajiPackages.map((p: any) => {
                 const hotels = (p.hotel || '').split(',').map((s: string) => s.trim());
@@ -322,14 +322,14 @@ export default function PaketHajiShowcase() {
              });
              setPackages(mapped);
           } else {
-             setPackages([]);
+             setPackages(DEFAULT_HAJI_PACKAGES);
           }
         } else {
-          setIsError(true);
+          setPackages(DEFAULT_HAJI_PACKAGES);
         }
       } catch (error) {
         console.error('Failed to fetch packages', error);
-        setIsError(true);
+        setPackages(DEFAULT_HAJI_PACKAGES);
       } finally {
         setIsLoading(false);
       }

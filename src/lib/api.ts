@@ -1,4 +1,4 @@
-import { getAuth } from 'firebase/auth';
+import { auth } from './firebase';
 
 const API_BASE_URL = '/api';
 
@@ -48,17 +48,15 @@ async function getHeaders(endpoint: string) {
     return headers;
   }
 
-  const auth = getAuth();
-  const user = auth.currentUser;
-  
-  if (user && !endpoint.includes('/admin/login')) {
-    try {
+  try {
+    const user = auth?.currentUser;
+    if (user && !endpoint.includes('/admin/login')) {
       const token = await user.getIdToken();
       headers['Authorization'] = `Bearer ${token}`;
       return headers;
-    } catch (e) {
-      // Fallback
     }
+  } catch (e) {
+    // Fallback
   }
 
   return headers;
