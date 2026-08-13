@@ -722,6 +722,59 @@ async function startServer() {
   app.use('/uploads', express.static(publicUploadDir));
   app.use('/public/uploads', express.static(publicUploadDir));
   app.use('/public/uploads', express.static(uploadDir));
+
+  // Dynamic SEO Sitemap endpoint
+  app.get('/sitemap.xml', async (req, res) => {
+    res.header('Content-Type', 'application/xml');
+    const baseUrl = 'https://goldentravel.co.id';
+    
+    let packageUrls = '';
+    try {
+      const allPkgs = await db.select().from(schema.packages);
+      if (Array.isArray(allPkgs)) {
+        packageUrls = allPkgs.map(p => `
+  <url>
+    <loc>${baseUrl}/paket/${p.id}</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>`).join('');
+      }
+    } catch (e) {
+      // Fallback
+    }
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>${baseUrl}/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/katalog</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/blog</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/kemitraan</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>${baseUrl}/legalitas</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>${packageUrls}
+</urlset>`;
+
+    res.send(xml);
+  });
+
   app.use(express.static(path.join(process.cwd(), 'public')));
 
   // Fallback handler for missing uploads on ephemeral disk (e.g. after container restart)
@@ -1259,6 +1312,10 @@ async function startServer() {
       );
     `);
     await runSql(`ALTER TABLE "gallery_photos" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`);
+    await runSql(`ALTER TABLE "gallery_photos" ADD COLUMN IF NOT EXISTS "location" text DEFAULT 'Bandara / Hotel / Tanah Suci';`);
+    await runSql(`ALTER TABLE "gallery_photos" ADD COLUMN IF NOT EXISTS "jemaah_count" integer DEFAULT 45;`);
+    await runSql(`ALTER TABLE "gallery_photos" ADD COLUMN IF NOT EXISTS "category" text DEFAULT 'keberangkatan';`);
+    await runSql(`ALTER TABLE "gallery_photos" ADD COLUMN IF NOT EXISTS "batch_name" text;`);
 
     await runSql(`
       CREATE TABLE IF NOT EXISTS "gallery_videos" (
@@ -9440,7 +9497,7 @@ async function startServer() {
   app.post("/api/cms/gallery/photos", authenticate, async (req: AuthRequest, res) => {
     if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') return res.status(403).json({ error: "Forbidden" });
     try {
-      const { imageUrl, title, description } = req.body;
+      const { imageUrl, title, description, location, jemaahCount, category, batchName } = req.body;
       let finalUrl = imageUrl;
       if (imageUrl && imageUrl.startsWith('data:')) {
         finalUrl = saveFileToUploads(imageUrl, 'gallery');
@@ -9449,13 +9506,49 @@ async function startServer() {
       const [photo] = await withRetry(() => db.insert(schema.gallery_photos).values({
         workspaceId: req.user!.workspaceId!,
         imageUrl: finalUrl,
-        title,
-        description
+        title: title || 'Dokumentasi Keberangkatan Jemaah',
+        description: description || '',
+        location: location || 'Bandara / Hotel / Tanah Suci',
+        jemaahCount: jemaahCount !== undefined && jemaahCount !== null ? Number(jemaahCount) : 45,
+        category: category || 'keberangkatan',
+        batchName: batchName || 'Jemaah Golden Travel'
       }).returning());
       res.json(photo);
       notifyUpdate();
     } catch (error) {
+      console.error("Gallery photo upload error:", error);
       res.status(500).json({ error: "Failed to upload photo" });
+    }
+  });
+
+  app.put("/api/cms/gallery/photos/:id", authenticate, async (req: AuthRequest, res) => {
+    if (req.user!.role !== 'admin' && req.user!.role !== 'super_admin') return res.status(403).json({ error: "Forbidden" });
+    try {
+      const { imageUrl, title, description, location, jemaahCount, category, batchName } = req.body;
+      let finalUrl = imageUrl;
+      if (imageUrl && imageUrl.startsWith('data:')) {
+        finalUrl = saveFileToUploads(imageUrl, 'gallery');
+      }
+
+      const updateData: any = {};
+      if (finalUrl) updateData.imageUrl = finalUrl;
+      if (title !== undefined) updateData.title = title;
+      if (description !== undefined) updateData.description = description;
+      if (location !== undefined) updateData.location = location;
+      if (jemaahCount !== undefined) updateData.jemaahCount = Number(jemaahCount);
+      if (category !== undefined) updateData.category = category;
+      if (batchName !== undefined) updateData.batchName = batchName;
+
+      const [photo] = await withRetry(() => db.update(schema.gallery_photos)
+        .set(updateData)
+        .where(eq(schema.gallery_photos.id, req.params.id))
+        .returning());
+
+      res.json(photo);
+      notifyUpdate();
+    } catch (error) {
+      console.error("Gallery photo update error:", error);
+      res.status(500).json({ error: "Failed to update photo" });
     }
   });
 

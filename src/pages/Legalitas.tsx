@@ -1,6 +1,7 @@
 import React from 'react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEOHead from '../components/SEOHead';
 import LegalitasShowcase from '../components/LegalitasShowcase';
 import WhyChooseGoldenTravel from '../components/WhyChooseGoldenTravel';
 import { 
@@ -15,6 +16,12 @@ import {
 export default function Legalitas() {
   return (
     <div className="min-h-screen flex flex-col font-sans bg-[#FAF7F2] text-[#1f2937]">
+      <SEOHead
+        title="Izin Resmi Kemenag & Legalitas PT. Golden Tour Haramain"
+        description="Informasi perizinan resmi PPIU & PIHK Kementerian Agama RI, sertifikasi akreditasi, dan aspek legalitas hukum PT. Golden Tour Haramain (Golden Travel)."
+        keywords="izin kemenag umrah, nomor ppiu golden travel, legalitas pt golden tour haramain, travel umrah terakreditasi, travel haji resmi kemenag"
+        canonical="/legalitas"
+      />
       <Navbar />
       
       <div className="pt-20">

@@ -255,6 +255,10 @@ export const gallery_photos = pgTable('gallery_photos', {
   workspaceId: uuid('workspace_id').references(() => workspaces.id),
   title: text('title'),
   description: text('description'),
+  location: text('location'),
+  jemaahCount: integer('jemaah_count'),
+  category: text('category'),
+  batchName: text('batch_name'),
   imageUrl: text('image_url').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

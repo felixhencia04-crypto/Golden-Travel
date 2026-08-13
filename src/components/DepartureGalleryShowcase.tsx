@@ -175,21 +175,32 @@ export const DepartureGalleryShowcase: React.FC = () => {
         const response = await fetch(`${baseUrl}/api/cms/gallery/photos`);
         if (response.ok) {
           const data = await response.json();
+          const getCategoryLabel = (cat: string) => {
+            switch (cat) {
+              case 'makkah': return 'Makkah Al-Mukarramah';
+              case 'madinah': return 'Madinah Munawwarah';
+              case 'keberangkatan': return 'Bandara & Pelepasan';
+              case 'vip-transport': return 'Layanan VIP & Transport';
+              case 'ziarah': return 'City Tour & Ziarah';
+              default: return 'Dokumentasi Suci';
+            }
+          };
+
           const mapped = data.map((p: any) => ({
-                id: p.id,
-                title: p.title || 'Momen Keberangkatan',
-                category: 'keberangkatan',
-                categoryLabel: 'Galeri',
-                imageUrl: p.imageUrl,
-                location: 'Bandara / Hotel / Tanah Suci',
-                hijriDate: '',
-                gregorianDate: p.createdAt ? new Date(p.createdAt).toLocaleDateString('id-ID', {month: 'long', year: 'numeric'}) : '',
-                batchName: 'Jemaah',
-                jemaahCount: 45,
-                description: p.description || '',
-                likesCount: Math.floor(Math.random() * 500) + 100
-             }));
-             setItems(mapped);
+            id: p.id,
+            title: p.title || 'Momen Keberangkatan Jemaah',
+            category: p.category || 'keberangkatan',
+            categoryLabel: getCategoryLabel(p.category || 'keberangkatan'),
+            imageUrl: p.imageUrl,
+            location: p.location || 'Bandara / Hotel / Tanah Suci',
+            hijriDate: p.hijriDate || '',
+            gregorianDate: p.createdAt ? new Date(p.createdAt).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'}) : '',
+            batchName: p.batchName || 'Jemaah Golden Travel',
+            jemaahCount: p.jemaahCount !== undefined && p.jemaahCount !== null ? p.jemaahCount : 45,
+            description: p.description || '',
+            likesCount: p.likesCount || (Math.floor(Math.random() * 300) + 150)
+          }));
+          setItems(mapped);
         } else {
           setIsError(true);
         }

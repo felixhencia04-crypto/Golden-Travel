@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { useSocket } from '../hooks/useSocket';
+import SEOHead from '../components/SEOHead';
 
 export default function KatalogPaket() {
   const navigate = useNavigate();
@@ -65,6 +66,12 @@ export default function KatalogPaket() {
 
   return (
     <div className="flex min-h-screen bg-gray-50 font-sans">
+      <SEOHead
+        title="Katalog Paket Umrah & Haji Khusus 2026 - Golden Travel"
+        description="Daftar Paket Umrah Promo, Paket Umrah Bintang 5, Umrah Plus Turki, dan Paket Haji Furoda Resmi Kemenag RI dari PT. Golden Tour Haramain Batam & Indonesia."
+        keywords="katalog paket umrah, harga paket umrah batam, biaya umrah 2026, paket haji furoda, haji khusus kemenag, umrah bintang 5 batam"
+        canonical="/katalog"
+      />
       
       {/* Sidebar Kiri (Dark Mode) */}
       <aside className="w-64 bg-gray-900 text-gray-400 flex flex-col hidden md:flex shrink-0">

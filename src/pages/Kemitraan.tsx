@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEOHead from '../components/SEOHead';
 import { 
   Users, Award, DollarSign, ShieldCheck, CheckCircle2, 
   HelpCircle, ChevronDown, ArrowRight, Briefcase, Sparkles, 
@@ -45,6 +46,12 @@ export default function Kemitraan() {
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-stone-800 font-jakarta flex flex-col selection:bg-[#D4AF37] selection:text-emerald-950">
+      <SEOHead
+        title="Peluang Kemitraan & Agen Travel Umrah Haji - Golden Travel"
+        description="Program kemitraan resmi syiar Baitullah bersama PT. Golden Tour Haramain. Dapatkan ujrah/komisi menarik, bimbingan berkala, dan komisi transparan."
+        keywords="kemitraan travel umrah, agen umrah batam, peluang bisnis travel umrah, syarat jadi agen umrah, komisi agen umrah"
+        canonical="/kemitraan"
+      />
       {/* Header Navbar */}
       <Navbar />
 

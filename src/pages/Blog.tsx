@@ -1,6 +1,7 @@
 import React from 'react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEOHead from '../components/SEOHead';
 import { articles } from '../data/homeData';
 import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -9,6 +10,12 @@ import { motion } from 'motion/react';
 export default function Blog() {
   return (
     <div className="min-h-screen flex flex-col font-sans bg-matcha-50">
+      <SEOHead
+        title="Artikel & Panduan Manasik Umrah Haji - Golden Travel"
+        description="Kumpulan artikel edukasi ibadah Umrah & Haji, tips perjalanan Tanah Suci, panduan manasik, dan kabar seputar Mekkah Madinah dari Golden Travel."
+        keywords="artikel umrah, tips umrah batam, panduan manasik haji, tips berangkat umrah, berita mekkah madinah, edukasi haji furoda"
+        canonical="/blog"
+      />
       <Navbar />
 
       <main className="flex-grow pt-12 pb-24">

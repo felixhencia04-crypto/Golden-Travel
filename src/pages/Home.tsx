@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Play, CheckCircle2, ChevronLeft, ChevronRight, Award, ShieldCheck, MapPin, Phone, Mail, Star, Quote, Menu, X, LogIn, Sparkles, HeartHandshake, Compass, Layers, Hotel, FileCheck } from 'lucide-react';
 import { useLogo } from '../utils/logo';
+import SEOHead from '../components/SEOHead';
 import heroBg from '../assets/bg-utama.jpg';
 import { HEADER_BG_DATA } from '../assets/headerBgData';
 import { ABOUT_BG_DATA } from '../assets/aboutBgData';
@@ -77,8 +78,68 @@ export default function Home() {
     }
   };
 
+  const homeJsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "TravelAgency",
+      "@id": "https://goldentravel.co.id/#agency",
+      "name": "PT. Golden Tour Haramain",
+      "alternateName": ["Golden Travel", "Golden Tour Haramain"],
+      "url": "https://goldentravel.co.id",
+      "logo": "https://goldentravel.co.id/logo.png",
+      "image": "https://goldentravel.co.id/logo.png",
+      "description": "Biro travel Umrah dan Haji Khusus terpercaya resmi Kemenag RI (PPIU & PIHK) di Batam, Kepri & seluruh Indonesia. Layanan bimbingan ibadah profesional, hotel bintang 5 dekat pelataran, & maskapai direct flight.",
+      "telephone": "+6281234567890",
+      "priceRange": "$$$",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Batam & Jakarta",
+        "addressRegion": "Kepulauan Riau",
+        "addressCountry": "ID"
+      },
+      "areaServed": ["Batam", "Kepulauan Riau", "Jakarta", "Indonesia"]
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Apakah PT. Golden Tour Haramain (Golden Travel) travel Umrah resmi Kemenag?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Ya, PT. Golden Tour Haramain (Golden Travel) adalah biro perjalanan ibadah Umrah dan Haji Khusus terdaftar resmi di Kementerian Agama RI dengan nomor PPIU & PIHK terverifikasi."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Berapa biaya paket Umrah dari Batam di Golden Travel?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Golden Travel menyediakan pilihan paket Umrah Promo terjangkau mulai Rp 28 Jutaan hingga Paket Umrah VIP Bintang 5 dengan fasilitas penerbangan direct flight Saudia/Garuda Indonesia."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Apakah Golden Travel melayani Haji Furoda tanpa antre?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Ya, Golden Travel menyediakan Paket Haji Furoda (Visa Mujamalah Resmi) langsung berangkat tanpa antre, serta Paket Haji Khusus (ONH Plus) kuota resmi Kemenag RI."
+          }
+        }
+      ]
+    }
+  ];
+
   return (
     <div className="font-['Montserrat',sans-serif] bg-stone-50 text-[#2F4F4F] min-h-screen selection:bg-[#C8D5B9] selection:text-[#2F4F4F]">
+      <SEOHead
+        title="Golden Travel - Travel Umrah & Haji Khusus Resmi Kemenag Batam"
+        description="PT. Golden Tour Haramain (Golden Travel) - Biro travel Umrah dan Haji Khusus terpercaya di Batam, Kepri & Indonesia. Layanan bimbingan Sunnah, Hotel Bintang 5 dekat pelataran & Penerbangan Langsung."
+        keywords="haji umrah, paket umrah dan haji, travel umrah batam, paket umrah batam, travel haji umrah batam, biaya umrah batam, travel umrah terpercaya, paket umrah promo 2026, haji khusus resmi, Golden Travel, PT Golden Tour Haramain, umrah vip bintang 5, biro umrah kepri, haji furoda batam"
+        canonical="/"
+        jsonLd={homeJsonLd}
+      />
       {/* Header */}
       <header className="sticky top-0 z-50 bg-[#F9F5EC] bg-cover bg-center bg-no-repeat border-b border-[#D4AF37]/40 py-2.5 sm:py-3.5 px-3 sm:px-6 md:px-12 flex justify-between items-center shadow-md transition-all duration-300" style={{ backgroundImage: `url("${HEADER_BG_DATA}")` }}>
         <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">

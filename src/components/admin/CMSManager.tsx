@@ -3,7 +3,8 @@ import {
   Globe, Package, Image as ImageIcon, Video, Plus, Edit2, Trash2, 
   Search, Filter, ChevronRight, MapPin, Calendar, Clock, 
   CheckCircle2, AlertCircle, Save, X, Upload, Info, Hotel, Building2, ShieldCheck,
-  List, Map as MapIcon, Utensils, Plane, Award, Tent, Sparkles, DollarSign, Layers, Tag
+  List, Map as MapIcon, Utensils, Plane, Award, Tent, Sparkles, DollarSign, Layers, Tag,
+  Users, FolderPlus, Link as LinkIcon, Eye
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { toast } from 'sonner';
@@ -1257,7 +1258,27 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
 function CMSGallery() {
   const [photos, setPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isUploading, setIsUploading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('semua');
+
+  // Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPhoto, setEditingPhoto] = useState<any | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Form Fields
+  const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file');
+  const [formData, setFormData] = useState({
+    title: '',
+    location: 'Bandara / Hotel / Tanah Suci',
+    jemaahCount: '45',
+    category: 'keberangkatan',
+    batchName: '',
+    description: '',
+    imageUrl: ''
+  });
+  const [previewImage, setPreviewImage] = useState('');
 
   const fetchPhotos = async () => {
     try {
@@ -1266,6 +1287,7 @@ function CMSGallery() {
       setPhotos(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch photos:', error);
+      toast.error('Gagal mengambil data foto galeri');
     } finally {
       setLoading(false);
     }
@@ -1275,39 +1297,106 @@ function CMSGallery() {
     fetchPhotos();
   }, []);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const openAddModal = () => {
+    setEditingPhoto(null);
+    setUploadMode('file');
+    setFormData({
+      title: '',
+      location: 'Bandara / Hotel / Tanah Suci',
+      jemaahCount: '45',
+      category: 'keberangkatan',
+      batchName: 'Group Executive Bintang 5 Batch 08',
+      description: 'Dokumentasi momen kebersamaan dan kekhusyukan jemaah PT. Golden Tour Haramain.',
+      imageUrl: ''
+    });
+    setPreviewImage('');
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (photo: any) => {
+    setEditingPhoto(photo);
+    setUploadMode('url');
+    setFormData({
+      title: photo.title || '',
+      location: photo.location || 'Bandara / Hotel / Tanah Suci',
+      jemaahCount: photo.jemaahCount ? String(photo.jemaahCount) : '45',
+      category: photo.category || 'keberangkatan',
+      batchName: photo.batchName || '',
+      description: photo.description || '',
+      imageUrl: photo.imageUrl || ''
+    });
+    setPreviewImage(photo.imageUrl || '');
+    setIsModalOpen(true);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    try {
-      setIsUploading(true);
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = async () => {
-        const base64 = reader.result as string;
-        await api.post('/api/cms/gallery/photos', { 
-          imageUrl: base64,
-          title: file.name.split('.')[0]
-        });
-        toast.success('Foto berhasil diunggah');
-        fetchPhotos();
-      };
-    } catch (error) {
-      toast.error('Gagal mengunggah foto');
-    } finally {
-      setIsUploading(false);
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error('Ukuran foto maksimal 15MB');
+      return;
     }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      setFormData(prev => ({ 
+        ...prev, 
+        imageUrl: base64,
+        title: prev.title ? prev.title : file.name.split('.')[0]
+      }));
+      setPreviewImage(base64);
+    };
   };
 
-  
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const finalImage = formData.imageUrl || previewImage;
+    if (!finalImage) {
+      toast.error('Silakan unggah foto atau masukkan URL foto');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const payload = {
+        title: formData.title || 'Dokumentasi Keberangkatan Jemaah',
+        location: formData.location || 'Bandara / Hotel / Tanah Suci',
+        jemaahCount: Number(formData.jemaahCount) || 45,
+        category: formData.category || 'keberangkatan',
+        batchName: formData.batchName || '',
+        description: formData.description || '',
+        imageUrl: finalImage
+      };
+
+      if (editingPhoto) {
+        await api.put(`/api/cms/gallery/photos/${editingPhoto.id}`, payload);
+        toast.success('Foto dokumentasi berhasil diperbarui');
+      } else {
+        await api.post('/api/cms/gallery/photos', payload);
+        toast.success('Foto dokumentasi berhasil ditambahkan');
+      }
+
+      setIsModalOpen(false);
+      fetchPhotos();
+      notifyRealtimeCatalogChange();
+    } catch (error) {
+      console.error('Failed to save photo:', error);
+      toast.error('Gagal menyimpan foto dokumentasi');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!deleteConfirmId) return;
     try {
       await api.delete(`/api/cms/gallery/photos/${deleteConfirmId}`);
-      toast.success('Foto dihapus');
+      toast.success('Foto dokumentasi berhasil dihapus');
       fetchPhotos();
+      notifyRealtimeCatalogChange();
     } catch (error) {
       toast.error('Gagal menghapus foto');
     } finally {
@@ -1315,49 +1404,476 @@ function CMSGallery() {
     }
   };
 
+  const filteredPhotos = photos.filter(p => {
+    const matchesSearch = (p.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (p.location || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (p.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = categoryFilter === 'semua' || p.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  const categoryBadges: Record<string, { label: string; color: string }> = {
+    keberangkatan: { label: '✈️ Pelepasan Bandara', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+    makkah: { label: '🕋 Makkah & Ka\'bah', color: 'bg-amber-100 text-amber-800 border-amber-200' },
+    madinah: { label: '🕌 Madinah & Nabawi', color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+    'vip-transport': { label: '🚆 Kereta Cepat & VIP', color: 'bg-purple-100 text-purple-800 border-purple-200' },
+    ziarah: { label: '🏔️ City Tour & Ziarah', color: 'bg-teal-100 text-teal-800 border-teal-200' },
+  };
+
+  const locationPresets = [
+    'Bandara / Hotel / Tanah Suci',
+    'Pelataran Masjidil Haram, Makkah',
+    'Pelataran & Raudhah Masjid Nabawi, Madinah',
+    'Terminal 3 International Soekarno-Hatta (CGK)',
+    'Stasiun Kereta Cepat Haramain Madinah - Makkah',
+    'Bukit Jabal Rahmah, Padang Arafah'
+  ];
 
   return (
-    <div className="p-6">
+    <div className="p-6 space-y-6">
       <ConfirmDialog
         isOpen={!!deleteConfirmId}
-        title="Hapus Foto"
-        message="Apakah Anda yakin ingin menghapus foto ini?"
+        title="Hapus Foto Dokumentasi"
+        message="Apakah Anda yakin ingin menghapus foto ini dari galeri website utama?"
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirmId(null)}
       />
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="font-bold text-gray-900">Galeri Foto Dokumentasi</h3>
-        <label className="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all cursor-pointer">
-          <Upload className="w-4 h-4" />
-          <span>{isUploading ? 'Mengunggah...' : 'Unggah Foto'}</span>
-          <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} disabled={isUploading} />
-        </label>
+
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+        <div>
+          <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <ImageIcon className="w-6 h-6 text-emerald-600" />
+            <span>Galeri Foto Dokumentasi Jemaah</span>
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            Kelola foto, judul, lokasi (Bandara/Hotel/Tanah Suci), jumlah jemaah, kategori, dan deskripsi dokumentasi untuk website utama.
+          </p>
+        </div>
+        <button
+          onClick={openAddModal}
+          className="flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all shrink-0 cursor-pointer"
+        >
+          <Plus className="w-5 h-5" />
+          <span>Tambah Dokumentasi Foto</span>
+        </button>
       </div>
 
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+        <div className="relative w-full md:w-80">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Cari judul, lokasi, deskripsi..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+            <Filter className="w-3.5 h-3.5" />
+            Filter:
+          </span>
+          {[
+            { id: 'semua', label: 'Semua' },
+            { id: 'keberangkatan', label: 'Bandara' },
+            { id: 'makkah', label: 'Makkah' },
+            { id: 'madinah', label: 'Madinah' },
+            { id: 'vip-transport', label: 'Transport' },
+            { id: 'ziarah', label: 'Ziarah' },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setCategoryFilter(cat.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+                categoryFilter === cat.id
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Gallery Cards Grid */}
       {loading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-500"></div>
+        <div className="flex justify-center py-16">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600"></div>
+        </div>
+      ) : filteredPhotos.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">
+          <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600">
+            <FolderPlus className="w-8 h-8" />
+          </div>
+          <h4 className="text-lg font-bold text-gray-900 mb-1">Belum ada foto dokumentasi</h4>
+          <p className="text-sm text-gray-500 max-w-md mx-auto mb-6">
+            Klik tombol di bawah untuk menambahkan foto keberangkatan, lokasi bandara/hotel, dan informasi jemaah.
+          </p>
+          <button
+            onClick={openAddModal}
+            className="inline-flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Tambah Foto Dokumentasi Pertama</span>
+          </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {photos.map((photo) => (
-            <div key={photo.id} className="relative aspect-square rounded-2xl overflow-hidden border border-gray-200 group">
-              <img src={photo.imageUrl} className="w-full h-full object-cover" alt={photo.title} />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-2">
-                 <button 
-                  onClick={() => setDeleteConfirmId(photo.id)}
-                  className="p-2 bg-white/20 hover:bg-red-500 text-white rounded-lg backdrop-blur-sm transition-colors"
-                 >
-                   <Trash2 className="w-4 h-4" />
-                 </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredPhotos.map((photo) => {
+            const badge = categoryBadges[photo.category] || { label: 'Dokumentasi', color: 'bg-gray-100 text-gray-800' };
+
+            return (
+              <div
+                key={photo.id}
+                className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
+              >
+                <div>
+                  {/* Photo Thumbnail Container */}
+                  <div className="relative aspect-[4/3] bg-gray-900 overflow-hidden">
+                    <img
+                      src={photo.imageUrl}
+                      alt={photo.title || 'Foto Galeri'}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+
+                    {/* Category Badge */}
+                    <div className="absolute top-3 left-3">
+                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-sm backdrop-blur-md ${badge.color}`}>
+                        {badge.label}
+                      </span>
+                    </div>
+
+                    {/* Actions Overlay */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-4">
+                      <button
+                        onClick={() => openEditModal(photo)}
+                        className="p-2.5 bg-white text-gray-900 hover:bg-emerald-500 hover:text-white rounded-xl shadow-lg transition-colors font-bold flex items-center gap-1.5 text-xs"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        <span>Edit Data</span>
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirmId(photo.id)}
+                        className="p-2.5 bg-white text-red-600 hover:bg-red-600 hover:text-white rounded-xl shadow-lg transition-colors font-bold flex items-center gap-1.5 text-xs"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Hapus</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Content Info */}
+                  <div className="p-4 space-y-2.5">
+                    {/* Location Badge */}
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100/80 w-fit max-w-full truncate">
+                      <MapPin className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                      <span className="truncate">{photo.location || 'Bandara / Hotel / Tanah Suci'}</span>
+                    </div>
+
+                    {/* Title / Judul Dokumentasi */}
+                    <h4 className="font-bold text-gray-900 text-sm line-clamp-2 leading-snug">
+                      {photo.title || 'Dokumentasi Keberangkatan Jemaah'}
+                    </h4>
+
+                    {/* Description preview */}
+                    {photo.description && (
+                      <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                        {photo.description}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer Metadata & Action bar */}
+                <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+                  <div className="flex items-center gap-1 font-semibold text-gray-700">
+                    <Users className="w-3.5 h-3.5 text-amber-600" />
+                    <span>{photo.jemaahCount ?? 45} Jemaah</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openEditModal(photo)}
+                      className="p-1.5 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      title="Edit Foto"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirmId(photo.id)}
+                      className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Hapus Foto"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add / Edit Photo Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-2xl overflow-hidden my-8">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-gray-900 text-white">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">
+                    {editingPhoto ? 'Edit Foto Dokumentasi' : 'Tambah Foto Dokumentasi Baru'}
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    Lengkapi informasi foto, lokasi (Bandara/Hotel/Tanah Suci), judul, dan jumlah jemaah.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="p-1 text-gray-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          ))}
-          {photos.length === 0 && !loading && (
-            <div className="col-span-full text-center py-12 text-gray-400">
-               Belum ada foto dalam galeri.
-            </div>
-          )}
+
+            {/* Modal Body */}
+            <form onSubmit={handleSave} className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+              
+              {/* Photo Input (Upload or URL) */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                  Foto Dokumentasi *
+                </label>
+                
+                <div className="flex items-center space-x-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setUploadMode('file')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all ${
+                      uploadMode === 'file'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload File Foto</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUploadMode('url')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 transition-all ${
+                      uploadMode === 'url'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    <LinkIcon className="w-3.5 h-3.5" />
+                    <span>Input Link URL Foto</span>
+                  </button>
+                </div>
+
+                {uploadMode === 'file' ? (
+                  <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-500 transition-colors bg-gray-50">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                      id="modal-file-upload"
+                    />
+                    <label htmlFor="modal-file-upload" className="cursor-pointer block space-y-2">
+                      <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                      <div className="text-xs text-gray-600 font-medium">
+                        Klik untuk memilih gambar dari perangkat Anda
+                      </div>
+                      <div className="text-[10px] text-gray-400">JPG, PNG, WEBP (Maksimal 15MB)</div>
+                    </label>
+                  </div>
+                ) : (
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="https://images.unsplash.com/photo-..."
+                      value={formData.imageUrl}
+                      onChange={(e) => {
+                        setFormData(prev => ({ ...prev, imageUrl: e.target.value }));
+                        setPreviewImage(e.target.value);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                    />
+                  </div>
+                )}
+
+                {/* Image Preview Box */}
+                {(previewImage || formData.imageUrl) && (
+                  <div className="mt-3 relative aspect-[16/9] w-full rounded-xl overflow-hidden border border-gray-200 bg-gray-100">
+                    <img
+                      src={previewImage || formData.imageUrl}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                      onError={() => toast.error('Gagal memuat URL foto preview')}
+                    />
+                    <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/70 text-white text-[10px] rounded-md font-mono">
+                      Preview Foto
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Judul Dokumentasi */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Judul Dokumentasi / Nama Foto *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="misal: Dokumentasi Pelepasan Jemaah Batch 8 di Bandara"
+                  value={formData.title}
+                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-medium"
+                />
+              </div>
+
+              {/* Lokasi (Bandara / Hotel / Tanah Suci) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    Lokasi / Tag Tempat (misal: Bandara / Hotel / Tanah Suci) *
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  required
+                  placeholder="Bandara / Hotel / Tanah Suci"
+                  value={formData.location}
+                  onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-medium mb-2"
+                />
+
+                {/* Quick Presets for Location */}
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="text-[11px] text-gray-400 self-center mr-1">Rekomendasi Tag:</span>
+                  {locationPresets.map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, location: preset }))}
+                      className="px-2 py-1 bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 text-gray-600 rounded-md text-[11px] font-medium border border-gray-200 transition-colors"
+                    >
+                      + {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Grid 2 Column: Jumlah Jemaah & Kategori Momen */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Jumlah Jemaah (Orang) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      placeholder="45"
+                      value={formData.jemaahCount}
+                      onChange={(e) => setFormData(prev => ({ ...prev, jemaahCount: e.target.value }))}
+                      className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-bold text-gray-900"
+                    />
+                    <Users className="w-4 h-4 text-amber-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Kategori Momen *
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none font-medium bg-white"
+                  >
+                    <option value="keberangkatan">✈️ Pelepasan Bandara & Keberangkatan</option>
+                    <option value="makkah">🕋 Makkah Al-Mukarramah & Ka'bah</option>
+                    <option value="madinah">🕌 Madinah Munawwarah & Raudhah</option>
+                    <option value="vip-transport">🚆 Kereta Cepat & VIP Transport</option>
+                    <option value="ziarah">🏔️ City Tour & Ziarah Bersejarah</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Nama Rombongan / Batch (Opsional) */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Nama Rombongan / Batch (Opsional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="misal: Rombongan Umrah Executive Bintang 5 Batch 08"
+                  value={formData.batchName}
+                  onChange={(e) => setFormData(prev => ({ ...prev, batchName: e.target.value }))}
+                  className="w-full px-3.5 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                />
+              </div>
+
+              {/* Keterangan / Deskripsi */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Keterangan / Deskripsi Momen
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Tuliskan cerita singkat atau keterangan momen spiritual ini..."
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none leading-relaxed"
+                ></textarea>
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-colors cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm shadow-md transition-all flex items-center space-x-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>{editingPhoto ? 'Simpan Perubahan' : 'Upload & Simpan Foto'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

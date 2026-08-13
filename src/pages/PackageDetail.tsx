@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { useAppContext } from '../store';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import SEOHead from '../components/SEOHead';
 import { CheckCircle2, Map as MapIcon, ChevronLeft, MapPin, Calendar, CreditCard, Send, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -78,8 +79,36 @@ export default function PackageDetail() {
     setIsSubmitted(true);
   };
 
+  const numericPrice = typeof pkg?.price === 'number' ? pkg.price : parseInt(String(pkg?.price || '').replace(/\D/g, '')) || 0;
+  
+  const pkgJsonLd = pkg ? {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    "name": pkg.name,
+    "description": pkg.description || `Paket ${pkg.name} dari PT. Golden Tour Haramain (Golden Travel). Fasilitas Bintang 5, Bimbingan Ibadah, dan Penerbangan Direct Flight.`,
+    "image": pkg.image || "https://goldentravel.co.id/logo.png",
+    "brand": {
+      "@type": "Brand",
+      "name": "Golden Travel"
+    },
+    "offers": {
+      "@type": "Offer",
+      "url": `https://goldentravel.co.id/paket/${pkg.id}`,
+      "priceCurrency": "IDR",
+      "price": numericPrice,
+      "availability": "https://schema.org/InStock"
+    }
+  } : undefined;
+
   return (
     <div className="min-h-screen flex flex-col font-sans bg-matcha-50">
+      <SEOHead
+        title={pkg?.name ? `${pkg.name} - Paket Umrah Haji` : 'Detail Paket Umrah & Haji'}
+        description={pkg?.description || `Informasi detail biaya, fasilitas, hotel, dan jadwal keberangkatan ${pkg?.name || 'Paket Umrah Haji'} Golden Travel Batam.`}
+        keywords={`paket ${pkg?.name || 'umrah'}, harga ${pkg?.name || 'umrah'}, travel umrah batam, golden travel, ${pkg?.type || 'umrah'}`}
+        canonical={`/paket/${id}`}
+        jsonLd={pkgJsonLd}
+      />
       <Navbar />
 
       <main className="flex-grow pt-8 pb-20">
