@@ -11,8 +11,8 @@ interface SEOProps {
 }
 
 const DEFAULT_TITLE = 'Golden Travel - Paket Umrah & Haji Khusus Resmi Kemenag | Batam & Indonesia';
-const DEFAULT_DESC = 'PT. Golden Tour Haramain (Golden Travel) - Biro travel Umrah dan Haji Khusus resmi Kemenag terpercaya di Batam, Kepri & seluruh Indonesia. Paket Umrah promo, VIP Bintang 5, & Haji Furoda.';
-const DEFAULT_KEYWORDS = 'haji umrah, paket umrah dan haji, travel umrah batam, paket umrah batam, travel haji umrah batam, biaya umrah batam, travel umrah terpercaya, paket umrah promo 2026, haji khusus resmi, Golden Travel, PT Golden Tour Haramain, umrah vip bintang 5, biro umrah kepri';
+const DEFAULT_DESC = 'PT. Golden Tour Haramain (Golden Travel) - Biro travel Umrah dan Haji Khusus resmi Kemenag terpercaya di Batam, Kepri, Jakarta & seluruh Indonesia. Paket Umrah promo, VIP Bintang 5, & Haji Furoda.';
+const DEFAULT_KEYWORDS = 'Golden Travel, PT Golden Tour Haramain, golden travel batam, haji umrah, paket umrah dan haji, travel umrah batam, paket umrah batam, travel haji umrah batam, biaya umrah batam, travel umrah terpercaya, paket umrah promo 2026, haji khusus resmi, umrah vip bintang 5, biro umrah kepri, haji furoda batam';
 const SITE_URL = 'https://goldentravel.co.id';
 
 export default function SEOHead({
