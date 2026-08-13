@@ -775,6 +775,17 @@ async function startServer() {
     res.send(xml);
   });
 
+  // Dynamic SEO robots.txt endpoint
+  app.get('/robots.txt', (req, res) => {
+    res.type('text/plain');
+    res.send(`User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard-jamaah
+Sitemap: https://goldentravel.co.id/sitemap.xml
+`);
+  });
+
   app.use(express.static(path.join(process.cwd(), 'public')));
 
   // Fallback handler for missing uploads on ephemeral disk (e.g. after container restart)
