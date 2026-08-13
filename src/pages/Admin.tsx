@@ -4080,7 +4080,7 @@ export default function Admin() {
           )}
 
           {(activeTab === 'cms_packages' || activeTab === 'cms_gallery' || activeTab === 'cms_videos') && (
-            <CMSManager />
+            <CMSManager initialSubTab={activeTab === 'cms_gallery' ? 'galeri' : activeTab === 'cms_videos' ? 'video' : 'paket'} />
           )}
 
           {activeTab === 'buku_manasik' && (

@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 
 interface CMSManagerProps {
   workspaceId?: string;
+  initialSubTab?: 'paket' | 'galeri' | 'video';
 }
 
 
@@ -23,8 +24,14 @@ const notifyRealtimeCatalogChange = () => {
     console.error('BroadcastChannel failed', e);
   }
 };
-export default function CMSManager({ workspaceId }: CMSManagerProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'paket' | 'galeri' | 'video'>('paket');
+export default function CMSManager({ workspaceId, initialSubTab = 'paket' }: CMSManagerProps) {
+  const [activeSubTab, setActiveSubTab] = useState<'paket' | 'galeri' | 'video'>(initialSubTab);
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveSubTab(initialSubTab);
+    }
+  }, [initialSubTab]);
 
   return (
     <div className="space-y-6">
