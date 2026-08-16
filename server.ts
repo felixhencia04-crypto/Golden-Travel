@@ -786,7 +786,15 @@ Sitemap: https://goldentravel.co.id/sitemap.xml
 `);
   });
 
-  app.use(express.static(path.join(process.cwd(), 'public')));
+  app.use(express.static(path.join(process.cwd(), 'public'), {
+    maxAge: '1d',
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.ico') || filePath.endsWith('.png') || filePath.endsWith('.jpg') || filePath.endsWith('.webp') || filePath.endsWith('.svg')) {
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+    }
+  }));
 
   // Fallback handler for missing uploads on ephemeral disk (e.g. after container restart)
   const handleMissingUpload = async (req: express.Request, res: express.Response) => {
