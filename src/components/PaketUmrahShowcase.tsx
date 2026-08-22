@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { formatDpText } from '../utils/formatters';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
@@ -358,7 +359,7 @@ export default function PaketUmrahShowcase() {
                 categoryLabel: p.type === 'haji' ? 'Haji' : 'Umrah',
                 duration: p.duration || '9 Hari',
                 price: Number(p.price) || 0,
-                dpAmount: 'DP Rp 5.000.000',
+                dpAmount: p.dpAmount || p.dp_amount || 'DP Rp 5.000.000',
                 imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
                 airline: 'Saudia Airlines',
                 hotelMakkah: p.hotelMakkah || hMakkah,
@@ -717,7 +718,7 @@ export default function PaketUmrahShowcase() {
                         
                         {/* DP Badge */}
                         <span className="ml-auto bg-[#D4AF37]/15 border border-[#D4AF37]/50 text-[#F3E5AB] text-[11px] font-bold px-2.5 py-1 rounded-md">
-                          DP {pkg.dpAmount}
+                          {formatDpText(pkg.dpAmount, 'DP Rp 5.000.000')}
                         </span>
                       </div>
                     </div>
@@ -1053,7 +1054,7 @@ export default function PaketUmrahShowcase() {
                       </h4>
                       <div className="space-y-2 text-xs text-stone-200">
                         <p>• <strong>DP Perlengkapan:</strong> Rp 1.500.000</p>
-                        <p>• <strong>DP Booking Seat:</strong> Rp 10.000.000 saat pendaftaran.</p>
+                        <p>• <strong>Uang Muka (DP):</strong> {formatDpText(selectedPkg.dpAmount, 'DP Rp 5.000.000')} saat pendaftaran.</p>
                         <p>• <strong>Pelunasan:</strong> Wajib dilunasi paling lambat 30 hari sebelum tanggal keberangkatan.</p>
                       </div>
                     </div>

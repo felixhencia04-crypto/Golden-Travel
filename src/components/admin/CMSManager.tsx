@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { toast } from 'sonner';
+import { formatDpText } from '../../utils/formatters';
 
 interface CMSManagerProps {
   workspaceId?: string;
@@ -491,6 +492,16 @@ function CMSPackageList() {
                         <span className="font-bold text-gray-800">{pkg.duration || '9 Hari'}</span>
                       </div>
 
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 text-gray-500">
+                          <Tag className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          <span>Minimal DP:</span>
+                        </div>
+                        <span className="font-bold text-amber-700">
+                          {formatDpText(pkg.dpAmount || pkg.dp_amount, isHaji ? 'DP Rp 10.000.000' : 'DP Rp 5.000.000')}
+                        </span>
+                      </div>
+
                       {isHaji && (
                         <>
                           <div className="flex items-center justify-between">
@@ -911,16 +922,26 @@ function CMSPackageModal({ pkg, onClose, onSuccess }: { pkg: any, onClose: () =>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1.5">
-                        Minimal DP / Uang Muka
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider">
+                          Minimal DP / Uang Muka
+                        </label>
+                        {formData.dpAmount && (
+                          <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
+                            Tampilan: {formatDpText(formData.dpAmount, isHajiMode ? 'DP Rp 10.000.000' : 'DP Rp 5.000.000')}
+                          </span>
+                        )}
+                      </div>
                       <input 
                         type="text" 
                         value={formData.dpAmount}
                         onChange={(e) => setFormData({...formData, dpAmount: e.target.value})}
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-xs font-medium"
-                        placeholder="DP Rp 10.000.000"
+                        placeholder="Contoh: 10000000 atau DP Rp 10.000.000"
                       />
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Bisa diisi angka murni (cth: 10000000) atau teks (cth: DP Rp 10.000.000). Sistem otomatis memformat di website utama.
+                      </p>
                     </div>
                   </div>
                 </div>

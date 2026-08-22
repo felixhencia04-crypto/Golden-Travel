@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { formatDpText } from '../utils/formatters';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
@@ -282,7 +283,7 @@ export default function PaketHajiShowcase() {
                   visaType: p.visaType || (cat === 'furoda' ? 'Visa Haji Mujamalah / Furoda Resmi' : 'Visa Haji Kuota Resmi Indonesia'),
                   isPopular: false,
                   isBestSeller: false,
-                  dpAmount: p.dpAmount || 'DP Rp 10.000.000',
+                  dpAmount: p.dpAmount || p.dp_amount || 'DP Rp 10.000.000',
                   imageUrl: p.imageUrl || 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80',
                   airline: p.airline || 'Saudia Airlines / Garuda Indonesia (Direct Flight)',
                   hotelMakkah: p.hotelMakkah || hMakkah,
@@ -655,11 +656,18 @@ export default function PaketHajiShowcase() {
                       </h3>
 
                       <div className="space-y-1">
-                        <div className="flex items-baseline gap-2">
-                          <span className="font-serif text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-[#F3E5AB] via-[#D4AF37] to-[#B8860B] bg-clip-text text-transparent">
-                            Rp {pkg.priceIdrApprox}
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-baseline gap-2">
+                            <span className="font-serif text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-[#F3E5AB] via-[#D4AF37] to-[#B8860B] bg-clip-text text-transparent">
+                              Rp {pkg.priceIdrApprox}
+                            </span>
+                            <span className="text-stone-300 text-xs">/ pax</span>
+                          </div>
+                          
+                          {/* DP Badge */}
+                          <span className="bg-[#D4AF37]/15 border border-[#D4AF37]/50 text-[#F3E5AB] text-[11px] font-bold px-2.5 py-1 rounded-md">
+                            {formatDpText(pkg.dpAmount, 'DP Rp 10.000.000')}
                           </span>
-                          <span className="text-stone-300 text-xs">/ pax</span>
                         </div>
                       </div>
                     </div>
@@ -994,7 +1002,7 @@ export default function PaketHajiShowcase() {
                       </h4>
                       <div className="space-y-2 text-xs text-stone-200">
                         <p>• <strong>DP Perlengkapan:</strong> Rp 1.500.000</p>
-                        <p>• <strong>DP Booking Seat:</strong> Rp 10.000.000 saat pendaftaran.</p>
+                        <p>• <strong>Uang Muka (DP):</strong> {formatDpText(selectedPackage.dpAmount, 'DP Rp 10.000.000')} saat pendaftaran.</p>
                         <p>• <strong>Pelunasan:</strong> Dilakukan saat penerbitan Visa Haji resmi oleh Kerajaan Arab Saudi.</p>
                       </div>
                     </div>

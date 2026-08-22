@@ -15,6 +15,7 @@ import {
 import { api } from '../lib/api';
 import { useSocket } from '../hooks/useSocket';
 import SEOHead from '../components/SEOHead';
+import { formatDpText } from '../utils/formatters';
 
 export default function KatalogPaket() {
   const navigate = useNavigate();
@@ -287,23 +288,33 @@ export default function KatalogPaket() {
                     </div>
 
                     {/* Harga & Kuota */}
-                    <div className="flex items-end justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 mb-5">
-                      <div>
-                        <span className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">
-                          Investasi Ibadah
-                        </span>
-                        <p className="text-xl font-black text-gray-900 tracking-tight">
-                          Rp {Number(pkg.price).toLocaleString('id-ID')}
-                        </p>
+                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 mb-5 space-y-2">
+                      <div className="flex items-end justify-between">
+                        <div>
+                          <span className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                            Investasi Ibadah
+                          </span>
+                          <p className="text-xl font-black text-gray-900 tracking-tight">
+                            Rp {Number(pkg.price).toLocaleString('id-ID')}
+                          </p>
+                        </div>
+                        
+                        {/* Sisa Kuota */}
+                        <div className="text-right">
+                          <span className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                            Sisa Seat
+                          </span>
+                          <span className="inline-block text-xs font-black text-green-700 bg-green-50 px-2.5 py-1 rounded-full border border-green-200">
+                            {pkg.remainingSeats ?? pkg.quota ?? 45} Pax
+                          </span>
+                        </div>
                       </div>
-                      
-                      {/* Sisa Kuota */}
-                      <div className="text-right">
-                        <span className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">
-                          Sisa Seat
-                        </span>
-                        <span className="inline-block text-xs font-black text-green-700 bg-green-50 px-2.5 py-1 rounded-full border border-green-200">
-                          {pkg.remainingSeats ?? pkg.quota ?? 45} Pax
+
+                      {/* Minimal DP Badge */}
+                      <div className="pt-2 border-t border-gray-200/60 flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Minimal DP:</span>
+                        <span className="text-xs font-extrabold text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-0.5 rounded-md">
+                          {formatDpText(pkg.dpAmount || pkg.dp_amount, pkg.type === 'haji' ? 'DP Rp 10.000.000' : 'DP Rp 5.000.000')}
                         </span>
                       </div>
                     </div>
